@@ -1,7 +1,6 @@
-use rand::Rng;
 use std::io::{self, Write};
-use std::cmp::Ordering;
 use clap::Parser;
+use number_guessing_game::{GuessingGame, GuessResult};
 
 #[derive(Parser, Debug)]
 #[command(name = "number_guessing_game")]
@@ -35,6 +34,17 @@ where
     }
 }
 
+fn get_valid_max(min: i32) -> i32 {
+    loop {
+        let max: i32 = read_input("Enter maximum number (inclusive): ");
+        if max >= min {
+            return max;
+        } else {
+            println!("Maximum must be greater than or equal to minimum. Please try again.");
+        }
+    }
+}
+
 fn main() {
     println!("Welcome to the Number Guessing Game!");
     
@@ -57,46 +67,30 @@ fn main() {
                 m
             } else {
                 println!("Maximum from command line ({}) is less than minimum ({}). Please provide a valid maximum.", m, min);
-                loop {
-                    let max: i32 = read_input("Enter maximum number (inclusive): ");
-                    if max >= min {
-                        break max;
-                    } else {
-                        println!("Maximum must be greater than or equal to minimum. Please try again.");
-                    }
-                }
+                get_valid_max(min)
             }
         },
-        None => loop {
-            let max: i32 = read_input("Enter maximum number (inclusive): ");
-            if max >= min {
-                break max;
-            } else {
-                println!("Maximum must be greater than or equal to minimum. Please try again.");
-            }
-        }
+        None => get_valid_max(min)
     };
     
     println!("I'm thinking of a number between {} and {} (inclusive)...", min, max);
     
-    // Generate random number within range
-    let secret_number = rand::thread_rng().gen_range(min..=max);
-    
-    let mut guess_count = 0;
+    // Create the game
+    let mut game = GuessingGame::new(min, max)
+        .expect("Failed to create game");
     
     // Main game loop
     loop {
         // Get user's guess
         let guess: i32 = read_input("Enter your guess: ");
-        guess_count += 1;
         
-        // Compare guess with secret number
-        match guess.cmp(&secret_number) {
-            Ordering::Less => println!("Too low!"),
-            Ordering::Greater => println!("Too high!"),
-            Ordering::Equal => {
-                println!("You got it! The number was {}.", secret_number);
-                println!("It took you {} guesses.", guess_count);
+        // Process the guess
+        match game.make_guess(guess) {
+            GuessResult::TooLow => println!("Too low!"),
+            GuessResult::TooHigh => println!("Too high!"),
+            GuessResult::Correct { number, attempts } => {
+                println!("You got it! The number was {}.", number);
+                println!("It took you {} guesses.", attempts);
                 break;
             }
         }

@@ -1,7 +1,15 @@
 [package]
 name = "number_guessing_game"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
+
+[lib]
+name = "number_guessing_game"
+path = "src/lib.rs"
+
+[[bin]]
+name = "number_guessing_game"
+path = "src/main.rs"
 
 [dependencies]
 rand = "0.8.5"
