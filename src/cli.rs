@@ -10,6 +10,12 @@ pub struct Cli {
     
     #[arg(short = 'x', long, help = "Maximum number (inclusive)")]
     pub max: Option<i32>,
+    
+    #[arg(short, long, help = "Run as a web server")]
+    pub server: bool,
+    
+    #[arg(short, long, default_value = "3000", help = "Port for the web server")]
+    pub port: u16,
 }
 
 pub fn read_input<T>(prompt: &str) -> T 

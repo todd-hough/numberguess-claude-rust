@@ -1,5 +1,6 @@
 pub mod game;
 pub mod cli;
+pub mod web;
 
 // Re-export commonly used items for convenience
 pub use game::{GuessingGame, GuessResult};

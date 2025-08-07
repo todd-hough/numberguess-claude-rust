@@ -1,13 +1,25 @@
 use clap::Parser;
 use number_guessing_game::{
     GuessingGame, GuessResult,
-    Cli, read_input, get_min_value, get_max_value
+    Cli, read_input, get_min_value, get_max_value,
+    web::run_server,
 };
 
-fn main() {
-    println!("Welcome to the Number Guessing Game!");
-    
+#[tokio::main]
+async fn main() {
     let cli = Cli::parse();
+    
+    if cli.server {
+        // Run as web server
+        run_server(cli.port).await;
+    } else {
+        // Run as CLI game
+        run_cli_game(cli);
+    }
+}
+
+fn run_cli_game(cli: Cli) {
+    println!("Welcome to the Number Guessing Game!");
     
     // Get min and max values using CLI helper functions
     let min = get_min_value(cli.min);

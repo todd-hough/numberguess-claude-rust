@@ -1,7 +1,7 @@
 # Number Guessing Game - Requirements
 
 ## Application Overview
-A command-line number guessing game where the computer generates a random number within a user-specified range, and the player attempts to guess it with feedback provided after each guess.
+A number guessing game that can be run either as a command-line application or as a REST web service. In CLI mode, players interact directly through the terminal. In server mode, the game provides HTTP API endpoints for creating games and making guesses, allowing multiple concurrent game sessions.
 
 ## Functional Requirements
 
@@ -27,6 +27,13 @@ A command-line number guessing game where the computer generates a random number
 - **Error handling**: Display helpful error messages for invalid inputs
 - **Game completion**: Show final statistics and thank you message
 
+### 4. Web Service Mode
+- **REST API**: HTTP endpoints for game operations
+- **Session Management**: Support multiple concurrent games with unique IDs
+- **JSON Communication**: Request and response bodies in JSON format
+- **Game Lifecycle**: Games persist in memory until completed
+- **Error Handling**: Appropriate HTTP status codes and error messages
+
 ## Technical Requirements
 
 ### 1. Architecture
@@ -40,24 +47,45 @@ A command-line number guessing game where the computer generates a random number
   - Command-line argument parsing with clap
   - User input handling functions
   - Input validation helpers
+  - Server mode configuration (--server, --port)
   - All I/O operations
+- **Web Module** (`src/web.rs`):
+  - REST API endpoints implementation
+  - Game session management with HashMap storage
+  - Async request handlers using Axum
+  - JSON serialization/deserialization
+  - Random numeric game ID generation
 - **Library Entry** (`src/lib.rs`):
   - Exposes both game and cli modules
   - Re-exports commonly used types for convenience
 - **Main Application** (`src/main.rs`):
   - Minimal orchestration layer
-  - Combines CLI and game modules
-  - Contains only the main game loop
+  - Mode selection (CLI vs Web Server)
+  - Async runtime initialization for web mode
+  - CLI game loop for interactive mode
 
 ### 2. Dependencies
 - **rand**: For random number generation (v0.8.5)
 - **clap**: For command-line argument parsing (v4.5 with derive feature)
+- **axum**: Web framework for REST API (v0.7)
+- **tokio**: Async runtime for web server (v1 with full features)
+- **serde**: Serialization framework (v1.0)
+- **serde_json**: JSON serialization (v1.0)
+- **tower**: Middleware and service utilities (v0.4)
+- **tower-http**: HTTP-specific middleware (v0.5 with CORS)
 - **Standard library**: For I/O operations and comparison
+
+[Dev Dependencies]
+- **reqwest**: HTTP client for testing (v0.11 with json)
 
 ### 3. Command-Line Interface
 - **Help command**: Support `--help` flag to display usage information
-- **Short flags**: `-m` for min, `-x` for max
-- **Long flags**: `--min` and `--max`
+- **Game parameters**:
+  - `-m, --min`: Minimum number (inclusive)
+  - `-x, --max`: Maximum number (inclusive)
+- **Server mode**:
+  - `-s, --server`: Run as web server
+  - `-p, --port`: Server port (default: 3000)
 
 ### 4. Input Handling
 - **Generic input function**: Reusable function for reading and parsing user input
@@ -69,7 +97,9 @@ A command-line number guessing game where the computer generates a random number
 - **Unit tests**: Comprehensive tests for game logic in `game.rs`
 - **Test coverage**: Game creation, range validation, guess processing, state tracking
 - **Testability**: Core logic separated from I/O for easy testing
-- **Examples**: Demo application in `examples/` directory showcasing library usage
+- **Examples**: 
+  - `examples/demo.rs`: Library usage demonstration
+  - `examples/web_client.rs`: HTTP client for testing web API
 
 ## Usage Examples
 
@@ -86,6 +116,28 @@ cargo run
 
 # Display help
 cargo run -- --help
+```
+
+### Web Server Usage
+```bash
+# Start server on default port 3000
+cargo run -- --server
+
+# Start server on custom port
+cargo run -- --server --port 8080
+```
+
+### REST API Usage
+```bash
+# Create a new game
+curl -X POST http://localhost:3000/games \
+  -H "Content-Type: application/json" \
+  -d '{"min": 1, "max": 100}'
+
+# Make a guess (use game_id from previous response)
+curl -X POST http://localhost:3000/games/{game_id}/guess \
+  -H "Content-Type: application/json" \
+  -d '{"guess": 50}'
 ```
 
 ### Library Usage
@@ -105,9 +157,25 @@ match game.make_guess(50) {
 }
 ```
 
+## API Endpoints
+
+### POST /games
+Creates a new game session.
+- **Request**: `{"min": 1, "max": 100}`
+- **Response**: `{"game_id": 12345678901234567, "min": 1, "max": 100, "message": "..."}`
+
+### POST /games/{game_id}/guess
+Makes a guess for an existing game.
+- **Request**: `{"guess": 50}`
+- **Response**: `{"result": "too_low|too_high|correct", "message": "...", "attempts": null|number}`
+
 ## Future Enhancements (Potential)
 - Difficulty levels with attempt limits
 - Score tracking across sessions
 - Hints system
 - Multiple rounds/play again option
 - Statistics (average guesses, best score, etc.)
+- Persistent storage for game sessions
+- WebSocket support for real-time gameplay
+- Authentication and user profiles
+- Leaderboards
