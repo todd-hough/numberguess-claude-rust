@@ -1,4 +1,4 @@
-use number_guessing_game::{GuessingGame, GuessResult};
+use number_guessing_game::game::{GuessingGame, GuessResult};
 
 fn main() {
     println!("Demo: Using the number guessing game library");
