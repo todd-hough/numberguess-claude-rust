@@ -1,14 +1,15 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, State, Form},
     http::StatusCode,
-    response::Json,
-    routing::{get, post},
+    response::{Html, Json, IntoResponse},
+    routing::post,
     Router,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use rand::Rng;
+use tower_http::services::ServeDir;
 use crate::game::{GuessingGame, GuessResult};
 
 type SharedState = Arc<Mutex<GameState>>;
@@ -53,17 +54,30 @@ pub async fn run_server(port: u16) {
         games: HashMap::new(),
     }));
 
+    // API routes
+    let api_routes = Router::new()
+        .route("/games", post(create_game_api))
+        .route("/games/:game_id/guess", post(make_guess_api))
+        .with_state(state.clone());
+
+    // Web UI routes
+    let web_routes = Router::new()
+        .route("/game/new", post(create_game_web))
+        .route("/game/:game_id/guess", post(make_guess_web))
+        .with_state(state.clone());
+
+    // Combine all routes
     let app = Router::new()
-        .route("/", get(root))
-        .route("/games", post(create_game))
-        .route("/games/:game_id/guess", post(make_guess))
-        .with_state(state);
+        .nest_service("/", ServeDir::new("static"))
+        .nest("/api", api_routes)
+        .merge(web_routes);
 
     let addr = format!("0.0.0.0:{}", port);
     println!("Starting web server on http://{}", addr);
+    println!("Web Interface: http://{}/", addr);
     println!("API Endpoints:");
-    println!("  POST /games - Create a new game (body: {{\"min\": 1, \"max\": 100}})");
-    println!("  POST /games/:game_id/guess - Make a guess (body: {{\"guess\": 50}})");
+    println!("  POST /api/games - Create a new game");
+    println!("  POST /api/games/:game_id/guess - Make a guess");
 
     let listener = tokio::net::TcpListener::bind(&addr)
         .await
@@ -74,11 +88,9 @@ pub async fn run_server(port: u16) {
         .unwrap_or_else(|_| panic!("Failed to start server"));
 }
 
-async fn root() -> &'static str {
-    "Number Guessing Game API - POST to /games to start a new game"
-}
+// API Handlers (JSON responses)
 
-async fn create_game(
+async fn create_game_api(
     State(state): State<SharedState>,
     Json(payload): Json<CreateGameRequest>,
 ) -> Result<Json<CreateGameResponse>, (StatusCode, Json<ErrorResponse>)> {
@@ -99,11 +111,11 @@ async fn create_game(
         game_id,
         min,
         max,
-        message: format!("Game created! I'm thinking of a number between {} and {} (inclusive). Make a guess by POSTing to /games/{}/guess", min, max, game_id),
+        message: format!("Game created! I'm thinking of a number between {} and {} (inclusive). Make a guess by POSTing to /api/games/{}/guess", min, max, game_id),
     }))
 }
 
-async fn make_guess(
+async fn make_guess_api(
     State(state): State<SharedState>,
     Path(game_id): Path<u64>,
     Json(payload): Json<MakeGuessRequest>,
@@ -146,4 +158,156 @@ async fn make_guess(
     };
 
     Ok(Json(response))
+}
+
+// Web UI Handlers (HTML responses for HTMX)
+
+async fn create_game_web(
+    State(state): State<SharedState>,
+    Form(payload): Form<CreateGameRequest>,
+) -> impl IntoResponse {
+    let game = match GuessingGame::new(payload.min, payload.max) {
+        Ok(g) => g,
+        Err(e) => {
+            return Html(format!(r#"
+                <div id="feedback" class="active too-high">
+                    Error: {}
+                </div>
+                <button onclick="location.reload()" class="new-game-btn">Try Again</button>
+            "#, e)).into_response();
+        }
+    };
+
+    let game_id = rand::thread_rng().gen::<u64>();
+    let (min, max) = game.get_range();
+
+    state.lock().unwrap().games.insert(game_id, game);
+
+    let html = format!(
+        "<div id='game-area' class='active'>
+            <div class='game-info'>
+                <h2>Game Started!</h2>
+                <p>I'm thinking of a number between</p>
+                <p class='range-display'>{} and {}</p>
+            </div>
+            
+            <form class='guess-form' 
+                  hx-post='/game/{}/guess' 
+                  hx-target='#game-feedback' 
+                  hx-swap='innerHTML'>
+                <div class='guess-input-group'>
+                    <input type='number' 
+                           name='guess' 
+                           min='{}' 
+                           max='{}' 
+                           placeholder='Enter your guess' 
+                           required 
+                           autofocus>
+                    <button type='submit'>
+                        Guess
+                        <span class='htmx-indicator'>
+                            <span class='spinner'></span>
+                        </span>
+                    </button>
+                </div>
+            </form>
+            
+            <div id='game-feedback'>
+                <!-- Feedback will appear here -->
+            </div>
+        </div>", min, max, game_id, min, max);
+    Html(html).into_response()
+}
+
+async fn make_guess_web(
+    State(state): State<SharedState>,
+    Path(game_id): Path<u64>,
+    Form(payload): Form<MakeGuessRequest>,
+) -> impl IntoResponse {
+    let mut state = state.lock().unwrap();
+    
+    let game = match state.games.get_mut(&game_id) {
+        Some(g) => g,
+        None => {
+            return Html(format!(r#"
+                <div id="feedback" class="active too-high">
+                    Game not found. It may have expired or been completed.
+                </div>
+                <button onclick="location.reload()" class="new-game-btn">Start New Game</button>
+            "#)).into_response();
+        }
+    };
+
+    let result = game.make_guess(payload.guess);
+    let (min, max) = game.get_range();
+    
+    match result {
+        GuessResult::TooLow => {
+            let html = format!(
+                "<div id='feedback' class='active too-low'>
+                    Too low! Your guess of {} is below the target.
+                </div>
+                <form class='guess-form' 
+                      hx-post='/game/{}/guess' 
+                      hx-target='#game-feedback' 
+                      hx-swap='innerHTML'>
+                    <div class='guess-input-group'>
+                        <input type='number' 
+                               name='guess' 
+                               min='{}' 
+                               max='{}' 
+                               placeholder='Try a higher number' 
+                               required 
+                               autofocus>
+                        <button type='submit'>
+                            Guess Again
+                            <span class='htmx-indicator'>
+                                <span class='spinner'></span>
+                            </span>
+                        </button>
+                    </div>
+                </form>", payload.guess, game_id, min, max);
+            Html(html).into_response()
+        },
+        GuessResult::TooHigh => {
+            let html = format!(
+                "<div id='feedback' class='active too-high'>
+                    Too high! Your guess of {} is above the target.
+                </div>
+                <form class='guess-form' 
+                      hx-post='/game/{}/guess' 
+                      hx-target='#game-feedback' 
+                      hx-swap='innerHTML'>
+                    <div class='guess-input-group'>
+                        <input type='number' 
+                               name='guess' 
+                               min='{}' 
+                               max='{}' 
+                               placeholder='Try a lower number' 
+                               required 
+                               autofocus>
+                        <button type='submit'>
+                            Guess Again
+                            <span class='htmx-indicator'>
+                                <span class='spinner'></span>
+                            </span>
+                        </button>
+                    </div>
+                </form>", payload.guess, game_id, min, max);
+            Html(html).into_response()
+        },
+        GuessResult::Correct { number, attempts } => {
+            // Remove the completed game
+            state.games.remove(&game_id);
+            
+            Html(format!(r#"
+                <div id="feedback" class="active correct">
+                    🎉 Congratulations! You got it!<br>
+                    The number was {}.<br>
+                    It took you {} {} to find it!
+                </div>
+                <button onclick="location.reload()" class="new-game-btn">Start New Game</button>
+            "#, number, attempts, if attempts == 1 { "guess" } else { "guesses" })).into_response()
+        }
+    }
 }

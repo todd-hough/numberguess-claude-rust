@@ -1,4 +1,4 @@
-# Number Guessing Game - Web API Documentation
+# Number Guessing Game - Web Service Documentation
 
 ## Running the Server
 
@@ -10,11 +10,20 @@ cargo run -- --server
 cargo run -- --server --port 8080
 ```
 
-## API Endpoints
+## Web Interface
+
+The server provides a web-based user interface at the root path:
+- **URL:** `http://localhost:3000/`
+- **Features:** 
+  - Interactive game UI with HTMX
+  - Real-time feedback without page reloads
+  - Responsive design with modern styling
+
+## REST API Endpoints
 
 ### 1. Create a New Game
 
-**Endpoint:** `POST /games`
+**Endpoint:** `POST /api/games`
 
 **Request Body:**
 ```json
@@ -30,7 +39,7 @@ cargo run -- --server --port 8080
   "game_id": 12345678901234567,
   "min": 1,
   "max": 100,
-  "message": "Game created! I'm thinking of a number between 1 and 100 (inclusive). Make a guess by POSTing to /games/12345678901234567/guess"
+  "message": "Game created! I'm thinking of a number between 1 and 100 (inclusive). Make a guess by POSTing to /api/games/12345678901234567/guess"
 }
 ```
 
@@ -43,7 +52,7 @@ cargo run -- --server --port 8080
 
 ### 2. Make a Guess
 
-**Endpoint:** `POST /games/{game_id}/guess`
+**Endpoint:** `POST /api/games/{game_id}/guess`
 
 **Request Body:**
 ```json
@@ -90,12 +99,12 @@ cargo run -- --server --port 8080
 
 ```bash
 # Create a new game
-curl -X POST http://localhost:3000/games \
+curl -X POST http://localhost:3000/api/games \
   -H "Content-Type: application/json" \
   -d '{"min": 1, "max": 100}'
 
 # Make a guess (replace {game_id} with actual ID from previous response)
-curl -X POST http://localhost:3000/games/{game_id}/guess \
+curl -X POST http://localhost:3000/api/games/{game_id}/guess \
   -H "Content-Type: application/json" \
   -d '{"guess": 50}'
 ```
@@ -112,6 +121,8 @@ cargo run --example web_client
 
 ## Notes
 
+- **Web Interface**: Visit `http://localhost:3000/` for the interactive web UI
+- **API Access**: REST API endpoints are available at `/api/*` paths
 - Games are stored in memory and will be lost when the server restarts
 - Each game has a unique random numeric ID that must be used for making guesses
 - Games are automatically removed from memory once they are completed (correct guess)

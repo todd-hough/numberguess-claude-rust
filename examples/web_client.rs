@@ -11,7 +11,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create a new game
     println!("Creating a new game (1-10)...");
     let response = client
-        .post(format!("{}/games", base_url))
+        .post(format!("{}/api/games", base_url))
         .json(&json!({
             "min": 1,
             "max": 10
@@ -31,7 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for guess in guesses {
         println!("Making guess: {}", guess);
         let response = client
-            .post(format!("{}/games/{}/guess", base_url, game_id))
+            .post(format!("{}/api/games/{}/guess", base_url, game_id))
             .json(&json!({
                 "guess": guess
             }))
