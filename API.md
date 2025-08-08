@@ -46,7 +46,7 @@ The server provides a web-based user interface at the root path:
 **Error Response (400 Bad Request):**
 ```json
 {
-  "error": "Maximum (10) must be greater than or equal to minimum (100)"
+  "error": "Maximum (10) must be greater than or equal to minimum (20)"
 }
 ```
 
@@ -66,7 +66,7 @@ The server provides a web-based user interface at the root path:
 {
   "result": "too_low",
   "message": "Too low! Your guess of 50 is below the target.",
-  "attempts": null
+  "attempts": 2
 }
 ```
 
@@ -75,7 +75,7 @@ The server provides a web-based user interface at the root path:
 {
   "result": "too_high",
   "message": "Too high! Your guess of 50 is above the target.",
-  "attempts": null
+  "attempts": 3
 }
 ```
 

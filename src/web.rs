@@ -134,16 +134,18 @@ async fn make_guess_api(
 
     let result = game.make_guess(payload.guess);
     
+    let guess_count = game.get_guess_count();
+    
     let response = match result {
         GuessResult::TooLow => MakeGuessResponse {
             result: "too_low".to_string(),
             message: format!("Too low! Your guess of {} is below the target.", payload.guess),
-            attempts: None,
+            attempts: Some(guess_count),
         },
         GuessResult::TooHigh => MakeGuessResponse {
             result: "too_high".to_string(),
             message: format!("Too high! Your guess of {} is above the target.", payload.guess),
-            attempts: None,
+            attempts: Some(guess_count),
         },
         GuessResult::Correct { number, attempts } => {
             // Remove the completed game from state

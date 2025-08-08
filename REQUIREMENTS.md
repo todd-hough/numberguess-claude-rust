@@ -130,12 +130,12 @@ cargo run -- --server --port 8080
 ### REST API Usage
 ```bash
 # Create a new game
-curl -X POST http://localhost:3000/games \
+curl -X POST http://localhost:3000/api/games \
   -H "Content-Type: application/json" \
   -d '{"min": 1, "max": 100}'
 
 # Make a guess (use game_id from previous response)
-curl -X POST http://localhost:3000/games/{game_id}/guess \
+curl -X POST http://localhost:3000/api/games/{game_id}/guess \
   -H "Content-Type: application/json" \
   -d '{"guess": 50}'
 ```
@@ -159,15 +159,15 @@ match game.make_guess(50) {
 
 ## API Endpoints
 
-### POST /games
+### POST /api/games
 Creates a new game session.
 - **Request**: `{"min": 1, "max": 100}`
 - **Response**: `{"game_id": 12345678901234567, "min": 1, "max": 100, "message": "..."}`
 
-### POST /games/{game_id}/guess
+### POST /api/games/{game_id}/guess
 Makes a guess for an existing game.
 - **Request**: `{"guess": 50}`
-- **Response**: `{"result": "too_low|too_high|correct", "message": "...", "attempts": null|number}`
+- **Response**: `{"result": "too_low|too_high|correct", "message": "...", "attempts": number}`
 
 ## Future Enhancements (Potential)
 - Difficulty levels with attempt limits
