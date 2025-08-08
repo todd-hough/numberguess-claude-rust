@@ -15,7 +15,11 @@ This document outlines security improvements needed for the Number Guessing Game
 
 ## Input Validation
 
-- [ ] **Add Range Validation**: Add reasonable limits on the min/max range values
+- [x] **Add Range Validation**: Add reasonable limits on the min/max range values
+  - ✅ Implemented validation for non-negative values (min >= 0, max >= 0)
+  - ✅ Added maximum limit of 1,000,000 for both min and max values
+  - ✅ Added overflow protection in range calculations
+  - ✅ Added comprehensive validation in CLI, web API, and web UI
 - [ ] **Validate Game IDs**: Ensure game IDs match expected formats before lookup
 - [ ] **Improve Error Handling**: Replace `expect()` calls with more graceful error handling
 

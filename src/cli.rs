@@ -41,7 +41,21 @@ where
 
 pub fn get_valid_max(min: i32) -> i32 {
     loop {
-        let max: i32 = read_input("Enter maximum number (inclusive): ");
+        let max: i32 = read_input("Enter maximum number (inclusive, 0 to 1,000,000): ");
+        
+        // Validate non-negative
+        if max < 0 {
+            println!("Maximum must be non-negative (>= 0). Please try again.");
+            continue;
+        }
+        
+        // Validate within allowed range
+        if max > 1_000_000 {
+            println!("Maximum cannot exceed 1,000,000. Please try again.");
+            continue;
+        }
+        
+        // Validate >= min
         if max >= min {
             return max;
         } else {
@@ -53,16 +67,72 @@ pub fn get_valid_max(min: i32) -> i32 {
 pub fn get_min_value(cli_min: Option<i32>) -> i32 {
     match cli_min {
         Some(m) => {
-            println!("Using minimum value from command line: {}", m);
-            m
+            if m < 0 {
+                println!("Minimum value from command line ({}) must be non-negative. Please provide a valid minimum.", m);
+                loop {
+                    let min: i32 = read_input("Enter minimum number (inclusive, 0 to 1,000,000): ");
+                    if min < 0 {
+                        println!("Minimum must be non-negative (>= 0). Please try again.");
+                        continue;
+                    }
+                    if min > 1_000_000 {
+                        println!("Minimum cannot exceed 1,000,000. Please try again.");
+                        continue;
+                    }
+                    return min;
+                }
+            } else if m > 1_000_000 {
+                println!("Minimum value from command line ({}) exceeds maximum allowed (1,000,000). Please provide a valid minimum.", m);
+                loop {
+                    let min: i32 = read_input("Enter minimum number (inclusive, 0 to 1,000,000): ");
+                    if min < 0 {
+                        println!("Minimum must be non-negative (>= 0). Please try again.");
+                        continue;
+                    }
+                    if min > 1_000_000 {
+                        println!("Minimum cannot exceed 1,000,000. Please try again.");
+                        continue;
+                    }
+                    return min;
+                }
+            } else {
+                println!("Using minimum value from command line: {}", m);
+                m
+            }
         },
-        None => read_input("Enter minimum number (inclusive): ")
+        None => {
+            loop {
+                let min: i32 = read_input("Enter minimum number (inclusive, 0 to 1,000,000): ");
+                if min < 0 {
+                    println!("Minimum must be non-negative (>= 0). Please try again.");
+                    continue;
+                }
+                if min > 1_000_000 {
+                    println!("Minimum cannot exceed 1,000,000. Please try again.");
+                    continue;
+                }
+                return min;
+            }
+        }
     }
 }
 
 pub fn get_max_value(cli_max: Option<i32>, min: i32) -> i32 {
     match cli_max {
         Some(m) => {
+            // Validate non-negative
+            if m < 0 {
+                println!("Maximum value from command line ({}) must be non-negative. Please provide a valid maximum.", m);
+                return get_valid_max(min);
+            }
+            
+            // Validate within allowed range
+            if m > 1_000_000 {
+                println!("Maximum value from command line ({}) exceeds maximum allowed (1,000,000). Please provide a valid maximum.", m);
+                return get_valid_max(min);
+            }
+            
+            // Validate >= min
             if m >= min {
                 println!("Using maximum value from command line: {}", m);
                 m

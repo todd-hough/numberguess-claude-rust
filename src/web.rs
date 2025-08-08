@@ -94,6 +94,25 @@ async fn create_game_api(
     State(state): State<SharedState>,
     Json(payload): Json<CreateGameRequest>,
 ) -> Result<Json<CreateGameResponse>, (StatusCode, Json<ErrorResponse>)> {
+    // Validate input before creating game
+    if payload.min < 0 || payload.max < 0 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                error: "Min and max values must be non-negative (>= 0)".to_string(),
+            }),
+        ));
+    }
+    
+    if payload.min > 1_000_000 || payload.max > 1_000_000 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                error: "Min and max values cannot exceed 1,000,000".to_string(),
+            }),
+        ));
+    }
+    
     let game = GuessingGame::new(payload.min, payload.max)
         .map_err(|e| {
             (
@@ -168,6 +187,31 @@ async fn create_game_web(
     State(state): State<SharedState>,
     Form(payload): Form<CreateGameRequest>,
 ) -> impl IntoResponse {
+    // Validate input before creating game
+    if payload.min < 0 || payload.max < 0 {
+        return Html(format!(r#"
+            <h1>🎯 Number Guessing Game</h1>
+            <div id="setup-area">
+                <div id="feedback" class="active too-high">
+                    Error: Min and max values must be non-negative (>= 0)
+                </div>
+                <button onclick="location.reload()" class="new-game-btn">Try Again</button>
+            </div>
+        "#)).into_response();
+    }
+    
+    if payload.min > 1_000_000 || payload.max > 1_000_000 {
+        return Html(format!(r#"
+            <h1>🎯 Number Guessing Game</h1>
+            <div id="setup-area">
+                <div id="feedback" class="active too-high">
+                    Error: Min and max values cannot exceed 1,000,000
+                </div>
+                <button onclick="location.reload()" class="new-game-btn">Try Again</button>
+            </div>
+        "#)).into_response();
+    }
+    
     let game = match GuessingGame::new(payload.min, payload.max) {
         Ok(g) => g,
         Err(e) => {
