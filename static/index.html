@@ -179,6 +179,20 @@
             box-shadow: 0 10px 20px rgba(40, 167, 69, 0.4);
         }
         
+        .new-game-link {
+            display: inline-block;
+            margin-top: 15px;
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.3s;
+        }
+        
+        .new-game-link:hover {
+            color: #764ba2;
+            text-decoration: underline;
+        }
+        
         .htmx-indicator {
             display: none;
         }
@@ -211,7 +225,7 @@
         <div id="setup-area">
             <form class="game-form" 
                   hx-post="/game/new" 
-                  hx-target="#game-container" 
+                  hx-target=".container" 
                   hx-swap="innerHTML">
                 <div class="form-group">
                     <label for="min">Minimum Number:</label>
@@ -228,10 +242,6 @@
                     </span>
                 </button>
             </form>
-        </div>
-        
-        <div id="game-container">
-            <!-- Game content will be inserted here by HTMX -->
         </div>
     </div>
 </body>

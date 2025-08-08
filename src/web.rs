@@ -172,10 +172,13 @@ async fn create_game_web(
         Ok(g) => g,
         Err(e) => {
             return Html(format!(r#"
-                <div id="feedback" class="active too-high">
-                    Error: {}
+                <h1>🎯 Number Guessing Game</h1>
+                <div id="setup-area">
+                    <div id="feedback" class="active too-high">
+                        Error: {}
+                    </div>
+                    <button onclick="location.reload()" class="new-game-btn">Try Again</button>
                 </div>
-                <button onclick="location.reload()" class="new-game-btn">Try Again</button>
             "#, e)).into_response();
         }
     };
@@ -186,38 +189,41 @@ async fn create_game_web(
     state.lock().unwrap().games.insert(game_id, game);
 
     let html = format!(
-        "<div id='game-area' class='active'>
+        r#"<h1>🎯 Number Guessing Game</h1>
+        <div id='game-area' class='active'>
             <div class='game-info'>
                 <h2>Game Started!</h2>
                 <p>I'm thinking of a number between</p>
                 <p class='range-display'>{} and {}</p>
             </div>
             
-            <form class='guess-form' 
-                  hx-post='/game/{}/guess' 
-                  hx-target='#game-feedback' 
-                  hx-swap='innerHTML'>
-                <div class='guess-input-group'>
-                    <input type='number' 
-                           name='guess' 
-                           min='{}' 
-                           max='{}' 
-                           placeholder='Enter your guess' 
-                           required 
-                           autofocus>
-                    <button type='submit'>
-                        Guess
-                        <span class='htmx-indicator'>
-                            <span class='spinner'></span>
-                        </span>
-                    </button>
+            <div id='game-content'>
+                <form class='guess-form' 
+                      hx-post='/game/{}/guess' 
+                      hx-target='#game-content' 
+                      hx-swap='innerHTML'>
+                    <div class='guess-input-group'>
+                        <input type='number' 
+                               name='guess' 
+                               min='{}' 
+                               max='{}' 
+                               placeholder='Enter your guess' 
+                               required 
+                               autofocus>
+                        <button type='submit'>
+                            Guess
+                            <span class='htmx-indicator'>
+                                <span class='spinner'></span>
+                            </span>
+                        </button>
+                    </div>
+                </form>
+                
+                <div id='game-feedback'>
+                    <!-- Feedback will appear here -->
                 </div>
-            </form>
-            
-            <div id='game-feedback'>
-                <!-- Feedback will appear here -->
             </div>
-        </div>", min, max, game_id, min, max);
+        </div>"#, min, max, game_id, min, max);
     Html(html).into_response()
 }
 
@@ -235,7 +241,7 @@ async fn make_guess_web(
                 <div id="feedback" class="active too-high">
                     Game not found. It may have expired or been completed.
                 </div>
-                <button onclick="location.reload()" class="new-game-btn">Start New Game</button>
+                <a href="/" class="new-game-link">← Start a New Game</a>
             "#)).into_response();
         }
     };
@@ -246,56 +252,60 @@ async fn make_guess_web(
     match result {
         GuessResult::TooLow => {
             let html = format!(
-                "<div id='feedback' class='active too-low'>
-                    Too low! Your guess of {} is below the target.
-                </div>
-                <form class='guess-form' 
+                r#"<form class='guess-form' 
                       hx-post='/game/{}/guess' 
-                      hx-target='#game-feedback' 
+                      hx-target='#game-content' 
                       hx-swap='innerHTML'>
                     <div class='guess-input-group'>
                         <input type='number' 
                                name='guess' 
                                min='{}' 
                                max='{}' 
-                               placeholder='Try a higher number' 
+                               placeholder='Enter your guess' 
+                               value=''
                                required 
                                autofocus>
                         <button type='submit'>
-                            Guess Again
+                            Guess
                             <span class='htmx-indicator'>
                                 <span class='spinner'></span>
                             </span>
                         </button>
                     </div>
-                </form>", payload.guess, game_id, min, max);
+                </form>
+                
+                <div id='feedback' class='active too-low'>
+                    Too low! Your guess of {} is below the target.
+                </div>"#, game_id, min, max, payload.guess);
             Html(html).into_response()
         },
         GuessResult::TooHigh => {
             let html = format!(
-                "<div id='feedback' class='active too-high'>
-                    Too high! Your guess of {} is above the target.
-                </div>
-                <form class='guess-form' 
+                r#"<form class='guess-form' 
                       hx-post='/game/{}/guess' 
-                      hx-target='#game-feedback' 
+                      hx-target='#game-content' 
                       hx-swap='innerHTML'>
                     <div class='guess-input-group'>
                         <input type='number' 
                                name='guess' 
                                min='{}' 
                                max='{}' 
-                               placeholder='Try a lower number' 
+                               placeholder='Enter your guess' 
+                               value=''
                                required 
                                autofocus>
                         <button type='submit'>
-                            Guess Again
+                            Guess
                             <span class='htmx-indicator'>
                                 <span class='spinner'></span>
                             </span>
                         </button>
                     </div>
-                </form>", payload.guess, game_id, min, max);
+                </form>
+                
+                <div id='feedback' class='active too-high'>
+                    Too high! Your guess of {} is above the target.
+                </div>"#, game_id, min, max, payload.guess);
             Html(html).into_response()
         },
         GuessResult::Correct { number, attempts } => {
@@ -308,7 +318,7 @@ async fn make_guess_web(
                     The number was {}.<br>
                     It took you {} {} to find it!
                 </div>
-                <button onclick="location.reload()" class="new-game-btn">Start New Game</button>
+                <button onclick="window.location.href='/'" class="new-game-btn">Start New Game</button>
             "#, number, attempts, if attempts == 1 { "guess" } else { "guesses" })).into_response()
         }
     }
