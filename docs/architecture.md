@@ -1,0 +1,461 @@
+# System Architecture
+
+## Overview
+
+The Number Guessing Game is built with a modular, layered architecture that separates concerns and enables CLI, REST API, and web interfaces to share the same core game logic.
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                        User Interfaces                        │
+├────────────────┬────────────────┬────────────────────────────┤
+│ CLI Interface  │   REST API     │    Web UI (Browser)        │
+│                │   (JSON)       │    (HTML + HTMX)           │
+└────────────────┴────────────────┴────────────────────────────┘
+        │               │                    │
+        ▼               ▼                    ▼
+┌──────────────┐ ┌───────────────┐ ┌──────────────────────┐
+│ CLI Handler  │ │ API Endpoints │ │  Web UI Endpoints    │
+│ (main.rs)    │ │ (/api/*)      │ │  (/game/*, /)        │
+└──────────────┘ └───────────────┘ └──────────────────────┘
+        │               │                    │
+        │               └─────────┬──────────┘
+        │                         ▼
+        │                ┌──────────────────┐
+        │                │  Axum Web Server │
+        │                │   (src/web.rs)   │
+        │                └──────────────────┘
+        │                         │
+        └─────────────┬───────────┘
+                      ▼
+            ┌───────────────────┐
+            │  Game Logic Core  │
+            │  (src/game.rs)    │
+            └───────────────────┘
+```
+
+## Interface Layers
+
+### 1. CLI Interface
+- **Entry Point**: Direct execution via command line
+- **Input**: Command-line arguments and interactive prompts
+- **Output**: Terminal text output
+- **Protocol**: Direct function calls
+
+### 2. REST API Interface
+- **Entry Point**: HTTP endpoints under `/api/*`
+- **Input**: JSON request bodies
+- **Output**: JSON response bodies
+- **Protocol**: HTTP/REST
+- **Clients**: curl, Postman, programmatic clients
+
+### 3. Web UI Interface
+- **Entry Point**: Browser access to `/`
+- **Input**: HTML forms
+- **Output**: HTML fragments via HTMX
+- **Protocol**: HTTP with HTMX for dynamic updates
+- **Clients**: Web browsers
+
+## Core Components
+
+### 1. Game Logic Module (`src/game.rs`)
+
+**Purpose**: Pure business logic with no external dependencies (except `rand`)
+
+**Key Types**:
+```rust
+pub struct GuessingGame {
+    min: i32,
+    max: i32,
+    secret_number: i32,
+    guess_count: u32,
+    max_guesses: Option<u32>,
+}
+
+pub enum GuessResult {
+    TooLow,
+    TooHigh,
+    Correct { number: i32, attempts: u32 },
+    LimitReached { number: i32, max_guesses: u32 },
+}
+```
+
+**Design Decisions**:
+- Immutable after creation (except for guess tracking)
+- No I/O operations for testability
+- Result type for all fallible operations
+- Comprehensive input validation
+
+### 2. CLI Module (`src/cli.rs`)
+
+**Purpose**: Command-line argument parsing and user input handling
+
+**Key Components**:
+- `Cli` struct: Clap-derived argument parser
+- Input validation functions: `get_min_value()`, `get_max_value()`, `get_guess_limit()`
+- Generic input reader: `read_input<T>()`
+
+**Design Patterns**:
+- Progressive disclosure (CLI args → interactive prompts)
+- Input retry on validation failure
+- Type-safe parsing with generics
+
+### 3. Web Module (`src/web.rs`)
+
+**Purpose**: HTTP server with both REST API and web UI support
+
+**Architecture**:
+```
+HTTP Request
+    ↓
+Axum Router
+    ├── /api/* → JSON Handlers (REST API)
+    ├── /game/* → HTML Handlers (Web UI)
+    └── / → Static File Server
+           ↓
+      Game State Management
+      Arc<Mutex<HashMap>>
+```
+
+**State Management**:
+```rust
+type SharedState = Arc<Mutex<GameState>>;
+struct GameState {
+    games: HashMap<u64, GuessingGame>,
+}
+```
+
+### 4. Main Entry Point (`src/main.rs`)
+
+**Purpose**: Minimal orchestration and mode selection
+
+**Flow**:
+1. Parse CLI arguments
+2. Check for `--server` flag
+3. Route to appropriate handler:
+   - Server mode → Initialize Tokio runtime → Start Axum server (serves both API and UI)
+   - CLI mode → Run interactive game loop
+
+## REST API Interface
+
+### API Design Principles
+- **RESTful**: Resource-based URLs, HTTP verbs
+- **Stateless**: Each request contains all needed information
+- **JSON Format**: Consistent request/response structure
+- **Idempotent**: Safe to retry requests (except game creation)
+
+### Endpoint Structure
+
+#### 1. Create Game Endpoint
+```
+POST /api/games
+Content-Type: application/json
+
+Request Body:
+{
+  "min": number,        // Required: minimum range (0-1,000,000)
+  "max": number,        // Required: maximum range (0-1,000,000)
+  "max_guesses": number // Optional: guess limit (null/0 for unlimited, max 100)
+}
+
+Success Response (200 OK):
+{
+  "game_id": number,     // Unique game identifier (u64)
+  "min": number,         // Confirmed minimum
+  "max": number,         // Confirmed maximum
+  "max_guesses": number, // Guess limit (null if unlimited)
+  "message": string      // Human-readable message
+}
+
+Error Response (400 Bad Request):
+{
+  "error": string        // Error description
+}
+```
+
+#### 2. Make Guess Endpoint
+```
+POST /api/games/{game_id}/guess
+Content-Type: application/json
+
+Path Parameters:
+- game_id: number (u64)  // Game identifier from creation
+
+Request Body:
+{
+  "guess": number        // Required: player's guess
+}
+
+Success Response (200 OK):
+{
+  "result": string,      // "too_low" | "too_high" | "correct" | "limit_reached"
+  "message": string,     // Human-readable feedback
+  "attempts": number     // Current attempt count
+}
+
+Error Response (404 Not Found):
+{
+  "error": string        // "Game with ID {game_id} not found"
+}
+```
+
+## Web UI Interface (HTMX)
+
+### Design Principles
+- **Server-Side Rendering**: HTML generated on server
+- **Progressive Enhancement**: Works without JavaScript
+- **Partial Updates**: HTMX swaps DOM fragments
+- **Form-Based**: Standard HTML forms with HTMX attributes
+
+### Endpoint Structure
+
+#### 1. Static Files
+```
+GET /
+Serves: static/index.html (main page with game setup form)
+```
+
+#### 2. Create Game (HTML)
+```
+POST /game/new
+Content-Type: application/x-www-form-urlencoded
+
+Form Data:
+- min: number
+- max: number
+- max_guesses: number (optional)
+
+Response: HTML fragment for game area
+```
+
+#### 3. Make Guess (HTML)
+```
+POST /game/{game_id}/guess
+Content-Type: application/x-www-form-urlencoded
+
+Form Data:
+- guess: number
+
+Response: HTML fragment with updated game state
+```
+
+## Data Flow Comparison
+
+### CLI Flow
+```
+Terminal Input → CLI Parser → Game Logic → Terminal Output
+     (sync)         (sync)       (sync)        (sync)
+```
+
+### REST API Flow
+```
+JSON Request → Axum Handler → Game State → JSON Response
+    (async)       (async)       (mutex)       (async)
+```
+
+### Web UI Flow
+```
+HTML Form → HTMX Request → Axum Handler → HTML Fragment → DOM Update
+  (browser)    (async)        (async)        (async)       (browser)
+```
+
+## Concurrency Model
+
+### Web Server (API + UI)
+- **Tokio Runtime**: Async I/O for handling multiple connections
+- **Shared State**: `Arc<Mutex<HashMap>>` for thread-safe game storage
+- **Request Handling**: Each request runs in its own task
+- **Lock Strategy**: Fine-grained locks, held briefly
+
+### CLI
+- **Single-threaded**: Synchronous execution
+- **Blocking I/O**: Direct stdin/stdout operations
+
+## Error Handling Strategy
+
+### Validation Layers
+1. **Input Parsing**: Type conversion errors
+2. **Business Rules**: Range validation, limit checks
+3. **State Validation**: Game existence, completion status
+
+### Error Propagation by Interface
+```
+CLI:      Input Error → Retry Prompt → Success/Exit
+REST API: Input Error → HTTP 400 → Error JSON
+Web UI:   Input Error → HTTP 200 → Error HTML Fragment
+Game:     Logic Error → Result<T, String> → Handler Decision
+```
+
+## Security Architecture
+
+### Input Validation
+- **Numeric Bounds**: Prevent integer overflow
+- **Range Limits**: Max 1,000,000 to prevent DoS
+- **Guess Limits**: Max 100 (web) / 1000 (CLI)
+
+### Web Security
+- **No Authentication**: Public game sessions
+- **No Persistent Storage**: Memory-only, no injection risks
+- **JSON Parsing**: Serde handles malformed input
+- **Static Files**: Served from controlled directory
+
+### Current Vulnerabilities
+- No rate limiting
+- No request size limits
+- Memory exhaustion possible (unlimited games)
+- HTMX loaded from CDN
+- No CORS configuration
+
+## Performance Characteristics
+
+### Memory Usage
+- **Per Game**: ~40 bytes (5 fields)
+- **Web Overhead**: ~100 bytes per game (HashMap entry)
+- **Growth**: O(n) with active games
+
+### Time Complexity
+- **Game Creation**: O(1)
+- **Guess Processing**: O(1)
+- **Game Lookup**: O(1) average (HashMap)
+- **Game Cleanup**: O(1) on completion
+
+### Scalability Limits
+- **Concurrent Games**: Limited by memory
+- **Requests/Second**: Limited by Tokio runtime
+- **Single Instance**: No clustering support
+
+## Deployment Architecture
+
+### Build Output
+```
+target/release/number_guessing_game
+├── Single static binary
+├── No runtime dependencies
+└── Embedded static files
+```
+
+### Runtime Requirements
+- **OS**: Any (Windows, Linux, macOS)
+- **Network**: Port binding capability
+- **Memory**: ~10MB base + game storage
+- **CPU**: Single core sufficient
+
+### Configuration
+- **CLI Arguments**: Runtime configuration
+- **Environment Variables**: None required
+- **Config Files**: None
+- **Hardcoded Values**: Port default (3000), limits
+
+## Testing Architecture
+
+### Unit Tests
+- **Location**: Inline with modules (`#[cfg(test)]`)
+- **Coverage**: Game logic, validation
+- **Strategy**: Pure functions, no I/O
+
+### Integration Tests
+- **Examples**: `demo.rs`, `web_client.rs`
+- **Manual Testing**: Web UI interaction, API testing with curl
+- **Missing**: Automated E2E tests
+
+## API Testing Examples
+
+### REST API Testing
+```bash
+# Create game
+curl -X POST http://localhost:3000/api/games \
+  -H "Content-Type: application/json" \
+  -d '{"min": 1, "max": 100, "max_guesses": 10}'
+
+# Make guess
+curl -X POST http://localhost:3000/api/games/12345/guess \
+  -H "Content-Type: application/json" \
+  -d '{"guess": 50}'
+```
+
+### Web UI Testing
+```bash
+# Start server
+cargo run -- --server
+
+# Open browser to http://localhost:3000
+# Fill form and play game via UI
+```
+
+### CLI Testing
+```bash
+# Interactive mode
+cargo run
+
+# With parameters
+cargo run -- --min 1 --max 100 --limit 10
+```
+
+## Future Architecture Considerations
+
+### Potential Improvements
+1. **Database Integration**: Persistent game storage
+2. **Session Management**: User authentication
+3. **WebSocket Support**: Real-time updates
+4. **Microservices**: Separate game engine service
+5. **Caching Layer**: Redis for game state
+6. **Load Balancing**: Multiple instance support
+7. **API Versioning**: `/api/v1/games` structure
+8. **OpenAPI Spec**: Auto-generated API documentation
+9. **GraphQL**: Alternative to REST API
+
+### Scaling Strategy
+```
+Current: Single Process → Memory Store
+Phase 1: Single Process → Redis Cache
+Phase 2: Multiple Processes → Shared Redis
+Phase 3: Microservices → Game Service + API Gateway
+```
+
+## Module Dependencies
+
+```
+main.rs
+  ├── cli.rs (use)
+  ├── game.rs (use via lib.rs)
+  └── web.rs (use via lib.rs)
+
+lib.rs
+  ├── game.rs (pub mod)
+  ├── cli.rs (pub mod)
+  └── web.rs (pub mod)
+
+web.rs
+  └── game.rs (use)
+
+cli.rs
+  └── (no internal deps)
+
+game.rs
+  └── (no internal deps)
+```
+
+## Technology Stack Rationale
+
+### Why Rust?
+- Memory safety without garbage collection
+- Performance for game logic
+- Strong type system for validation
+- Single binary deployment
+
+### Why Axum?
+- Modern async design
+- Tower middleware ecosystem
+- Type-safe routing
+- Good performance
+
+### Why HTMX?
+- Progressive enhancement
+- No build step required
+- Server-side rendering
+- Lightweight (12KB)
+
+### Why Clap?
+- Derive macro simplicity
+- Automatic help generation
+- Type-safe parsing
+- Well-maintained

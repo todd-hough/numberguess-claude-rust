@@ -19,7 +19,13 @@ A number guessing game that can be run either as a command-line application or a
   - "Too low!" when guess is below target
   - "Too high!" when guess is above target
   - Success message when correct
+  - Limit reached message when max guesses exceeded
 - **Guess counter**: Track and display number of attempts at game completion
+- **Guess limit**: Optional maximum number of allowed guesses
+  - Configurable via CLI flag (`--limit`)
+  - Interactive prompt when not provided
+  - Different limits for CLI (1000) and Web (100)
+  - Game ends when limit is reached, revealing the answer
 
 ### 3. User Interface
 - **Welcome message**: Display game title on startup
@@ -40,8 +46,9 @@ A number guessing game that can be run either as a command-line application or a
 - **Modular Design**: Separation of concerns into distinct library modules
 - **Game Module** (`src/game.rs`): 
   - Core game logic and state management
-  - `GuessingGame` struct for game instance
-  - `GuessResult` enum for game outcomes
+  - `GuessingGame` struct for game instance with optional guess limit
+  - `GuessResult` enum for game outcomes (TooLow, TooHigh, Correct, LimitReached)
+  - Methods for checking remaining guesses and game state
   - No I/O operations or external dependencies (except rand)
 - **CLI Module** (`src/cli.rs`):
   - Command-line argument parsing with clap
@@ -83,6 +90,7 @@ A number guessing game that can be run either as a command-line application or a
 - **Game parameters**:
   - `-m, --min`: Minimum number (inclusive)
   - `-x, --max`: Maximum number (inclusive)
+  - `-l, --limit`: Maximum number of guesses allowed (optional)
 - **Server mode**:
   - `-s, --server`: Run as web server
   - `-p, --port`: Server port (default: 3000)
@@ -108,10 +116,13 @@ A number guessing game that can be run either as a command-line application or a
 # Fully automated with CLI parameters
 cargo run -- --min 1 --max 100
 
-# Partial automation (will prompt for max)
+# With guess limit
+cargo run -- --min 1 --max 100 --limit 10
+
+# Partial automation (will prompt for max and limit)
 cargo run -- --min 1
 
-# Fully interactive (will prompt for both)
+# Fully interactive (will prompt for all)
 cargo run
 
 # Display help
@@ -129,10 +140,15 @@ cargo run -- --server --port 8080
 
 ### REST API Usage
 ```bash
-# Create a new game
+# Create a new game without limit
 curl -X POST http://localhost:3000/api/games \
   -H "Content-Type: application/json" \
   -d '{"min": 1, "max": 100}'
+
+# Create a new game with 10 guess limit
+curl -X POST http://localhost:3000/api/games \
+  -H "Content-Type: application/json" \
+  -d '{"min": 1, "max": 100, "max_guesses": 10}'
 
 # Make a guess (use game_id from previous response)
 curl -X POST http://localhost:3000/api/games/{game_id}/guess \
@@ -144,8 +160,8 @@ curl -X POST http://localhost:3000/api/games/{game_id}/guess \
 ```rust
 use number_guessing_game::game::{GuessingGame, GuessResult};
 
-// Create a new game
-let mut game = GuessingGame::new(1, 100).unwrap();
+// Create a new game with optional guess limit
+let mut game = GuessingGame::new_with_limit(1, 100, Some(10)).unwrap();
 
 // Make a guess
 match game.make_guess(50) {
@@ -153,6 +169,9 @@ match game.make_guess(50) {
     GuessResult::TooHigh => println!("Too high!"),
     GuessResult::Correct { number, attempts } => {
         println!("Correct! Found {} in {} attempts", number, attempts);
+    },
+    GuessResult::LimitReached { number, max_guesses } => {
+        println!("Limit reached! The number was {}. Max guesses: {}", number, max_guesses);
     }
 }
 ```
@@ -161,16 +180,16 @@ match game.make_guess(50) {
 
 ### POST /api/games
 Creates a new game session.
-- **Request**: `{"min": 1, "max": 100}`
-- **Response**: `{"game_id": 12345678901234567, "min": 1, "max": 100, "message": "..."}`
+- **Request**: `{"min": 1, "max": 100, "max_guesses": 10}` (max_guesses is optional)
+- **Response**: `{"game_id": 12345678901234567, "min": 1, "max": 100, "max_guesses": 10, "message": "..."}`
 
 ### POST /api/games/{game_id}/guess
 Makes a guess for an existing game.
 - **Request**: `{"guess": 50}`
-- **Response**: `{"result": "too_low|too_high|correct", "message": "...", "attempts": number}`
+- **Response**: `{"result": "too_low|too_high|correct|limit_reached", "message": "...", "attempts": number}`
 
 ## Future Enhancements (Potential)
-- Difficulty levels with attempt limits
+- ~~Difficulty levels with attempt limits~~ ✓ Implemented as guess limit feature
 - Score tracking across sessions
 - Hints system
 - Multiple rounds/play again option

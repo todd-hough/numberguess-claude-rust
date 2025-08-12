@@ -11,6 +11,9 @@ pub struct Cli {
     #[arg(short = 'x', long, help = "Maximum number (inclusive)")]
     pub max: Option<i32>,
     
+    #[arg(short = 'l', long, help = "Maximum number of guesses allowed")]
+    pub limit: Option<u32>,
+    
     #[arg(short, long, help = "Run as a web server")]
     pub server: bool,
     
@@ -142,5 +145,50 @@ pub fn get_max_value(cli_max: Option<i32>, min: i32) -> i32 {
             }
         },
         None => get_valid_max(min)
+    }
+}
+
+pub fn get_guess_limit(cli_limit: Option<u32>) -> Option<u32> {
+    match cli_limit {
+        Some(limit) => {
+            if limit == 0 {
+                println!("Guess limit must be at least 1. Playing without a limit.");
+                None
+            } else if limit > 1000 {
+                println!("Guess limit ({}) is very high. Using a maximum limit of 1000.", limit);
+                Some(1000)
+            } else {
+                println!("Using guess limit from command line: {} guesses", limit);
+                Some(limit)
+            }
+        },
+        None => {
+            // Ask the user if they want to set a guess limit
+            print!("Would you like to set a maximum number of guesses? (y/n): ");
+            io::stdout().flush().expect("Failed to flush stdout");
+            
+            let mut input = String::new();
+            io::stdin()
+                .read_line(&mut input)
+                .expect("Failed to read line");
+            
+            if input.trim().to_lowercase() == "y" {
+                loop {
+                    let limit: u32 = read_input("Enter maximum number of guesses (1-1000, or 0 for no limit): ");
+                    if limit == 0 {
+                        println!("Playing without a guess limit.");
+                        return None;
+                    } else if limit > 1000 {
+                        println!("Guess limit cannot exceed 1000. Please try again.");
+                    } else {
+                        println!("Guess limit set to {} guesses.", limit);
+                        return Some(limit);
+                    }
+                }
+            } else {
+                println!("Playing without a guess limit.");
+                None
+            }
+        }
     }
 }

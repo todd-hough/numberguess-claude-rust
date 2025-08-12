@@ -19,6 +19,10 @@ fn main() {
             GuessResult::Correct { number, attempts } => {
                 println!("  -> Correct! The number was {} found in {} attempts", number, attempts);
                 break;
+            },
+            GuessResult::LimitReached { number, max_guesses } => {
+                println!("  -> Limit reached! The number was {} (max guesses: {})", number, max_guesses);
+                break;
             }
         }
     }

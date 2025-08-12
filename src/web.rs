@@ -22,6 +22,7 @@ struct GameState {
 pub struct CreateGameRequest {
     pub min: i32,
     pub max: i32,
+    pub max_guesses: Option<u32>,
 }
 
 #[derive(Serialize)]
@@ -29,6 +30,7 @@ pub struct CreateGameResponse {
     pub game_id: u64,
     pub min: i32,
     pub max: i32,
+    pub max_guesses: Option<u32>,
     pub message: String,
 }
 
@@ -113,7 +115,22 @@ async fn create_game_api(
         ));
     }
     
-    let game = GuessingGame::new(payload.min, payload.max)
+    // Validate guess limit (max 100 for web UI)
+    let guess_limit = match payload.max_guesses {
+        Some(0) => None, // Treat 0 as no limit
+        Some(limit) if limit > 100 => {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse {
+                    error: "Guess limit cannot exceed 100".to_string(),
+                }),
+            ));
+        },
+        Some(limit) => Some(limit),
+        None => None,
+    };
+    
+    let game = GuessingGame::new_with_limit(payload.min, payload.max, guess_limit)
         .map_err(|e| {
             (
                 StatusCode::BAD_REQUEST,
@@ -123,14 +140,21 @@ async fn create_game_api(
 
     let game_id = rand::thread_rng().gen::<u64>();
     let (min, max) = game.get_range();
+    let max_guesses = game.get_max_guesses();
 
     state.lock().unwrap().games.insert(game_id, game);
+
+    let message = match max_guesses {
+        Some(limit) => format!("Game created! I'm thinking of a number between {} and {} (inclusive). You have {} guesses. Make a guess by POSTing to /api/games/{}/guess", min, max, limit, game_id),
+        None => format!("Game created! I'm thinking of a number between {} and {} (inclusive). Make a guess by POSTing to /api/games/{}/guess", min, max, game_id),
+    };
 
     Ok(Json(CreateGameResponse {
         game_id,
         min,
         max,
-        message: format!("Game created! I'm thinking of a number between {} and {} (inclusive). Make a guess by POSTing to /api/games/{}/guess", min, max, game_id),
+        max_guesses,
+        message,
     }))
 }
 
@@ -175,6 +199,16 @@ async fn make_guess_api(
                 message: format!("You got it! The number was {}. It took you {} guesses.", number, attempts),
                 attempts: Some(attempts),
             }
+        },
+        GuessResult::LimitReached { number, max_guesses } => {
+            // Remove the completed game from state
+            state.games.remove(&game_id);
+            
+            MakeGuessResponse {
+                result: "limit_reached".to_string(),
+                message: format!("Sorry, you've reached the limit of {} guesses! The number was {}.", max_guesses, number),
+                attempts: Some(max_guesses),
+            }
         }
     };
 
@@ -212,7 +246,25 @@ async fn create_game_web(
         "#)).into_response();
     }
     
-    let game = match GuessingGame::new(payload.min, payload.max) {
+    // Validate guess limit (max 100 for web UI)
+    let guess_limit = match payload.max_guesses {
+        Some(0) => None, // Treat 0 as no limit
+        Some(limit) if limit > 100 => {
+            return Html(format!(r#"
+                <h1>🎯 Number Guessing Game</h1>
+                <div id="setup-area">
+                    <div id="feedback" class="active too-high">
+                        Error: Guess limit cannot exceed 100
+                    </div>
+                    <button onclick="location.reload()" class="new-game-btn">Try Again</button>
+                </div>
+            "#)).into_response();
+        },
+        Some(limit) => Some(limit),
+        None => None,
+    };
+    
+    let game = match GuessingGame::new_with_limit(payload.min, payload.max, guess_limit) {
         Ok(g) => g,
         Err(e) => {
             return Html(format!(r#"
@@ -229,8 +281,14 @@ async fn create_game_web(
 
     let game_id = rand::thread_rng().gen::<u64>();
     let (min, max) = game.get_range();
+    let max_guesses = game.get_max_guesses();
 
     state.lock().unwrap().games.insert(game_id, game);
+
+    let guess_info = match max_guesses {
+        Some(limit) => format!("<p>You have <strong>{}</strong> guesses to find it!</p>", limit),
+        None => String::new(),
+    };
 
     let html = format!(
         r#"<h1>🎯 Number Guessing Game</h1>
@@ -239,6 +297,7 @@ async fn create_game_web(
                 <h2>Game Started!</h2>
                 <p>I'm thinking of a number between</p>
                 <p class='range-display'>{} and {}</p>
+                {}
             </div>
             
             <div id='game-content'>
@@ -267,7 +326,7 @@ async fn create_game_web(
                     <!-- Feedback will appear here -->
                 </div>
             </div>
-        </div>"#, min, max, game_id, min, max);
+        </div>"#, min, max, guess_info, game_id, min, max);
     Html(html).into_response()
 }
 
@@ -292,6 +351,21 @@ async fn make_guess_web(
 
     let result = game.make_guess(payload.guess);
     let (min, max) = game.get_range();
+    let max_guesses = game.get_max_guesses();
+    let guess_count = game.get_guess_count();
+    
+    // Calculate remaining guesses
+    let remaining_info = match max_guesses {
+        Some(limit) => {
+            let remaining = limit.saturating_sub(guess_count);
+            if remaining > 0 {
+                format!("<p style='color: #666; font-weight: 600;'>Guesses remaining: {}</p>", remaining)
+            } else {
+                String::new()
+            }
+        },
+        None => String::new(),
+    };
     
     match result {
         GuessResult::TooLow => {
@@ -318,9 +392,10 @@ async fn make_guess_web(
                     </div>
                 </form>
                 
+                {}
                 <div id='feedback' class='active too-low'>
                     Too low! Your guess of {} is below the target.
-                </div>"#, game_id, min, max, payload.guess);
+                </div>"#, game_id, min, max, remaining_info, payload.guess);
             Html(html).into_response()
         },
         GuessResult::TooHigh => {
@@ -347,9 +422,10 @@ async fn make_guess_web(
                     </div>
                 </form>
                 
+                {}
                 <div id='feedback' class='active too-high'>
                     Too high! Your guess of {} is above the target.
-                </div>"#, game_id, min, max, payload.guess);
+                </div>"#, game_id, min, max, remaining_info, payload.guess);
             Html(html).into_response()
         },
         GuessResult::Correct { number, attempts } => {
@@ -364,6 +440,19 @@ async fn make_guess_web(
                 </div>
                 <button onclick="window.location.href='/'" class="new-game-btn">Start New Game</button>
             "#, number, attempts, if attempts == 1 { "guess" } else { "guesses" })).into_response()
+        },
+        GuessResult::LimitReached { number, max_guesses } => {
+            // Remove the completed game
+            state.games.remove(&game_id);
+            
+            Html(format!(r#"
+                <div id="feedback" class="active limit-reached" style="color: #e74c3c;">
+                    ❌ Sorry! You've reached the limit of {} guesses!<br>
+                    The number was {}.<br>
+                    Better luck next time!
+                </div>
+                <button onclick="window.location.href='/'" class="new-game-btn">Start New Game</button>
+            "#, max_guesses, number)).into_response()
         }
     }
 }

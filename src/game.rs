@@ -8,10 +8,15 @@ pub struct GuessingGame {
     max: i32,
     secret_number: i32,
     guess_count: u32,
+    max_guesses: Option<u32>,
 }
 
 impl GuessingGame {
     pub fn new(min: i32, max: i32) -> Result<Self, String> {
+        Self::new_with_limit(min, max, None)
+    }
+    
+    pub fn new_with_limit(min: i32, max: i32, max_guesses: Option<u32>) -> Result<Self, String> {
         // Validate that min and max are non-negative
         if min < 0 {
             return Err(format!("Minimum value ({}) must be non-negative (>= 0)", min));
@@ -48,6 +53,7 @@ impl GuessingGame {
             max,
             secret_number,
             guess_count: 0,
+            max_guesses,
         })
     }
     
@@ -59,17 +65,46 @@ impl GuessingGame {
         self.guess_count
     }
     
+    pub fn get_max_guesses(&self) -> Option<u32> {
+        self.max_guesses
+    }
+    
+    pub fn has_guesses_remaining(&self) -> bool {
+        match self.max_guesses {
+            Some(max) => self.guess_count < max,
+            None => true,
+        }
+    }
+    
     pub fn make_guess(&mut self, guess: i32) -> GuessResult {
+        // Check if guess limit has been reached before this guess
+        if !self.has_guesses_remaining() {
+            return GuessResult::LimitReached {
+                number: self.secret_number,
+                max_guesses: self.max_guesses.unwrap_or(0),
+            };
+        }
+        
         self.guess_count += 1;
         
-        match guess.cmp(&self.secret_number) {
+        let result = match guess.cmp(&self.secret_number) {
             Ordering::Less => GuessResult::TooLow,
             Ordering::Greater => GuessResult::TooHigh,
             Ordering::Equal => GuessResult::Correct {
                 number: self.secret_number,
                 attempts: self.guess_count,
             },
+        };
+        
+        // Check if this was the last allowed guess and it wasn't correct
+        if !result.is_correct() && !self.has_guesses_remaining() {
+            return GuessResult::LimitReached {
+                number: self.secret_number,
+                max_guesses: self.max_guesses.unwrap_or(0),
+            };
         }
+        
+        result
     }
 }
 
@@ -78,11 +113,16 @@ pub enum GuessResult {
     TooLow,
     TooHigh,
     Correct { number: i32, attempts: u32 },
+    LimitReached { number: i32, max_guesses: u32 },
 }
 
 impl GuessResult {
     pub fn is_correct(&self) -> bool {
         matches!(self, GuessResult::Correct { .. })
+    }
+    
+    pub fn is_game_over(&self) -> bool {
+        matches!(self, GuessResult::Correct { .. } | GuessResult::LimitReached { .. })
     }
 }
 
@@ -190,5 +230,70 @@ mod tests {
         assert!(!GuessResult::TooLow.is_correct());
         assert!(!GuessResult::TooHigh.is_correct());
         assert!(GuessResult::Correct { number: 5, attempts: 3 }.is_correct());
+        assert!(!GuessResult::LimitReached { number: 5, max_guesses: 10 }.is_correct());
+    }
+    
+    #[test]
+    fn test_is_game_over() {
+        assert!(!GuessResult::TooLow.is_game_over());
+        assert!(!GuessResult::TooHigh.is_game_over());
+        assert!(GuessResult::Correct { number: 5, attempts: 3 }.is_game_over());
+        assert!(GuessResult::LimitReached { number: 5, max_guesses: 10 }.is_game_over());
+    }
+    
+    #[test]
+    fn test_game_with_guess_limit() {
+        let mut game = GuessingGame::new_with_limit(1, 10, Some(3)).unwrap();
+        game.secret_number = 5;
+        
+        assert_eq!(game.get_max_guesses(), Some(3));
+        assert!(game.has_guesses_remaining());
+        
+        // First guess
+        assert_eq!(game.make_guess(1), GuessResult::TooLow);
+        assert!(game.has_guesses_remaining());
+        
+        // Second guess
+        assert_eq!(game.make_guess(10), GuessResult::TooHigh);
+        assert!(game.has_guesses_remaining());
+        
+        // Third guess (final)
+        assert_eq!(game.make_guess(3), GuessResult::LimitReached { number: 5, max_guesses: 3 });
+        assert!(!game.has_guesses_remaining());
+        
+        // Attempt after limit should return LimitReached immediately
+        assert_eq!(game.make_guess(5), GuessResult::LimitReached { number: 5, max_guesses: 3 });
+    }
+    
+    #[test]
+    fn test_game_with_no_limit() {
+        let mut game = GuessingGame::new_with_limit(1, 10, None).unwrap();
+        game.secret_number = 5;
+        
+        assert_eq!(game.get_max_guesses(), None);
+        
+        // Many guesses should be allowed
+        let mut guess_count = 0;
+        for i in 1..20 {
+            assert!(game.has_guesses_remaining());
+            if i != 5 {
+                let result = game.make_guess(i);
+                assert!(!result.is_game_over());
+                guess_count += 1;
+            }
+        }
+        
+        // Finally guess correctly
+        assert_eq!(game.make_guess(5), GuessResult::Correct { number: 5, attempts: guess_count + 1 });
+    }
+    
+    #[test]
+    fn test_correct_guess_within_limit() {
+        let mut game = GuessingGame::new_with_limit(1, 10, Some(5)).unwrap();
+        game.secret_number = 7;
+        
+        assert_eq!(game.make_guess(3), GuessResult::TooLow);
+        assert_eq!(game.make_guess(9), GuessResult::TooHigh);
+        assert_eq!(game.make_guess(7), GuessResult::Correct { number: 7, attempts: 3 });
     }
 }

@@ -4,7 +4,10 @@
       "Bash(cargo build)",
       "Bash(cargo test)",
       "Bash(cargo run -- --help)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(cargo test:*)",
+      "Bash(mv:*)",
+      "Bash(ls:*)"
     ],
     "deny": []
   }
