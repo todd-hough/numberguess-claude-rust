@@ -20,14 +20,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     let game_response: serde_json::Value = response.json().await?;
-    println!("Response: {}\n", serde_json::to_string_pretty(&game_response)?);
+    println!(
+        "Response: {}\n",
+        serde_json::to_string_pretty(&game_response)?
+    );
 
     let game_id = game_response["game_id"].as_u64().unwrap();
     println!("Game ID: {}\n", game_id);
 
     // Make some guesses
     let guesses = vec![5, 3, 7, 2, 8, 4, 6, 9, 1, 10];
-    
+
     for guess in guesses {
         println!("Making guess: {}", guess);
         let response = client
@@ -39,7 +42,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .await?;
 
         let guess_response: serde_json::Value = response.json().await?;
-        println!("Response: {}", serde_json::to_string_pretty(&guess_response)?);
+        println!(
+            "Response: {}",
+            serde_json::to_string_pretty(&guess_response)?
+        );
 
         if guess_response["result"] == "correct" {
             println!("\nGame completed!");

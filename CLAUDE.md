@@ -3,6 +3,9 @@
 ## Project Overview
 A Rust-based number guessing game with both CLI and web interfaces. The game generates a random number within a user-specified range and provides feedback on guesses. Supports optional guess limits that end the game when exceeded.
 
+## Development Environment
+- Even when working on Windows we work in a bash shell
+
 ## Quick Commands
 ```bash
 # Build and test
@@ -127,12 +130,17 @@ cargo run -- --server
 ```
 
 ## Dependencies to Know
-- **clap**: CLI parsing with derive macros
-- **axum**: Modern web framework
-- **tokio**: Async runtime
-- **serde**: JSON serialization
-- **tower-http**: Static file serving
-- **rand**: Random number generation
+- **clap**: CLI parsing with derive macros (v4.5.45)
+- **axum**: Modern web framework (v0.8.4)
+- **tokio**: Async runtime (v1.47.1)
+- **serde**: JSON serialization (v1.0.219)
+- **tower-http**: Static file serving (v0.6.6)
+- **rand**: Random number generation (v0.9.2)
+
+## Version Information
+- **Rust Version**: 1.89.0 (29483883e 2025-08-04)
+- **Rust Edition**: 2024
+- **Last Updated**: Dependencies updated to latest versions (Aug 2025)
 
 ## Performance Considerations
 - Each game stores minimal state (5 fields)
@@ -173,3 +181,4 @@ cargo build --release
 - **../docs/architecture.md**: Detailed system design
 - **../docs/contributing.md**: Development guidelines
 - **../docs/**: All documentation and guides
+```
