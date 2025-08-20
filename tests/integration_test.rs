@@ -4,7 +4,6 @@ use common::containers::GameServerInstance;
 use reqwest::blocking::Client;
 use serde_json::json;
 use serde::{Deserialize, Serialize};
-use serial_test::serial;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct GameResponse {
@@ -23,13 +22,12 @@ struct GuessResponse {
 }
 
 #[test]
-#[serial]
 fn test_basic_game_flow() {
-    // Start game server
-    let server = GameServerInstance::new(3000);
+    // Start game server with random available port
+    let server = GameServerInstance::new();
     let base_url = server.url();
     
-    println!("✅ Server is ready");
+    println!("✅ Server is ready at {}", base_url);
     
     // Create HTTP client
     let client = Client::new();
@@ -90,17 +88,16 @@ fn test_basic_game_flow() {
     // We should have found the correct answer among all the numbers we tried
     assert_eq!(result, "correct", "Should eventually find the correct number");
     
-    println!("✅ Basic game flow test passed");
+    println!("✅ Basic game flow test passed on port {}", server.port());
 }
 
 #[test]
-#[serial]
 fn test_invalid_game_parameters() {
-    // Start game server
-    let server = GameServerInstance::new(3001);
+    // Start game server with random available port
+    let server = GameServerInstance::new();
     let base_url = server.url();
     
-    println!("✅ Server is ready");
+    println!("✅ Server is ready at {}", base_url);
     
     // Create HTTP client
     let client = Client::new();
@@ -143,5 +140,5 @@ fn test_invalid_game_parameters() {
         );
     }
     
-    println!("✅ Invalid game parameters test passed");
+    println!("✅ Invalid game parameters test passed on port {}", server.port());
 }
