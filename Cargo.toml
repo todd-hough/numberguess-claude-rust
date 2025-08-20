@@ -29,3 +29,5 @@ assert_cmd = "2.0"
 predicates = "3.0"
 serial_test = "3.0"
 bollard = "0.18"
+fantoccini = "0.19.3"  # WebDriver client for browser testing
+thirtyfour = "0.33.0"  # Another WebDriver client that's more feature-rich

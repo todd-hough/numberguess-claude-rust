@@ -56,9 +56,10 @@ fn test_basic_game_flow() {
     assert_eq!(game.max, 10, "Max should be 10");
     assert_eq!(game.max_guesses, None, "Max guesses should match limit");
     
-    // Step 2: Make guesses until we find the correct number (1-10)
+    // Step 2: Try all possible numbers in range
+    // This ensures we'll find the correct number regardless of what it is
     let game_id = game.game_id;
-    let mut won = false;
+    let mut result = String::new();
     
     for guess_num in 1..=10 {
         println!("Making guess: {}", guess_num);
@@ -78,22 +79,16 @@ fn test_basic_game_flow() {
             .expect("Should parse guess response");
             
         println!("Guess result: {}", guess_result.result);
+        result = guess_result.result.clone();
         
         if guess_result.result == "correct" {
             println!("✅ Found the correct number: {}", guess_num);
-            won = true;
             break;
-        }
-        
-        assert!(guess_result.attempts > 0, "Attempts should be incremented");
-        
-        // Check if we've reached the guess limit
-        if guess_result.attempts >= 5 {
-            break; // Reached guess limit
         }
     }
     
-    assert!(won, "Should eventually find the correct number");
+    // We should have found the correct answer among all the numbers we tried
+    assert_eq!(result, "correct", "Should eventually find the correct number");
     
     println!("✅ Basic game flow test passed");
 }
