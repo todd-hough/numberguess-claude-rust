@@ -88,7 +88,7 @@ fn test_basic_game_flow() {
     // We should have found the correct answer among all the numbers we tried
     assert_eq!(result, "correct", "Should eventually find the correct number");
     
-    println!("✅ Basic game flow test passed on port {}", server.port());
+    println!("✅ Basic game flow test passed at {}", server.url());
 }
 
 #[test]
@@ -140,5 +140,5 @@ fn test_invalid_game_parameters() {
         );
     }
     
-    println!("✅ Invalid game parameters test passed on port {}", server.port());
+    println!("✅ Invalid game parameters test passed at {}", server.url());
 }

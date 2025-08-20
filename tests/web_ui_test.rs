@@ -2,7 +2,6 @@ mod common;
 
 use common::containers::{GameServerInstance, find_available_port};
 use std::time::Duration;
-use thirtyfour::prelude::*;
 use std::process::{Command, Child, Stdio};
 
 // Setup for a standalone Selenium Chrome instance
@@ -36,10 +35,6 @@ impl SeleniumInstance {
     fn url(&self) -> String {
         // In a real implementation, this would be the actual WebDriver URL
         format!("http://localhost:{}", self.port)
-    }
-    
-    fn port(&self) -> u16 {
-        self.port
     }
 }
 
@@ -127,8 +122,8 @@ fn test_web_ui_game_flow() {
     
     // For this demonstration, we'll just assert true
     assert!(true, "Web UI test simulated successfully");
-    println!("✅ Web UI test passed on game server port {} and selenium port {}", 
-             game_server.port(), selenium.port());
+    println!("✅ Web UI test passed with game server at {} and selenium at {}", 
+             game_server.url(), selenium.url());
 }
 
 // This test would focus on invalid inputs
@@ -161,6 +156,6 @@ fn test_web_ui_invalid_inputs() {
     
     // For this demonstration, we'll just assert true
     assert!(true, "Web UI invalid inputs test simulated successfully");
-    println!("✅ Web UI invalid inputs test passed on game server port {} and selenium port {}", 
-             game_server.port(), selenium.port());
+    println!("✅ Web UI invalid inputs test passed with game server at {} and selenium at {}", 
+             game_server.url(), selenium.url());
 }

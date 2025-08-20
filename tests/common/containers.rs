@@ -10,7 +10,7 @@ pub fn find_available_port() -> u16 {
     // Try up to 10 times to find an available port
     for _ in 0..10 {
         // Generate a random port in the ephemeral port range (49152-65535)
-        let port = rand::thread_rng().gen_range(49152..=65535);
+        let port = rand::rng().random_range(49152..=65535);
         
         // Check if the port is available
         let addr = SocketAddrV4::new(Ipv4Addr::LOCALHOST, port);
@@ -55,10 +55,6 @@ impl GameServerInstance {
     
     pub fn url(&self) -> String {
         format!("http://localhost:{}", self.port)
-    }
-    
-    pub fn port(&self) -> u16 {
-        self.port
     }
 }
 
