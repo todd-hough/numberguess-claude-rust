@@ -1,0 +1,11 @@
+target/
+.git/
+.gitignore
+README.md
+docs/
+plans/
+examples/
+.claude/
+*.md
+Dockerfile
+.dockerignore

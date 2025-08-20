@@ -5,6 +5,7 @@ A Rust-based number guessing game with both CLI and web interfaces. The game gen
 
 ## Development Environment
 - Even when working on Windows we work in a bash shell
+- Cargo commands may run longer than 2 minutes.  Run them without a timeout.
 
 ## Quick Commands
 ```bash
@@ -21,6 +22,10 @@ cargo run -- --server --port 3000
 
 # Format code
 cargo fmt
+
+# Integration tests with test containers
+./run_integration_tests.sh    # Linux/macOS
+run_integration_tests.bat     # Windows
 ```
 
 ## Architecture
@@ -62,7 +67,16 @@ cargo fmt
 # Unit tests in src/game.rs
 cargo test --lib
 
-# Integration test via examples
+# Integration tests with test containers (requires Docker)
+./run_integration_tests.sh    # Full test suite
+cargo test --test smoke_test   # Basic connectivity test
+cargo test --test game_lifecycle_test   # API functionality
+cargo test --test concurrent_games_test # Concurrency testing
+cargo test --test error_handling_test   # Error scenarios
+cargo test --test cli_integration_test  # CLI testing
+cargo test --test stress_test           # Performance/stress testing
+
+# Integration test via examples (legacy)
 cargo run --example demo
 cargo run --example web_client  # requires server running
 
@@ -118,6 +132,20 @@ cargo run -- --server
 │   └── main.rs      # Entry point
 ├── static/
 │   └── index.html   # Web UI
+├── tests/           # Integration tests with test containers
+│   ├── common/      # Shared test infrastructure
+│   │   ├── mod.rs   # Module declarations
+│   │   ├── containers.rs # Docker container configurations
+│   │   ├── fixtures.rs   # Test data and scenarios
+│   │   └── assertions.rs # Custom test assertions
+│   ├── fixtures/    # Test data files
+│   │   └── test_data.json
+│   ├── smoke_test.rs           # Basic connectivity tests
+│   ├── game_lifecycle_test.rs  # API functionality tests
+│   ├── concurrent_games_test.rs # Concurrency tests
+│   ├── error_handling_test.rs  # Error scenario tests
+│   ├── cli_integration_test.rs # CLI interface tests
+│   └── stress_test.rs          # Performance/stress tests
 ├── examples/        # Usage examples
 ├── docs/            # All documentation
 │   ├── api.md       # API documentation
@@ -126,16 +154,30 @@ cargo run -- --server
 │   ├── requirements.md # Technical specs
 │   └── security-todo.md # Security TODOs
 ├── target/          # Build artifacts
+├── Dockerfile       # Container configuration
+├── .dockerignore    # Docker build exclusions
+├── run_integration_tests.sh  # Test runner (Linux/macOS)
+├── run_integration_tests.bat # Test runner (Windows)
 └── README.md        # Main documentation
 ```
 
 ## Dependencies to Know
+
+### Runtime Dependencies
 - **clap**: CLI parsing with derive macros (v4.5.45)
 - **axum**: Modern web framework (v0.8.4)
 - **tokio**: Async runtime (v1.47.1)
 - **serde**: JSON serialization (v1.0.219)
 - **tower-http**: Static file serving (v0.6.6)
 - **rand**: Random number generation (v0.9.2)
+
+### Test Dependencies  
+- **testcontainers**: Docker container management for tests (v0.23)
+- **reqwest**: HTTP client for API testing (v0.12.23)
+- **assert_cmd**: CLI testing framework (v2.0)
+- **predicates**: Test assertion predicates (v3.0)
+- **serial_test**: Sequential test execution (v3.0)
+- **tokio-test**: Async testing utilities (v0.4)
 
 ## Version Information
 - **Rust Version**: 1.89.0 (29483883e 2025-08-04)

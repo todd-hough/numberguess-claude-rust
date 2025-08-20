@@ -1,3 +1,5 @@
+#![allow(warnings)]
+
 use clap::Parser;
 use number_guessing_game::{
     Cli, GuessResult, GuessingGame, get_guess_limit, get_max_value, get_min_value, read_input,

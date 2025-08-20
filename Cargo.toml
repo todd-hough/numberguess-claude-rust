@@ -22,4 +22,10 @@ tower = "0.5.2"
 tower-http = { version = "0.6.6", features = ["cors", "fs"] }
 
 [dev-dependencies]
-reqwest = { version = "0.12.23", features = ["json"] }
+reqwest = { version = "0.12.23", features = ["json", "blocking"] }  
+testcontainers = { version = "0.23", features = ["blocking"] }
+tokio-test = "0.4"
+assert_cmd = "2.0"
+predicates = "3.0"
+serial_test = "3.0"
+bollard = "0.18"
