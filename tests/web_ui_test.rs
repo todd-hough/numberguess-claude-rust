@@ -9,7 +9,6 @@ use thirtyfour::prelude::*;
 use tokio_test;
 
 #[test]
-#[ignore = "Selenium container startup times out due to message pattern issue - use selenium_startup_test.rs for manual testing"]
 fn test_web_ui_game_flow() {
     // Skip this test if Docker is not available or not running
     let docker_available = match Command::new("docker").args(["info"]).output() {
@@ -35,16 +34,18 @@ fn test_web_ui_game_flow() {
     // Start Game Server with random available port
     let game_server = GameServerInstance::new();
     let game_url = game_server.url();
+    let game_port = game_url.split(':').last().unwrap().parse::<u16>().unwrap();
     println!("Game server started at {}", game_url);
     
-    // Start a real Selenium instance with Docker container using a longer timeout
-    // and all of our improved readiness checks
-    let selenium = SeleniumInstance::new_with_timeout(90);
+    // Start a real Selenium instance with Docker container that knows about the game server
+    let selenium = SeleniumInstance::new_with_game_server(game_port, 90);
     let selenium_url = selenium.url();
+    let container_game_url = selenium.game_server_url();
     println!("Selenium started at {}", selenium_url);
+    println!("Game server accessible from container at {}", container_game_url);
     
     // Use thirtyfour WebDriver client with our Selenium instance
-    let result = tokio_test::block_on(async {
+    let result = tokio_test::block_on(async move {
         use common::webdriver::*;
         
         // Create new WebDriver session
@@ -56,8 +57,8 @@ fn test_web_ui_game_flow() {
             }
         };
         
-        // Navigate to game URL
-        if let Err(e) = driver.goto(&game_url).await {
+        // Navigate to game URL (use the container-accessible URL)
+        if let Err(e) = driver.goto(&container_game_url).await {
             println!("Failed to navigate to game URL: {}", e);
             let _ = driver.quit().await;
             return false;
@@ -223,12 +224,11 @@ fn test_web_ui_game_flow() {
     
     assert!(result, "Web UI test should find the correct answer");
     println!("✅ Web UI test passed with game server at {} and selenium at {}", 
-             game_server.url(), selenium_url);
+             game_server.url(), selenium.url());
 }
 
 // Test for invalid inputs
 #[test]
-#[ignore = "Selenium container startup times out due to message pattern issue - use selenium_startup_test.rs for manual testing"]
 fn test_web_ui_invalid_inputs() {
     // Skip this test if Docker is not available or not running
     let docker_available = match Command::new("docker").args(["info"]).output() {
@@ -254,13 +254,15 @@ fn test_web_ui_invalid_inputs() {
     // Start Game Server with random available port
     let game_server = GameServerInstance::new();
     let game_url = game_server.url();
+    let game_port = game_url.split(':').last().unwrap().parse::<u16>().unwrap();
     println!("Game server started at {}", game_url);
     
-    // Start a real Selenium instance with Docker container using a longer timeout
-    // and all of our improved readiness checks
-    let selenium = SeleniumInstance::new_with_timeout(90);
+    // Start a real Selenium instance with Docker container that knows about the game server
+    let selenium = SeleniumInstance::new_with_game_server(game_port, 90);
     let selenium_url = selenium.url();
+    let container_game_url = selenium.game_server_url();
     println!("Selenium started at {}", selenium_url);
+    println!("Game server accessible from container at {}", container_game_url);
     
     // Run the actual test
     let result = tokio_test::block_on(async {
@@ -275,8 +277,8 @@ fn test_web_ui_invalid_inputs() {
             }
         };
         
-        // Navigate to game URL
-        if let Err(e) = driver.goto(&game_url).await {
+        // Navigate to game URL (use the container-accessible URL)
+        if let Err(e) = driver.goto(&container_game_url).await {
             println!("Failed to navigate to game URL: {}", e);
             let _ = driver.quit().await;
             return false;
@@ -360,5 +362,5 @@ fn test_web_ui_invalid_inputs() {
     
     assert!(result, "Web UI should show error for invalid inputs");
     println!("✅ Web UI invalid inputs test passed with game server at {} and selenium at {}", 
-             game_server.url(), selenium_url);
+             game_server.url(), selenium.url());
 }

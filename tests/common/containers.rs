@@ -70,6 +70,7 @@ impl Drop for GameServerInstance {
     }
 }
 
+
 pub fn wait_for_server_ready(url: &str, max_seconds: u64) -> Result<(), String> {
     let client = Client::new();
     let start = Instant::now();
@@ -102,10 +103,9 @@ impl Image for SeleniumContainer {
         "latest"
     }
     fn ready_conditions(&self) -> Vec<WaitFor> {
-        // Standard wait condition for Selenium Grid
-        // The version of testcontainers we're using doesn't support custom wait functions
-        // so we'll stick with the message-based check and supplement with our own checks
-        vec![WaitFor::message_on_stdout("Selenium Grid ready")]
+        // Wait for Selenium to be ready - this matches what appears in the logs
+        // when Selenium container starts successfully
+        vec![WaitFor::message_on_stdout("Started Selenium Standalone")]
     }
 }
 
@@ -113,11 +113,120 @@ pub struct SeleniumInstance {
     container: Container<SeleniumContainer>,
     port: u16,
     timeout_seconds: u64,
+    game_server_host: String,
 }
 
 impl SeleniumInstance {
     pub fn new() -> Self {
         Self::new_with_timeout(60) // Default to 60 seconds timeout
+    }
+    
+    pub fn new_with_game_server(game_server_port: u16, timeout_seconds: u64) -> Self {
+        // Determine the host address that the container should use to reach the game server
+        // For Linux, we need to get the host's IP address that's accessible from Docker
+        let game_server_host = Self::get_host_address(game_server_port);
+        
+        println!("Starting Selenium container with game server at {}", game_server_host);
+        
+        // Start Selenium container with access to host network
+        let host_port = find_available_port();
+        let container_port = 4444;
+        
+        println!("Starting Selenium container with {}s timeout", timeout_seconds);
+        
+        let mut retries = 3;
+        let container;
+        let port;
+        
+        loop {
+            match SeleniumContainer
+                .with_mapped_port(host_port, ContainerPort::Tcp(container_port))
+                .with_shm_size(2 * 1024 * 1024 * 1024) // 2GB shared memory
+                .with_env_var("SE_START_XVFB", "false")
+                .with_env_var("SE_START_VNC", "false")
+                .with_env_var("SE_START_NO_VNC", "false")
+                .start() {
+                    Ok(c) => {
+                        container = c;
+                        port = container
+                            .get_host_port_ipv4(ContainerPort::Tcp(container_port))
+                            .expect("Failed to get mapped port");
+                        println!("Started Selenium container, mapped port {} to {}", container_port, port);
+                        break;
+                    },
+                    Err(e) => {
+                        if retries > 0 {
+                            println!("Failed to start container: {}. Retrying...", e);
+                            retries -= 1;
+                            thread::sleep(Duration::from_secs(1));
+                        } else {
+                            panic!("Failed to start Selenium container after multiple attempts: {}", e);
+                        }
+                    }
+                }
+        }
+        
+        let url = format!("http://localhost:{}", port);
+        println!("Container started, waiting for Selenium to be ready at {}", url);
+        
+        match wait_for_selenium_ready(&url, timeout_seconds) {
+            Ok(_) => println!("Selenium is ready!"),
+            Err(e) => {
+                println!("Selenium HTTP endpoint not ready: {}", e);
+                println!("Falling back to port binding verification...");
+                if verify_port_binding("localhost", port, timeout_seconds / 3).is_ok() {
+                    println!("Port binding verification successful - proceeding anyway");
+                } else {
+                    panic!("All readiness checks failed - Selenium is not responding");
+                }
+            }
+        }
+            
+        Self { container, port, timeout_seconds, game_server_host }
+    }
+    
+    fn get_host_address(port: u16) -> String {
+        // On Linux, we need to get the Docker bridge IP
+        // Try to get the docker0 interface IP or fallback to host.docker.internal
+        if let Ok(output) = Command::new("ip")
+            .args(["route", "show", "default"])
+            .output() {
+            if let Ok(stdout) = String::from_utf8(output.stdout) {
+                // Look for the default gateway which is usually the Docker host from container perspective  
+                if let Some(line) = stdout.lines().next() {
+                    let parts: Vec<&str> = line.split_whitespace().collect();
+                    if parts.len() > 2 {
+                        // Try getting the docker0 bridge IP instead
+                        if let Ok(docker_ip_output) = Command::new("ip")
+                            .args(["-4", "addr", "show", "docker0"])
+                            .output() {
+                            if let Ok(docker_stdout) = String::from_utf8(docker_ip_output.stdout) {
+                                for line in docker_stdout.lines() {
+                                    if line.contains("inet ") {
+                                        let parts: Vec<&str> = line.split_whitespace().collect();
+                                        if parts.len() > 1 {
+                                            if let Some(ip) = parts[1].split('/').next() {
+                                                println!("Using Docker bridge IP: {}", ip);
+                                                return format!("http://{}:{}", ip, port);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Fallback: try host.docker.internal (works on Docker Desktop)
+        // or use 172.17.0.1 which is the default Docker bridge gateway
+        println!("Using default Docker host address");
+        format!("http://172.17.0.1:{}", port)
+    }
+    
+    pub fn game_server_url(&self) -> String {
+        self.game_server_host.clone()
     }
     
     pub fn new_with_timeout(timeout_seconds: u64) -> Self {
@@ -129,12 +238,16 @@ impl SeleniumInstance {
         
         // Start the container - we'll handle the wait logic manually
         let mut retries = 3;
-        let mut container;
-        let mut port;
+        let container;
+        let port;
         
         loop {
             match SeleniumContainer
                 .with_mapped_port(host_port, ContainerPort::Tcp(container_port))
+                .with_shm_size(2 * 1024 * 1024 * 1024) // 2GB shared memory like --shm-size 2g
+                .with_env_var("SE_START_XVFB", "false") // Disable Xvfb since we're running headless
+                .with_env_var("SE_START_VNC", "false") // Disable VNC to reduce resource usage
+                .with_env_var("SE_START_NO_VNC", "false") // Disable noVNC web interface
                 .start() {
                     Ok(c) => {
                         container = c;
@@ -179,7 +292,7 @@ impl SeleniumInstance {
             }
         }
             
-        Self { container, port, timeout_seconds }
+        Self { container, port, timeout_seconds, game_server_host: format!("http://localhost:{}", port) }
     }
     
     pub fn url(&self) -> String {

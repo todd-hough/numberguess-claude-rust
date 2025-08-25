@@ -1,5 +1,4 @@
 use thirtyfour::prelude::*;
-use std::time::Duration;
 
 // Helper function to create a new WebDriver client connected to Selenium
 pub async fn create_webdriver(selenium_url: &str) -> WebDriverResult<WebDriver> {
