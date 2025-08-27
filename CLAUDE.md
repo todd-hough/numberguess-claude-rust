@@ -10,9 +10,12 @@ A Rust-based number guessing game with both CLI and web interfaces. The game gen
 ## Quick Commands
 ```bash
 # Build and test
-cargo build --release
-cargo test --lib
+cargo build
+cargo test
 cargo clippy
+
+# Run test with output for troubleshooting; note that output from concurrent tests will be interleaved.
+cargo test -- --nocapture
 
 # Run CLI game
 cargo run -- --min 1 --max 100 --limit 10

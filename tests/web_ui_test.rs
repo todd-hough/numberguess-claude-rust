@@ -195,7 +195,7 @@ fn test_web_ui_game_flow() {
         }
         
         // Check if the guess was correct
-        let correct = match driver.query(By::Css(".feedback.correct")).nowait().exists().await {
+        let correct = match driver.query(By::Css("#feedback.correct")).nowait().exists().await {
             Ok(result) => result,
             Err(e) => {
                 println!("Failed to check if guess is correct: {}", e);
@@ -204,7 +204,7 @@ fn test_web_ui_game_flow() {
             }
         };
         
-        let message = match driver.find(By::Css(".feedback")).await {
+        let message = match driver.find(By::Css("#feedback")).await {
             Ok(element) => match element.text().await {
                 Ok(text) => text,
                 Err(_) => String::from("[Could not get feedback text]"),
@@ -295,11 +295,20 @@ fn test_web_ui_invalid_inputs() {
                 return false;
             }
         };
+        
+        // Clear the field first to ensure we don't append to existing value
+        if let Err(e) = min_input.clear().await {
+            println!("Failed to clear min input: {}", e);
+            let _ = driver.quit().await;
+            return false;
+        }
+        
         if let Err(e) = min_input.send_keys("100").await {
             println!("Failed to fill min input: {}", e);
             let _ = driver.quit().await;
             return false;
         }
+        
         
         let max_input = match driver.find(By::Id("max")).await {
             Ok(element) => element,
@@ -309,11 +318,20 @@ fn test_web_ui_invalid_inputs() {
                 return false;
             }
         };
+        
+        // Clear the field first to ensure we don't append to existing value  
+        if let Err(e) = max_input.clear().await {
+            println!("Failed to clear max input: {}", e);
+            let _ = driver.quit().await;
+            return false;
+        }
+        
         if let Err(e) = max_input.send_keys("10").await {
             println!("Failed to fill max input: {}", e);
             let _ = driver.quit().await;
             return false;
         }
+        
         
         // Submit the form
         let submit_button = match driver.find(By::Css("button[type='submit']")).await {
@@ -333,8 +351,8 @@ fn test_web_ui_invalid_inputs() {
         // Wait a bit for the error to appear
         std::thread::sleep(Duration::from_millis(500));
         
-        // Check if error message is displayed
-        let error_exists = match driver.query(By::Css(".error-message")).nowait().exists().await {
+        // Check if error message is displayed - errors use #feedback with active class
+        let error_exists = match driver.query(By::Css("#feedback.active")).nowait().exists().await {
             Ok(exists) => exists,
             Err(e) => {
                 println!("Failed to check for error message: {}", e);
@@ -345,7 +363,7 @@ fn test_web_ui_invalid_inputs() {
         
         // Get error message text if available
         if error_exists {
-            if let Ok(error_element) = driver.find(By::Css(".error-message")).await {
+            if let Ok(error_element) = driver.find(By::Css("#feedback.active")).await {
                 if let Ok(error_text) = error_element.text().await {
                     println!("Error message: {}", error_text);
                 }
