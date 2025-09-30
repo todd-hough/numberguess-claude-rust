@@ -26,11 +26,14 @@ RUN apt-get update && apt-get install -y \
 # Copy the built binary from builder stage
 COPY --from=builder /app/target/release/number_guessing_game /usr/local/bin/
 
-# Copy static files
-COPY --from=builder /app/static /usr/local/share/number_guessing_game/static
+# Set working directory
+WORKDIR /app
+
+# Copy static files to working directory
+COPY --from=builder /app/static ./static
 
 # Create a non-root user
-RUN useradd -r -s /bin/false appuser
+RUN useradd -r -s /bin/false appuser && chown -R appuser:appuser /app
 USER appuser
 
 # Expose the web port

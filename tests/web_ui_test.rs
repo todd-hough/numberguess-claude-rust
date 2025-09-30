@@ -18,36 +18,35 @@ fn test_web_ui_game_flow() {
             false
         }
     };
-    
+
     if !docker_available {
         println!("Skipping web UI test - Docker not available or not running");
         return;
     }
-    
+
     // Print Docker version information for debugging
     if let Ok(output) = Command::new("docker").args(["version"]).output() {
         if let Ok(version) = std::str::from_utf8(&output.stdout) {
             println!("Docker version: {}", version.trim());
         }
     }
-    
-    // Start Game Server with random available port
+
+    // Start Game Server container
     let game_server = GameServerInstance::new();
     let game_url = game_server.url();
-    let game_port = game_url.split(':').last().unwrap().parse::<u16>().unwrap();
-    println!("Game server started at {}", game_url);
-    
-    // Start a real Selenium instance with Docker container that knows about the game server
-    let selenium = SeleniumInstance::new_with_game_server(game_port, 90);
+    let container_game_url = game_server.internal_url();
+    println!("Game server started at {} (host)", game_url);
+    println!("Game server internal URL: {}", container_game_url);
+
+    // Start Selenium container (will be on same bridge network)
+    let selenium = SeleniumInstance::new_with_timeout(90);
     let selenium_url = selenium.url();
-    let container_game_url = selenium.game_server_url();
     println!("Selenium started at {}", selenium_url);
-    println!("Game server accessible from container at {}", container_game_url);
-    
+
     // Use thirtyfour WebDriver client with our Selenium instance
     let result = tokio_test::block_on(async move {
         use common::webdriver::*;
-        
+
         // Create new WebDriver session
         let driver = match create_webdriver(&selenium_url).await {
             Ok(driver) => driver,
@@ -56,9 +55,9 @@ fn test_web_ui_game_flow() {
                 return false;
             }
         };
-        
+
         // Navigate to game URL (use the container-accessible URL)
-        if let Err(e) = driver.goto(&container_game_url).await {
+        if let Err(e) = driver.goto(container_game_url.as_str()).await {
             println!("Failed to navigate to game URL: {}", e);
             let _ = driver.quit().await;
             return false;
@@ -238,36 +237,35 @@ fn test_web_ui_invalid_inputs() {
             false
         }
     };
-    
+
     if !docker_available {
         println!("Skipping web UI test - Docker not available or not running");
         return;
     }
-    
+
     // Print Docker version information for debugging
     if let Ok(output) = Command::new("docker").args(["version"]).output() {
         if let Ok(version) = std::str::from_utf8(&output.stdout) {
             println!("Docker version: {}", version.trim());
         }
     }
-    
-    // Start Game Server with random available port
+
+    // Start Game Server container
     let game_server = GameServerInstance::new();
     let game_url = game_server.url();
-    let game_port = game_url.split(':').last().unwrap().parse::<u16>().unwrap();
-    println!("Game server started at {}", game_url);
-    
-    // Start a real Selenium instance with Docker container that knows about the game server
-    let selenium = SeleniumInstance::new_with_game_server(game_port, 90);
+    let container_game_url = game_server.internal_url();
+    println!("Game server started at {} (host)", game_url);
+    println!("Game server internal URL: {}", container_game_url);
+
+    // Start Selenium container (will be on same bridge network)
+    let selenium = SeleniumInstance::new_with_timeout(90);
     let selenium_url = selenium.url();
-    let container_game_url = selenium.game_server_url();
     println!("Selenium started at {}", selenium_url);
-    println!("Game server accessible from container at {}", container_game_url);
-    
+
     // Run the actual test
     let result = tokio_test::block_on(async {
         use common::webdriver::*;
-        
+
         // Create new WebDriver session
         let driver = match create_webdriver(&selenium_url).await {
             Ok(driver) => driver,
@@ -276,9 +274,9 @@ fn test_web_ui_invalid_inputs() {
                 return false;
             }
         };
-        
+
         // Navigate to game URL (use the container-accessible URL)
-        if let Err(e) = driver.goto(&container_game_url).await {
+        if let Err(e) = driver.goto(container_game_url.as_str()).await {
             println!("Failed to navigate to game URL: {}", e);
             let _ = driver.quit().await;
             return false;
