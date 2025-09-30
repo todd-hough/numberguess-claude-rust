@@ -9,12 +9,17 @@ A Rust-based number guessing game with both CLI and web interfaces. The game gen
 
 ## Quick Commands
 ```bash
-# Build and test
+# Build and test (automatically builds Docker image if needed)
 cargo build
 cargo test
-cargo clippy
 
-# Run test with output for troubleshooting; note that output from concurrent tests will be interleaved.
+# Or use Makefile for convenience
+make test              # Run all tests (checks Docker image first)
+make test-unit         # Unit tests only (no Docker)
+make test-web-ui       # Web UI tests only
+make docker-rebuild    # Force rebuild Docker image
+
+# Run test with output for troubleshooting
 cargo test -- --nocapture
 
 # Run CLI game
@@ -25,10 +30,7 @@ cargo run -- --server --port 3000
 
 # Format code
 cargo fmt
-
-# Integration tests with test containers
-./run_integration_tests.sh    # Linux/macOS
-run_integration_tests.bat     # Windows
+cargo clippy
 ```
 
 ## Architecture

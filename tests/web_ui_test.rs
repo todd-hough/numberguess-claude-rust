@@ -8,6 +8,9 @@ use tokio_test;
 
 #[test]
 fn test_web_ui_game_flow() {
+    // Ensure Docker image is built
+    common::docker_setup::ensure_docker_image();
+
     // Skip this test if Docker is not available or not running
     let docker_available = match Command::new("docker").args(["info"]).output() {
         Ok(output) => output.status.success(),
