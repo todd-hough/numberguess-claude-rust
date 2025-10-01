@@ -20,7 +20,9 @@
       "Bash(cargo build:*)",
       "Bash(docker run:*)",
       "Bash(docker stop:*)",
-      "Bash(docker images:*)"
+      "Bash(docker images:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(docker compose:*)"
     ],
     "deny": []
   }

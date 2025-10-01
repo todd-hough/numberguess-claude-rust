@@ -1,6 +1,6 @@
 mod common;
 
-use common::containers::{GameServerInstance, SeleniumInstance};
+use common::containers::{GameServerInstance, PostgresInstance, SeleniumInstance};
 use std::process::Command;
 
 // Use tokio_test for blocking async operations
@@ -32,8 +32,11 @@ fn test_web_ui_game_flow() {
         }
     }
 
+    // Start PostgreSQL container first
+    let postgres = PostgresInstance::new();
+
     // Start Game Server container
-    let game_server = GameServerInstance::new();
+    let game_server = GameServerInstance::new(&postgres.database_url);
     let game_url = game_server.url();
     let container_game_url = game_server.internal_url();
     println!("Game server started at {} (host)", game_url);
@@ -133,8 +136,11 @@ fn test_web_ui_invalid_inputs() {
         }
     }
 
+    // Start PostgreSQL container first
+    let postgres = PostgresInstance::new();
+
     // Start Game Server container
-    let game_server = GameServerInstance::new();
+    let game_server = GameServerInstance::new(&postgres.database_url);
     let game_url = game_server.url();
     let container_game_url = game_server.internal_url();
     println!("Game server started at {} (host)", game_url);

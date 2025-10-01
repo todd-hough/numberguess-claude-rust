@@ -1,6 +1,6 @@
 mod common;
 
-use common::containers::GameServerInstance;
+use common::containers::{GameServerInstance, PostgresInstance};
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 
@@ -15,7 +15,8 @@ struct GameResponse {
 
 #[test]
 fn test_static_file_serving() {
-    let server = GameServerInstance::new();
+    let postgres = PostgresInstance::new();
+    let server = GameServerInstance::new(&postgres.database_url);
     let client = Client::new();
     
     // Test root serves index.html
@@ -34,7 +35,8 @@ fn test_static_file_serving() {
 
 #[test]
 fn test_web_form_endpoints() {
-    let server = GameServerInstance::new();
+    let postgres = PostgresInstance::new();
+    let server = GameServerInstance::new(&postgres.database_url);
     let client = Client::new();
     
     // Test form submission to /game/new

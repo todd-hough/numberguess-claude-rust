@@ -1,6 +1,6 @@
 mod common;
 
-use common::containers::GameServerInstance;
+use common::containers::{GameServerInstance, PostgresInstance};
 use reqwest::blocking::Client;
 use serde_json::json;
 use serde::{Deserialize, Serialize};
@@ -23,8 +23,11 @@ struct GuessResponse {
 
 #[test]
 fn test_basic_game_flow() {
-    // Start game server with random available port
-    let server = GameServerInstance::new();
+    // Start PostgreSQL container first
+    let postgres = PostgresInstance::new();
+
+    // Start game server with database
+    let server = GameServerInstance::new(&postgres.database_url);
     let base_url = server.url();
     
     println!("✅ Server is ready at {}", base_url);
@@ -93,8 +96,11 @@ fn test_basic_game_flow() {
 
 #[test]
 fn test_invalid_game_parameters() {
-    // Start game server with random available port
-    let server = GameServerInstance::new();
+    // Start PostgreSQL container first
+    let postgres = PostgresInstance::new();
+
+    // Start game server with database
+    let server = GameServerInstance::new(&postgres.database_url);
     let base_url = server.url();
     
     println!("✅ Server is ready at {}", base_url);

@@ -5,6 +5,7 @@ use std::io;
 use std::process::Command;
 use reqwest::blocking::Client;
 use testcontainers::{core::{WaitFor, ContainerPort}, Container, Image, ImageExt, runners::SyncRunner};
+use sqlx::{PgPool, postgres::PgPoolOptions};
 
 /// Game Server Docker Image definition
 #[derive(Debug, Default, Clone)]
@@ -30,10 +31,12 @@ pub struct GameServerInstance {
 }
 
 impl GameServerInstance {
-    pub fn new() -> Self {
+    pub fn new(database_url: &str) -> Self {
         println!("Starting game server container...");
 
-        let image = GameServerImage::default();
+        let image = GameServerImage::default()
+            .with_env_var("DATABASE_URL", database_url);
+
         let container = image.start().expect("Failed to start game server container");
 
         let port = container
@@ -204,7 +207,7 @@ pub fn verify_port_binding(host: &str, port: u16, timeout_seconds: u64) -> Resul
     println!("Checking port binding for {}:{}", host, port);
     let start = Instant::now();
     let max_duration = Duration::from_secs(timeout_seconds);
-    
+
     while start.elapsed() < max_duration {
         match TcpStream::connect(format!("{}:{}", host, port)) {
             Ok(_) => {
@@ -217,9 +220,103 @@ pub fn verify_port_binding(host: &str, port: u16, timeout_seconds: u64) -> Resul
                 }
             }
         }
-        
+
         thread::sleep(Duration::from_millis(500));
     }
-    
+
     Err(format!("Port {}:{} not available after {} seconds", host, port, timeout_seconds))
+}
+
+/// PostgreSQL Docker Image definition
+#[derive(Debug, Default, Clone)]
+pub struct PostgresImage;
+
+impl Image for PostgresImage {
+    fn name(&self) -> &str {
+        "postgres"
+    }
+
+    fn tag(&self) -> &str {
+        "16"
+    }
+
+    fn ready_conditions(&self) -> Vec<WaitFor> {
+        vec![WaitFor::message_on_stdout("database system is ready to accept connections")]
+    }
+}
+
+pub struct PostgresInstance {
+    pub container: Container<PostgresImage>,
+    pub pool: PgPool,
+    pub database_url: String,
+}
+
+impl PostgresInstance {
+    pub fn new() -> Self {
+        println!("Starting PostgreSQL container...");
+
+        let image = PostgresImage::default()
+            .with_env_var("POSTGRES_USER", "postgres")
+            .with_env_var("POSTGRES_PASSWORD", "postgres")
+            .with_env_var("POSTGRES_DB", "postgres");
+
+        let container = image.start().expect("Failed to start PostgreSQL container");
+
+        let port = container
+            .get_host_port_ipv4(ContainerPort::Tcp(5432))
+            .expect("Failed to get mapped port");
+
+        let database_url = format!(
+            "postgresql://postgres:postgres@localhost:{}/postgres",
+            port
+        );
+
+        println!("PostgreSQL container started on host port {}", port);
+        println!("Database URL: {}", database_url);
+
+        // Create connection pool and run migrations
+        let runtime = tokio::runtime::Runtime::new().expect("Failed to create runtime");
+        let pool = runtime.block_on(async {
+            // Wait for database to be fully ready with retries
+            let mut retries = 0;
+            let max_retries = 30;
+            let pool = loop {
+                thread::sleep(Duration::from_millis(500));
+
+                match PgPoolOptions::new()
+                    .max_connections(5)
+                    .connect(&database_url)
+                    .await
+                {
+                    Ok(pool) => {
+                        println!("Successfully connected to PostgreSQL!");
+                        break pool;
+                    }
+                    Err(e) => {
+                        retries += 1;
+                        if retries >= max_retries {
+                            panic!("Failed to connect to database after {} retries: {:?}", max_retries, e);
+                        }
+                        println!("Connection attempt {} failed, retrying... ({:?})", retries, e);
+                    }
+                }
+            };
+
+            // Run migrations
+            println!("Running migrations...");
+            sqlx::migrate!("./migrations")
+                .run(&pool)
+                .await
+                .expect("Failed to run migrations");
+
+            println!("PostgreSQL instance ready!");
+            pool
+        });
+
+        Self {
+            container,
+            pool,
+            database_url,
+        }
+    }
 }

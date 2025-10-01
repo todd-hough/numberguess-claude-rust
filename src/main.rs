@@ -5,14 +5,35 @@ use number_guessing_game::{
     Cli, GuessResult, GuessingGame, get_guess_limit, get_max_value, get_min_value, read_input,
     web::run_server,
 };
+use sqlx::postgres::PgPoolOptions;
 
 #[tokio::main]
 async fn main() {
+    // Load environment variables from .env file
+    dotenvy::dotenv().ok();
+
     let cli = Cli::parse();
 
     if cli.server {
         // Run as web server
-        run_server(cli.port).await;
+        let database_url = std::env::var("DATABASE_URL")
+            .expect("DATABASE_URL must be set in environment or .env file");
+
+        println!("Connecting to database...");
+        let pool = PgPoolOptions::new()
+            .max_connections(5)
+            .connect(&database_url)
+            .await
+            .expect("Failed to connect to database");
+
+        println!("Running database migrations...");
+        sqlx::migrate!("./migrations")
+            .run(&pool)
+            .await
+            .expect("Failed to run migrations");
+
+        println!("Database initialized successfully");
+        run_server(pool, cli.port).await;
     } else {
         // Run as CLI game
         run_cli_game(cli);

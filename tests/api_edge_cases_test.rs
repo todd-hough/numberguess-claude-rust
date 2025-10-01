@@ -1,6 +1,6 @@
 mod common;
 
-use common::containers::GameServerInstance;
+use common::containers::{GameServerInstance, PostgresInstance};
 use reqwest::blocking::Client;
 use serde_json::json;
 use serde::{Deserialize, Serialize};
@@ -23,7 +23,8 @@ struct GuessResponse {
 
 #[test]
 fn test_guess_nonexistent_game() {
-    let server = GameServerInstance::new();
+    let postgres = PostgresInstance::new();
+    let server = GameServerInstance::new(&postgres.database_url);
     let client = Client::new();
     
     let response = client
@@ -38,7 +39,8 @@ fn test_guess_nonexistent_game() {
 
 #[test]
 fn test_concurrent_games() {
-    let server = GameServerInstance::new();
+    let postgres = PostgresInstance::new();
+    let server = GameServerInstance::new(&postgres.database_url);
     let client = Client::new();
     
     // Create 3 games
@@ -77,7 +79,8 @@ fn test_concurrent_games() {
 
 #[test]
 fn test_guess_after_limit_reached() {
-    let server = GameServerInstance::new();
+    let postgres = PostgresInstance::new();
+    let server = GameServerInstance::new(&postgres.database_url);
     let client = Client::new();
     
     // Create game with limit=1 and min=max so we know the exact answer

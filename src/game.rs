@@ -87,6 +87,70 @@ impl GuessingGame {
         self.max_guesses
     }
 
+    pub fn secret_number(&self) -> i32 {
+        self.secret_number
+    }
+
+    pub fn from_db(
+        min: i32,
+        max: i32,
+        secret_number: i32,
+        guess_count: u32,
+        max_guesses: Option<u32>,
+    ) -> Result<Self, String> {
+        // Validate ranges (same as new_with_limit)
+        if min < 0 {
+            return Err(format!(
+                "Minimum value ({}) must be non-negative (>= 0)",
+                min
+            ));
+        }
+
+        if max < 0 {
+            return Err(format!(
+                "Maximum value ({}) must be non-negative (>= 0)",
+                max
+            ));
+        }
+
+        if max < min {
+            return Err(format!(
+                "Maximum ({}) must be greater than or equal to minimum ({})",
+                max, min
+            ));
+        }
+
+        if min > MAX_ALLOWED {
+            return Err(format!(
+                "Minimum value ({}) exceeds maximum allowed value ({})",
+                min, MAX_ALLOWED
+            ));
+        }
+
+        if max > MAX_ALLOWED {
+            return Err(format!(
+                "Maximum value ({}) exceeds maximum allowed value ({})",
+                max, MAX_ALLOWED
+            ));
+        }
+
+        // Validate secret number is in range
+        if secret_number < min || secret_number > max {
+            return Err(format!(
+                "Secret number ({}) must be between min ({}) and max ({})",
+                secret_number, min, max
+            ));
+        }
+
+        Ok(GuessingGame {
+            min,
+            max,
+            secret_number,
+            guess_count,
+            max_guesses,
+        })
+    }
+
     pub fn has_guesses_remaining(&self) -> bool {
         match self.max_guesses {
             Some(max) => self.guess_count < max,

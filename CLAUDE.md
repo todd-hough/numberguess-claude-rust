@@ -38,15 +38,17 @@ cargo clippy
 ### Core Modules
 - **src/game.rs**: Pure game logic, no I/O. Contains `GuessingGame` struct and `GuessResult` enum
 - **src/cli.rs**: CLI argument parsing (clap) and user input handling
+- **src/db.rs**: PostgreSQL database layer with runtime-checked SQLx queries
 - **src/web.rs**: Axum-based web server with REST API and HTMX frontend
-- **src/main.rs**: Minimal entry point, mode selection (CLI vs Web)
+- **src/main.rs**: Minimal entry point, mode selection (CLI vs Web), database initialization
 - **static/index.html**: Web UI with HTMX for dynamic updates
+- **migrations/**: SQLx database migrations
 
 ### Key Design Patterns
-1. **Separation of Concerns**: Game logic isolated from I/O
+1. **Separation of Concerns**: Game logic isolated from I/O, database layer separate from web layer
 2. **Result Types**: Extensive use of `Result<T, String>` for error handling
-3. **State Management**: Web server uses `Arc<Mutex<HashMap>>` for concurrent game sessions
-4. **Validation**: Input validation at multiple layers (CLI, web, game logic)
+3. **State Management**: Web server uses PostgreSQL with SQLx connection pooling (`PgPool`)
+4. **Validation**: Input validation at multiple layers (CLI, web, game logic, database)
 
 ## Important Constraints
 
@@ -73,7 +75,6 @@ cargo clippy
 cargo test --lib
 
 # Integration tests with test containers (requires Docker)
-./run_integration_tests.sh    # Full test suite
 cargo test --test smoke_test   # Basic connectivity test
 cargo test --test game_lifecycle_test   # API functionality
 cargo test --test concurrent_games_test # Concurrency testing
@@ -166,6 +167,39 @@ cargo run -- --server
 └── README.md        # Main documentation
 ```
 
+## Database Setup
+
+### PostgreSQL Integration
+The web server now uses PostgreSQL for persistent storage instead of in-memory HashMap.
+
+**Setup for Development:**
+```bash
+# Option 1: Use docker-compose (if available)
+docker compose up -d postgres
+
+# Option 2: Use existing PostgreSQL instance
+# Just set DATABASE_URL in .env file
+
+# Create .env file (already done, but customize if needed)
+echo 'DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres' > .env
+
+# Build and run (migrations run automatically)
+cargo build
+cargo run -- --server
+```
+
+**Database Schema:**
+- **games table**: Stores active game state (game_id, min/max values, secret_number, guess_count, max_guesses)
+- **Migrations**: Located in `migrations/` directory, run automatically on startup
+- **Connection pooling**: Max 5 connections via SQLx PgPool
+
+**Key Points:**
+- Runtime-checked queries (no compile-time database required)
+- Automatic migration execution on server startup
+- Games persist across server restarts
+- Completed games are automatically deleted from database
+- Environment variable `DATABASE_URL` required for web mode
+
 ## Dependencies to Know
 
 ### Runtime Dependencies
@@ -175,6 +209,8 @@ cargo run -- --server
 - **serde**: JSON serialization (v1.0.219)
 - **tower-http**: Static file serving (v0.6.6)
 - **rand**: Random number generation (v0.9.2)
+- **sqlx**: PostgreSQL driver with runtime-checked queries (v0.8)
+- **dotenvy**: .env file support (v0.15)
 
 ### Test Dependencies  
 - **testcontainers**: Docker container management for tests (v0.23)
