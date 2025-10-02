@@ -1,5 +1,6 @@
 use crate::db;
 use crate::game::GuessResult;
+use crate::game_id::GameId;
 use crate::validators;
 use axum::{
     Router,
@@ -36,7 +37,7 @@ pub struct CreateGameRequest {
 
 #[derive(Serialize)]
 pub struct CreateGameResponse {
-    pub game_id: u64,
+    pub game_id: GameId,
     pub min: i32,
     pub max: i32,
     pub max_guesses: Option<u32>,
@@ -151,7 +152,7 @@ async fn create_game_api(
 
 async fn make_guess_api(
     State(pool): State<SharedState>,
-    Path(game_id): Path<u64>,
+    Path(game_id): Path<GameId>,
     Json(payload): Json<MakeGuessRequest>,
 ) -> Result<Json<MakeGuessResponse>, (StatusCode, Json<ErrorResponse>)> {
     // Get game from database
@@ -363,7 +364,7 @@ async fn create_game_web(
 
 async fn make_guess_web(
     State(pool): State<SharedState>,
-    Path(game_id): Path<u64>,
+    Path(game_id): Path<GameId>,
     Form(payload): Form<MakeGuessRequest>,
 ) -> impl IntoResponse {
     // Get game from database

@@ -136,6 +136,11 @@ impl GuessingGame {
         }
     }
 
+    #[cfg(test)]
+    pub fn set_secret_for_testing(&mut self, secret: i32) {
+        self.secret_number = secret;
+    }
+
     pub fn make_guess(&mut self, guess: i32) -> GuessResult {
         // Check if guess limit has been reached before this guess
         if !self.has_guesses_remaining() {
@@ -269,7 +274,7 @@ mod tests {
     #[test]
     fn test_guess_result() {
         let mut game = GuessingGame::new(1, 10).unwrap();
-        game.secret_number = 5;
+        game.set_secret_for_testing(5);
 
         assert_eq!(game.make_guess(3), GuessResult::TooLow);
         assert_eq!(game.make_guess(7), GuessResult::TooHigh);
@@ -337,7 +342,7 @@ mod tests {
     #[test]
     fn test_game_with_guess_limit() {
         let mut game = GuessingGame::new_with_limit(1, 10, Some(3)).unwrap();
-        game.secret_number = 5;
+        game.set_secret_for_testing(5);
 
         assert_eq!(game.get_max_guesses(), Some(3));
         assert!(game.has_guesses_remaining());
@@ -373,7 +378,7 @@ mod tests {
     #[test]
     fn test_game_with_no_limit() {
         let mut game = GuessingGame::new_with_limit(1, 10, None).unwrap();
-        game.secret_number = 5;
+        game.set_secret_for_testing(5);
 
         assert_eq!(game.get_max_guesses(), None);
 
@@ -401,7 +406,7 @@ mod tests {
     #[test]
     fn test_correct_guess_within_limit() {
         let mut game = GuessingGame::new_with_limit(1, 10, Some(5)).unwrap();
-        game.secret_number = 7;
+        game.set_secret_for_testing(7);
 
         assert_eq!(game.make_guess(3), GuessResult::TooLow);
         assert_eq!(game.make_guess(9), GuessResult::TooHigh);

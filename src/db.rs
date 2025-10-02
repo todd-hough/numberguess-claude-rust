@@ -1,5 +1,5 @@
 use crate::game::{GameError, GuessingGame};
-use rand::Rng;
+use crate::game_id::GameId;
 use sqlx::{PgPool, Row};
 use thiserror::Error;
 
@@ -13,6 +13,9 @@ pub enum DbError {
 
     #[error("Game validation error: {0}")]
     GameError(#[from] GameError),
+
+    #[error("Type conversion error: {0}")]
+    ConversionError(String),
 }
 
 // Custom From implementation to handle RowNotFound specially
@@ -31,27 +34,35 @@ pub async fn create_game(
     min: i32,
     max: i32,
     max_guesses: Option<u32>,
-) -> Result<u64, DbError> {
+) -> Result<GameId, DbError> {
     // Validate game parameters (same as GuessingGame::new_with_limit)
     let game = GuessingGame::new_with_limit(min, max, max_guesses)?;
 
     // Generate random game ID
-    let game_id = rand::rng().random::<u64>();
+    let game_id = GameId::new();
 
     // Get game state
     let (min_val, max_val) = game.get_range();
     let secret = game.secret_number();
-    let guess_count = game.get_guess_count() as i32;
-    let max_guesses_i32 = max_guesses.map(|g| g as i32);
+    let guess_count: i32 = game.get_guess_count()
+        .try_into()
+        .map_err(|_| DbError::ConversionError("Guess count exceeds i32 range".into()))?;
+    let max_guesses_i32: Option<i32> = max_guesses
+        .map(|g| g.try_into())
+        .transpose()
+        .map_err(|_| DbError::ConversionError("Max guesses exceeds i32 range".into()))?;
 
     // Insert into database
+    let game_id_i64 = game_id.to_i64()
+        .map_err(DbError::ConversionError)?;
+
     sqlx::query(
         r#"
         INSERT INTO games (game_id, min_value, max_value, secret_number, guess_count, max_guesses)
         VALUES ($1, $2, $3, $4, $5, $6)
         "#
     )
-    .bind(game_id as i64)
+    .bind(game_id_i64)
     .bind(min_val)
     .bind(max_val)
     .bind(secret)
@@ -64,7 +75,10 @@ pub async fn create_game(
 }
 
 /// Get a game from the database
-pub async fn get_game(pool: &PgPool, game_id: u64) -> Result<GuessingGame, DbError> {
+pub async fn get_game(pool: &PgPool, game_id: GameId) -> Result<GuessingGame, DbError> {
+    let game_id_i64 = game_id.to_i64()
+        .map_err(DbError::ConversionError)?;
+
     let row = sqlx::query(
         r#"
         SELECT game_id, min_value, max_value, secret_number, guess_count, max_guesses
@@ -72,7 +86,7 @@ pub async fn get_game(pool: &PgPool, game_id: u64) -> Result<GuessingGame, DbErr
         WHERE game_id = $1
         "#
     )
-    .bind(game_id as i64)
+    .bind(game_id_i64)
     .fetch_one(pool)
     .await?;
 
@@ -80,22 +94,35 @@ pub async fn get_game(pool: &PgPool, game_id: u64) -> Result<GuessingGame, DbErr
     let min_value: i32 = row.try_get("min_value")?;
     let max_value: i32 = row.try_get("max_value")?;
     let secret_number: i32 = row.try_get("secret_number")?;
-    let guess_count: i32 = row.try_get("guess_count")?;
-    let max_guesses: Option<i32> = row.try_get("max_guesses")?;
+    let guess_count_i32: i32 = row.try_get("guess_count")?;
+    let max_guesses_i32: Option<i32> = row.try_get("max_guesses")?;
+
+    // Convert to u32 with proper error handling
+    let guess_count: u32 = guess_count_i32
+        .try_into()
+        .map_err(|_| DbError::ConversionError("Guess count is negative".into()))?;
+    let max_guesses: Option<u32> = max_guesses_i32
+        .map(|g| g.try_into())
+        .transpose()
+        .map_err(|_| DbError::ConversionError("Max guesses is negative".into()))?;
 
     // Reconstruct GuessingGame from database row
     Ok(GuessingGame::from_db(
         min_value,
         max_value,
         secret_number,
-        guess_count as u32,
-        max_guesses.map(|g| g as u32),
+        guess_count,
+        max_guesses,
     )?)
 }
 
 /// Update game state after a guess
-pub async fn update_game(pool: &PgPool, game_id: u64, game: &GuessingGame) -> Result<(), DbError> {
-    let guess_count = game.get_guess_count() as i32;
+pub async fn update_game(pool: &PgPool, game_id: GameId, game: &GuessingGame) -> Result<(), DbError> {
+    let guess_count: i32 = game.get_guess_count()
+        .try_into()
+        .map_err(|_| DbError::ConversionError("Guess count exceeds i32 range".into()))?;
+    let game_id_i64 = game_id.to_i64()
+        .map_err(DbError::ConversionError)?;
 
     sqlx::query(
         r#"
@@ -105,7 +132,7 @@ pub async fn update_game(pool: &PgPool, game_id: u64, game: &GuessingGame) -> Re
         "#
     )
     .bind(guess_count)
-    .bind(game_id as i64)
+    .bind(game_id_i64)
     .execute(pool)
     .await?;
 
@@ -113,14 +140,17 @@ pub async fn update_game(pool: &PgPool, game_id: u64, game: &GuessingGame) -> Re
 }
 
 /// Delete a game from the database
-pub async fn delete_game(pool: &PgPool, game_id: u64) -> Result<(), DbError> {
+pub async fn delete_game(pool: &PgPool, game_id: GameId) -> Result<(), DbError> {
+    let game_id_i64 = game_id.to_i64()
+        .map_err(DbError::ConversionError)?;
+
     sqlx::query(
         r#"
         DELETE FROM games
         WHERE game_id = $1
         "#
     )
-    .bind(game_id as i64)
+    .bind(game_id_i64)
     .execute(pool)
     .await?;
 

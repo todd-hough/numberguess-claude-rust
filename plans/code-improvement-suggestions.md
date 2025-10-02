@@ -6,44 +6,15 @@ This document outlines improvement suggestions for the number guessing game code
 
 ## **Rust Idioms & Best Practices**
 
-### 4. Validation duplication
-**Location:** `src/game.rs:19-76` vs `src/game.rs:94-152`
+### 4. ✅ Validation duplication - COMPLETED
+**Location:** `src/game.rs:32-58`
 
-**Issue:** `new_with_limit()` and `from_db()` repeat nearly identical validation logic
+**Status:** Extracted to private `validate_range()` method used by both `new_with_limit()` and `from_db()`
 
-**Improvement:** Extract to private method
-```rust
-fn validate_range(min: i32, max: i32) -> Result<(), GameError> {
-    if min < 0 {
-        return Err(GameError::NegativeMin(min));
-    }
-    if max < 0 {
-        return Err(GameError::NegativeMax(max));
-    }
-    if max < min {
-        return Err(GameError::InvalidRange { min, max });
-    }
-    if min > MAX_ALLOWED || max > MAX_ALLOWED {
-        return Err(GameError::ExceedsLimit(min.max(max), MAX_ALLOWED));
-    }
-    Ok(())
-}
-```
+### 5. ✅ Public field mutation in tests - COMPLETED
+**Location:** `src/game.rs:139-142`
 
-### 5. Public field mutation in tests
-**Location:** `src/game.rs:294`
-
-**Issue:** Test directly mutates `game.secret_number = 5`
-
-**Improvement:** Add test-only method
-```rust
-#[cfg(test)]
-impl GuessingGame {
-    pub fn set_secret_for_testing(&mut self, secret: i32) {
-        self.secret_number = secret;
-    }
-}
-```
+**Status:** Added test-only method `set_secret_for_testing()` - all tests updated to use it instead of direct field mutation
 
 ### 6. `#![allow(warnings)]` is too broad
 **Location:** `src/main.rs:1`
@@ -52,34 +23,20 @@ impl GuessingGame {
 
 **Improvement:** Remove or use specific `#[allow(unused)]` on specific items
 
-### 7. Type conversions lack safety checks
-**Location:** `src/db.rs:50, 60-65`
+### 7. ✅ Type conversions lack safety checks - COMPLETED
+**Location:** `src/db.rs` (multiple locations)
 
-**Issue:** Multiple unchecked `as` conversions: `u32 as i32`, `u64 as i64`, `i32 as u32`
-
-**Improvement:** Use `try_into()` with proper error handling
-```rust
-let game_id_i64: i64 = game_id.try_into()
-    .map_err(|_| DbError::ConversionError("Game ID out of range".into()))?;
-```
+**Status:** All unsafe `as` conversions replaced with `try_into()` with proper error handling. Added `DbError::ConversionError` variant for type conversion failures.
 
 
-### 9. Missing newtype pattern for game_id
-**Location:** `src/web.rs:38, 164`
+### 9. ✅ Missing newtype pattern for game_id - COMPLETED
+**Location:** `src/game_id.rs`
 
-**Issue:** `u64` game_id used directly everywhere
-
-**Improvement:** Create type-safe wrapper
-```rust
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct GameId(u64);
-
-impl GameId {
-    pub fn new() -> Self {
-        Self(rand::rng().random())
-    }
-}
-```
+**Status:** Created type-safe `GameId` newtype wrapper with:
+- Automatic random ID generation via `GameId::new()`
+- Safe conversion methods (`to_i64()`, `as_u64()`)
+- Serde serialization support
+- Used throughout `db.rs` and `web.rs`
 
 ### 10. Inefficient string building in HTML responses
 **Location:** `src/web.rs:346-384`
