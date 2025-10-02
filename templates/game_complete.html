@@ -1,0 +1,11 @@
+<div id="feedback" class="active {{ feedback_class }}">
+    {{ emoji }} {{ message }}<br>
+    The number was {{ number }}.<br>
+    {% match attempts %}
+    {% when Some with (att) %}
+    It took you {{ att }} guess{% match att %}{% when 1 %}{% else %}es{% endmatch %} to find it!
+    {% when None %}
+    Better luck next time!
+    {% endmatch %}
+</div>
+<button onclick="window.location.href='/'" class="new-game-btn">Start New Game</button>

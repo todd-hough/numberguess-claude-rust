@@ -230,10 +230,19 @@ number_guessing_game/
 │   ├── cli.rs       # CLI argument parsing (clap)
 │   ├── io.rs        # User input/output helpers
 │   ├── validators.rs # Shared validation logic
+│   ├── templates.rs # Askama template structs
+│   ├── game_id.rs   # Type-safe game ID wrapper
 │   ├── db.rs        # PostgreSQL database layer
 │   └── web.rs       # Web server and API endpoints
 ├── static/
 │   └── index.html   # Web UI
+├── templates/       # Askama HTML templates
+│   ├── error.html
+│   ├── game_started.html
+│   ├── guess_form.html
+│   ├── game_complete.html
+│   ├── game_not_found.html
+│   └── update_error.html
 ├── migrations/      # Database migrations
 │   ├── 20250930000001_create_games_table.sql
 │   └── 20250930000002_add_cleanup_function.sql

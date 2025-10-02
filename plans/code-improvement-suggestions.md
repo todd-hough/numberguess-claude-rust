@@ -38,23 +38,27 @@ This document outlines improvement suggestions for the number guessing game code
 - Serde serialization support
 - Used throughout `db.rs` and `web.rs`
 
-### 10. Inefficient string building in HTML responses
-**Location:** `src/web.rs:346-384`
+### 10. ✅ Inefficient string building in HTML responses - COMPLETED
+**Location:** `templates/` directory
 
-**Issue:** Using `format!()` for large HTML strings
-
-**Improvement:** Consider template engine like `askama` or `tera`
+**Status:** Implemented Askama template engine with compile-time templates. All HTML responses now use type-safe templates.
 
 ---
 
 ## **Code Organization & Architecture**
 
-### 13. Hardcoded HTML strings in Rust
-**Location:** `src/web.rs:266-554`
+### 13. ✅ Hardcoded HTML strings in Rust - COMPLETED
+**Location:** `src/templates.rs` and `templates/` directory
 
-**Issue:** Mixing HTML with business logic makes both harder to maintain
-
-**Improvement:** Move to templates or separate HTML builder functions
+**Status:** All hardcoded HTML moved to Askama templates:
+- `error.html` - Error messages
+- `game_started.html` - Game initialization
+- `guess_form.html` - Guess form with feedback
+- `game_complete.html` - Win/lose screens
+- `game_not_found.html` - Game not found error
+- `update_error.html` - Update error
+- Type-safe template structs in `src/templates.rs`
+- Clean separation of HTML and business logic
 
 ---
 

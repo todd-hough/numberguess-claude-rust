@@ -79,18 +79,23 @@ make clean             # Clean everything
 - **src/cli.rs**: CLI argument parsing using clap (no validation or I/O)
 - **src/validators.rs**: Shared validation logic used by both CLI and web layers (pure functions, no I/O)
 - **src/io.rs**: User input/output helpers for CLI interactions
+- **src/templates.rs**: Askama template structs for type-safe HTML rendering
+- **src/game_id.rs**: Type-safe newtype wrapper for game IDs
 - **src/db.rs**: PostgreSQL database layer with runtime-checked SQLx queries
 - **src/web.rs**: Axum-based web server with REST API and HTMX frontend
 - **src/main.rs**: Minimal entry point, mode selection (CLI vs Web), database initialization
 - **static/index.html**: Web UI with HTMX for dynamic updates
+- **templates/**: Askama HTML templates (compile-time checked)
 - **migrations/**: SQLx database migrations
 
 ### Key Design Patterns
 1. **Separation of Concerns**: Game logic isolated from I/O, validation separate from presentation, database layer separate from web layer
 2. **Shared Validation**: Single source of truth for validation logic in `validators` module
-3. **Result Types**: Extensive use of `Result<T, String>` for error handling
-4. **State Management**: Web server uses PostgreSQL with SQLx connection pooling (`PgPool`)
-5. **Module Organization**: Clear boundaries between argument parsing, validation, I/O, and business logic
+3. **Type Safety**: Newtype pattern for `GameId`, compile-time template checking with Askama
+4. **Result Types**: Extensive use of `Result<T, String>` for error handling with safe type conversions
+5. **State Management**: Web server uses PostgreSQL with SQLx connection pooling (`PgPool`)
+6. **Module Organization**: Clear boundaries between argument parsing, validation, I/O, and business logic
+7. **Template-Based HTML**: Askama templates provide compile-time checked, type-safe HTML rendering
 
 ## Important Constraints
 
@@ -180,12 +185,21 @@ cargo run -- --server
 │   ├── cli.rs       # CLI argument parsing (clap only)
 │   ├── validators.rs # Shared validation logic (no I/O)
 │   ├── io.rs        # User input/output helpers
+│   ├── templates.rs # Askama template structs
+│   ├── game_id.rs   # Type-safe game ID wrapper
 │   ├── db.rs        # PostgreSQL database layer
 │   ├── web.rs       # Web server
 │   ├── lib.rs       # Library exports
 │   └── main.rs      # Entry point
 ├── static/
 │   └── index.html   # Web UI
+├── templates/       # Askama HTML templates
+│   ├── error.html
+│   ├── game_started.html
+│   ├── guess_form.html
+│   ├── game_complete.html
+│   ├── game_not_found.html
+│   └── update_error.html
 ├── migrations/      # SQLx database migrations
 │   ├── 20250930000001_create_games_table.sql
 │   └── 20250930000002_add_cleanup_function.sql
@@ -275,6 +289,9 @@ cp .env.example .env
 - **rand**: Random number generation (v0.9.2)
 - **sqlx**: PostgreSQL driver with runtime-checked queries (v0.8)
 - **dotenvy**: .env file support (v0.15)
+- **thiserror**: Error derive macros (v2.0)
+- **askama**: Type-safe compile-time HTML templates (v0.12)
+- **askama_axum**: Askama integration with Axum (v0.4)
 
 ### Test Dependencies  
 - **testcontainers**: Docker container management for tests (v0.23)

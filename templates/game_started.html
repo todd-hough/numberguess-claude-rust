@@ -1,0 +1,38 @@
+<h1>🎯 Number Guessing Game</h1>
+<div id='game-area' class='active'>
+    <div class='game-info'>
+        <h2>Game Started!</h2>
+        <p>I'm thinking of a number between</p>
+        <p class='range-display'>{{ min }} and {{ max }}</p>
+        {% if let Some(info) = guess_info %}
+        <p>{{ info|safe }}</p>
+        {% endif %}
+    </div>
+
+    <div id='game-content'>
+        <form class='guess-form'
+              hx-post='/game/{{ game_id }}/guess'
+              hx-target='#game-content'
+              hx-swap='innerHTML'>
+            <div class='guess-input-group'>
+                <input type='number'
+                       name='guess'
+                       min='{{ min }}'
+                       max='{{ max }}'
+                       placeholder='Enter your guess'
+                       required
+                       autofocus>
+                <button type='submit'>
+                    Guess
+                    <span class='htmx-indicator'>
+                        <span class='spinner'></span>
+                    </span>
+                </button>
+            </div>
+        </form>
+
+        <div id='game-feedback'>
+            <!-- Feedback will appear here -->
+        </div>
+    </div>
+</div>

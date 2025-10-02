@@ -1,12 +1,14 @@
 use crate::db;
 use crate::game::GuessResult;
 use crate::game_id::GameId;
+use crate::templates::*;
 use crate::validators;
+use askama_axum::IntoResponse as AskamaIntoResponse;
 use axum::{
     Router,
     extract::{Form, Path, State},
     http::StatusCode,
-    response::{Html, IntoResponse, Json},
+    response::{IntoResponse, Json},
     routing::post,
 };
 use serde::{Deserialize, Deserializer, Serialize};
@@ -253,19 +255,10 @@ async fn create_game_web(
 ) -> impl IntoResponse {
     // Validate range using shared validator
     if let Err(e) = validators::validate_range(payload.min, payload.max) {
-        return Html(format!(
-            r#"
-            <h1>🎯 Number Guessing Game</h1>
-            <div id="setup-area">
-                <div id="feedback" class="active too-high">
-                    Error: {}
-                </div>
-                <button onclick="location.reload()" class="new-game-btn">Try Again</button>
-            </div>
-        "#,
-            e
-        ))
-        .into_response();
+        let template = ErrorTemplate {
+            error_message: &e,
+        };
+        return AskamaIntoResponse::into_response(template);
     }
 
     // Validate guess limit using shared validator
@@ -273,19 +266,10 @@ async fn create_game_web(
         match validators::validate_guess_limit(limit, validators::MAX_WEB_GUESS_LIMIT) {
             Ok(validated) => validated,
             Err(e) => {
-                return Html(format!(
-                    r#"
-                    <h1>🎯 Number Guessing Game</h1>
-                    <div id="setup-area">
-                        <div id="feedback" class="active too-high">
-                            Error: {}
-                        </div>
-                        <button onclick="location.reload()" class="new-game-btn">Try Again</button>
-                    </div>
-                "#,
-                    e
-                ))
-                .into_response();
+                let template = ErrorTemplate {
+                    error_message: &e,
+                };
+                return AskamaIntoResponse::into_response(template);
             }
         }
     } else {
@@ -296,70 +280,28 @@ async fn create_game_web(
     let game_id = match db::create_game(&pool, payload.min, payload.max, guess_limit).await {
         Ok(id) => id,
         Err(e) => {
-            return Html(format!(
-                r#"
-                <h1>🎯 Number Guessing Game</h1>
-                <div id="setup-area">
-                    <div id="feedback" class="active too-high">
-                        Error: {}
-                    </div>
-                    <button onclick="location.reload()" class="new-game-btn">Try Again</button>
-                </div>
-            "#,
-                e
-            ))
-            .into_response();
+            let err_str = e.to_string();
+            let template = ErrorTemplate {
+                error_message: &err_str,
+            };
+            return AskamaIntoResponse::into_response(template);
         }
     };
 
-    let guess_info = match guess_limit {
-        Some(limit) => format!(
+    let guess_info = guess_limit.map(|limit| {
+        format!(
             "<p>You have <strong>{}</strong> guesses to find it!</p>",
             limit
-        ),
-        None => String::new(),
+        )
+    });
+
+    let template = GameStartedTemplate {
+        game_id,
+        min: payload.min,
+        max: payload.max,
+        guess_info,
     };
-
-    let html = format!(
-        r#"<h1>🎯 Number Guessing Game</h1>
-        <div id='game-area' class='active'>
-            <div class='game-info'>
-                <h2>Game Started!</h2>
-                <p>I'm thinking of a number between</p>
-                <p class='range-display'>{} and {}</p>
-                {}
-            </div>
-
-            <div id='game-content'>
-                <form class='guess-form'
-                      hx-post='/game/{}/guess'
-                      hx-target='#game-content'
-                      hx-swap='innerHTML'>
-                    <div class='guess-input-group'>
-                        <input type='number'
-                               name='guess'
-                               min='{}'
-                               max='{}'
-                               placeholder='Enter your guess'
-                               required
-                               autofocus>
-                        <button type='submit'>
-                            Guess
-                            <span class='htmx-indicator'>
-                                <span class='spinner'></span>
-                            </span>
-                        </button>
-                    </div>
-                </form>
-
-                <div id='game-feedback'>
-                    <!-- Feedback will appear here -->
-                </div>
-            </div>
-        </div>"#,
-        payload.min, payload.max, guess_info, game_id, payload.min, payload.max
-    );
-    Html(html).into_response()
+    AskamaIntoResponse::into_response(template)
 }
 
 async fn make_guess_web(
@@ -371,16 +313,7 @@ async fn make_guess_web(
     let mut game = match db::get_game(&pool, game_id).await {
         Ok(g) => g,
         Err(_) => {
-            return Html(
-                r#"
-                <div id="feedback" class="active too-high">
-                    Game not found. It may have expired or been completed.
-                </div>
-                <a href="/" class="new-game-link">← Start a New Game</a>
-            "#
-                .to_string(),
-            )
-            .into_response();
+            return AskamaIntoResponse::into_response(GameNotFoundTemplate);
         }
     };
 
@@ -410,95 +343,35 @@ async fn make_guess_web(
             // Update game in database
             if let Err(e) = db::update_game(&pool, game_id, &game).await {
                 eprintln!("Failed to update game {}: {}", game_id, e);
-                return Html(
-                    r#"
-                    <div id="feedback" class="active too-high">
-                        Error updating game. Please try again.
-                    </div>
-                    <a href="/" class="new-game-link">← Start a New Game</a>
-                "#
-                    .to_string(),
-                )
-                .into_response();
+                return AskamaIntoResponse::into_response(UpdateErrorTemplate);
             }
 
-            let html = format!(
-                r#"<form class='guess-form'
-                      hx-post='/game/{}/guess'
-                      hx-target='#game-content'
-                      hx-swap='innerHTML'>
-                    <div class='guess-input-group'>
-                        <input type='number'
-                               name='guess'
-                               min='{}'
-                               max='{}'
-                               placeholder='Enter your guess'
-                               value=''
-                               required
-                               autofocus>
-                        <button type='submit'>
-                            Guess
-                            <span class='htmx-indicator'>
-                                <span class='spinner'></span>
-                            </span>
-                        </button>
-                    </div>
-                </form>
-
-                {}
-                <div id='feedback' class='active too-low'>
-                    Too low! Your guess of {} is below the target.
-                </div>"#,
-                game_id, min, max, remaining_info, payload.guess
-            );
-            Html(html).into_response()
+            let template = GuessFormTemplate {
+                game_id,
+                min,
+                max,
+                remaining_info: if remaining_info.is_empty() { None } else { Some(remaining_info.clone()) },
+                feedback_class: "too-low".to_string(),
+                feedback_message: format!("Too low! Your guess of {} is below the target.", payload.guess),
+            };
+            AskamaIntoResponse::into_response(template)
         }
         GuessResult::TooHigh => {
             // Update game in database
             if let Err(e) = db::update_game(&pool, game_id, &game).await {
                 eprintln!("Failed to update game {}: {}", game_id, e);
-                return Html(
-                    r#"
-                    <div id="feedback" class="active too-high">
-                        Error updating game. Please try again.
-                    </div>
-                    <a href="/" class="new-game-link">← Start a New Game</a>
-                "#
-                    .to_string(),
-                )
-                .into_response();
+                return AskamaIntoResponse::into_response(UpdateErrorTemplate);
             }
 
-            let html = format!(
-                r#"<form class='guess-form'
-                      hx-post='/game/{}/guess'
-                      hx-target='#game-content'
-                      hx-swap='innerHTML'>
-                    <div class='guess-input-group'>
-                        <input type='number'
-                               name='guess'
-                               min='{}'
-                               max='{}'
-                               placeholder='Enter your guess'
-                               value=''
-                               required
-                               autofocus>
-                        <button type='submit'>
-                            Guess
-                            <span class='htmx-indicator'>
-                                <span class='spinner'></span>
-                            </span>
-                        </button>
-                    </div>
-                </form>
-
-                {}
-                <div id='feedback' class='active too-high'>
-                    Too high! Your guess of {} is above the target.
-                </div>"#,
-                game_id, min, max, remaining_info, payload.guess
-            );
-            Html(html).into_response()
+            let template = GuessFormTemplate {
+                game_id,
+                min,
+                max,
+                remaining_info: if remaining_info.is_empty() { None } else { Some(remaining_info.clone()) },
+                feedback_class: "too-high".to_string(),
+                feedback_message: format!("Too high! Your guess of {} is above the target.", payload.guess),
+            };
+            AskamaIntoResponse::into_response(template)
         }
         GuessResult::Correct { number, attempts } => {
             // Remove the completed game from database
@@ -506,14 +379,14 @@ async fn make_guess_web(
                 eprintln!("Failed to delete completed game {}: {}", game_id, e);
             }
 
-            Html(format!(r#"
-                <div id="feedback" class="active correct">
-                    🎉 Congratulations! You got it!<br>
-                    The number was {}.<br>
-                    It took you {} {} to find it!
-                </div>
-                <button onclick="window.location.href='/'" class="new-game-btn">Start New Game</button>
-            "#, number, attempts, if attempts == 1 { "guess" } else { "guesses" })).into_response()
+            let template = GameCompleteTemplate {
+                feedback_class: "correct".to_string(),
+                emoji: "🎉 Congratulations! You got it!".to_string(),
+                message: String::new(),
+                number,
+                attempts: Some(attempts),
+            };
+            AskamaIntoResponse::into_response(template)
         }
         GuessResult::LimitReached {
             number,
@@ -524,14 +397,14 @@ async fn make_guess_web(
                 eprintln!("Failed to delete completed game {}: {}", game_id, e);
             }
 
-            Html(format!(r#"
-                <div id="feedback" class="active limit-reached" style="color: #e74c3c;">
-                    ❌ Sorry! You've reached the limit of {} guesses!<br>
-                    The number was {}.<br>
-                    Better luck next time!
-                </div>
-                <button onclick="window.location.href='/'" class="new-game-btn">Start New Game</button>
-            "#, max_guesses, number)).into_response()
+            let template = GameCompleteTemplate {
+                feedback_class: "limit-reached".to_string(),
+                emoji: "❌".to_string(),
+                message: format!("Sorry! You've reached the limit of {} guesses!", max_guesses),
+                number,
+                attempts: None,
+            };
+            AskamaIntoResponse::into_response(template)
         }
     }
 }

@@ -3,6 +3,7 @@ pub mod db;
 pub mod game;
 pub mod game_id;
 pub mod io;
+pub mod templates;
 pub mod validators;
 pub mod web;
 

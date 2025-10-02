@@ -1,0 +1,28 @@
+<form class='guess-form'
+      hx-post='/game/{{ game_id }}/guess'
+      hx-target='#game-content'
+      hx-swap='innerHTML'>
+    <div class='guess-input-group'>
+        <input type='number'
+               name='guess'
+               min='{{ min }}'
+               max='{{ max }}'
+               placeholder='Enter your guess'
+               value=''
+               required
+               autofocus>
+        <button type='submit'>
+            Guess
+            <span class='htmx-indicator'>
+                <span class='spinner'></span>
+            </span>
+        </button>
+    </div>
+</form>
+
+{% if let Some(info) = remaining_info %}
+{{ info|safe }}
+{% endif %}
+<div id='feedback' class='active {{ feedback_class }}'>
+    {{ feedback_message }}
+</div>
