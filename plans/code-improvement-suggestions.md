@@ -4,69 +4,6 @@
 
 This document outlines improvement suggestions for the number guessing game codebase, focusing on Rust best practices and software engineering principles.
 
-## **Error Handling & Types**
-
-### 1. Replace `String` errors with proper error types
-**Location:** `src/game.rs:15`, `src/db.rs:6`
-
-**Current:** Using `Result<Self, String>` throughout
-
-**Improvement:** Create a proper `GameError` enum using `thiserror` crate
-
-**Benefits:**
-- Better error handling
-- Type safety
-- Automatic derives for Display/Error traits
-
-**Example:**
-```rust
-use thiserror::Error;
-
-#[derive(Error, Debug)]
-pub enum GameError {
-    #[error("Minimum value ({0}) must be non-negative (>= 0)")]
-    NegativeMin(i32),
-    #[error("Maximum value ({0}) must be non-negative (>= 0)")]
-    NegativeMax(i32),
-    #[error("Maximum ({max}) must be >= minimum ({min})")]
-    InvalidRange { min: i32, max: i32 },
-    #[error("Value ({0}) exceeds maximum allowed ({1})")]
-    ExceedsLimit(i32, i32),
-}
-```
-
-### 2. DbError could use `thiserror`
-**Location:** `src/db.rs:6-22`
-
-**Current:** Manual `Display` and `Error` implementations
-
-**Improvement:**
-```rust
-#[derive(Error, Debug)]
-pub enum DbError {
-    #[error("Game not found")]
-    NotFound,
-    #[error("Database error: {0}")]
-    DatabaseError(#[from] sqlx::Error),
-    #[error("Conversion error: {0}")]
-    ConversionError(String),
-}
-```
-
-### 3. Inconsistent error handling in web handlers
-**Location:** `src/web.rs:434, 480, 526, 542`
-
-**Issue:** Some errors ignored with `let _ =`, others properly handled
-
-**Improvement:** Consistently log errors even when ignoring
-```rust
-if let Err(e) = db::delete_game(&pool, game_id).await {
-    eprintln!("Failed to delete game {}: {}", game_id, e);
-}
-```
-
----
-
 ## **Rust Idioms & Best Practices**
 
 ### 4. Validation duplication
