@@ -227,7 +227,9 @@ number_guessing_game/
 │   ├── main.rs      # Application entry point
 │   ├── lib.rs       # Library exports
 │   ├── game.rs      # Core game logic
-│   ├── cli.rs       # CLI interface and input handling
+│   ├── cli.rs       # CLI argument parsing (clap)
+│   ├── io.rs        # User input/output helpers
+│   ├── validators.rs # Shared validation logic
 │   ├── db.rs        # PostgreSQL database layer
 │   └── web.rs       # Web server and API endpoints
 ├── static/

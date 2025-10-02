@@ -2,7 +2,8 @@
 
 use clap::Parser;
 use number_guessing_game::{
-    Cli, GuessResult, GuessingGame, get_guess_limit, get_max_value, get_min_value, read_input,
+    Cli, GuessResult, GuessingGame,
+    io::{prompt_guess_limit, prompt_max_value, prompt_min_value, read_input},
     web::run_server,
 };
 use sqlx::postgres::PgPoolOptions;
@@ -43,10 +44,10 @@ async fn main() {
 fn run_cli_game(cli: Cli) {
     println!("Welcome to the Number Guessing Game!");
 
-    // Get min and max values using CLI helper functions
-    let min = get_min_value(cli.min);
-    let max = get_max_value(cli.max, min);
-    let guess_limit = get_guess_limit(cli.limit);
+    // Get min and max values using I/O helper functions
+    let min = prompt_min_value(cli.min);
+    let max = prompt_max_value(cli.max, min);
+    let guess_limit = prompt_guess_limit(cli.limit);
 
     println!(
         "I'm thinking of a number between {} and {} (inclusive)...",

@@ -1,5 +1,6 @@
 use crate::db;
 use crate::game::GuessResult;
+use crate::validators;
 use axum::{
     Router,
     extract::{Form, Path, State},
@@ -100,38 +101,27 @@ async fn create_game_api(
     State(pool): State<SharedState>,
     Json(payload): Json<CreateGameRequest>,
 ) -> Result<Json<CreateGameResponse>, (StatusCode, Json<ErrorResponse>)> {
-    // Validate input before creating game
-    if payload.min < 0 || payload.max < 0 {
+    // Validate range using shared validator
+    if let Err(e) = validators::validate_range(payload.min, payload.max) {
         return Err((
             StatusCode::BAD_REQUEST,
-            Json(ErrorResponse {
-                error: "Min and max values must be non-negative (>= 0)".to_string(),
-            }),
+            Json(ErrorResponse { error: e }),
         ));
     }
 
-    if payload.min > 1_000_000 || payload.max > 1_000_000 {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse {
-                error: "Min and max values cannot exceed 1,000,000".to_string(),
-            }),
-        ));
-    }
-
-    // Validate guess limit (max 100 for web UI)
-    let guess_limit = match payload.max_guesses {
-        Some(0) => None, // Treat 0 as no limit
-        Some(limit) if limit > 100 => {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                Json(ErrorResponse {
-                    error: "Guess limit cannot exceed 100".to_string(),
-                }),
-            ));
+    // Validate guess limit using shared validator
+    let guess_limit = if let Some(limit) = payload.max_guesses {
+        match validators::validate_guess_limit(limit, validators::MAX_WEB_GUESS_LIMIT) {
+            Ok(validated) => validated,
+            Err(e) => {
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    Json(ErrorResponse { error: e }),
+                ));
+            }
         }
-        Some(limit) => Some(limit),
-        None => None,
+    } else {
+        None
     };
 
     // Create game in database
@@ -260,59 +250,45 @@ async fn create_game_web(
     State(pool): State<SharedState>,
     Form(payload): Form<CreateGameRequest>,
 ) -> impl IntoResponse {
-    // Validate input before creating game
-    if payload.min < 0 || payload.max < 0 {
-        return Html(
+    // Validate range using shared validator
+    if let Err(e) = validators::validate_range(payload.min, payload.max) {
+        return Html(format!(
             r#"
             <h1>🎯 Number Guessing Game</h1>
             <div id="setup-area">
                 <div id="feedback" class="active too-high">
-                    Error: Min and max values must be non-negative (>= 0)
+                    Error: {}
                 </div>
                 <button onclick="location.reload()" class="new-game-btn">Try Again</button>
             </div>
-        "#
-            .to_string(),
-        )
+        "#,
+            e
+        ))
         .into_response();
     }
 
-    if payload.min > 1_000_000 || payload.max > 1_000_000 {
-        return Html(
-            r#"
-            <h1>🎯 Number Guessing Game</h1>
-            <div id="setup-area">
-                <div id="feedback" class="active too-high">
-                    Error: Min and max values cannot exceed 1,000,000
-                </div>
-                <button onclick="location.reload()" class="new-game-btn">Try Again</button>
-            </div>
-        "#
-            .to_string(),
-        )
-        .into_response();
-    }
-
-    // Validate guess limit (max 100 for web UI)
-    let guess_limit = match payload.max_guesses {
-        Some(0) => None, // Treat 0 as no limit
-        Some(limit) if limit > 100 => {
-            return Html(
-                r#"
-                <h1>🎯 Number Guessing Game</h1>
-                <div id="setup-area">
-                    <div id="feedback" class="active too-high">
-                        Error: Guess limit cannot exceed 100
+    // Validate guess limit using shared validator
+    let guess_limit = if let Some(limit) = payload.max_guesses {
+        match validators::validate_guess_limit(limit, validators::MAX_WEB_GUESS_LIMIT) {
+            Ok(validated) => validated,
+            Err(e) => {
+                return Html(format!(
+                    r#"
+                    <h1>🎯 Number Guessing Game</h1>
+                    <div id="setup-area">
+                        <div id="feedback" class="active too-high">
+                            Error: {}
+                        </div>
+                        <button onclick="location.reload()" class="new-game-btn">Try Again</button>
                     </div>
-                    <button onclick="location.reload()" class="new-game-btn">Try Again</button>
-                </div>
-            "#
-                .to_string(),
-            )
-            .into_response();
+                "#,
+                    e
+                ))
+                .into_response();
+            }
         }
-        Some(limit) => Some(limit),
-        None => None,
+    } else {
+        None
     };
 
     // Create game in database

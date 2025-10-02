@@ -63,17 +63,6 @@ let game_id_i64: i64 = game_id.try_into()
     .map_err(|_| DbError::ConversionError("Game ID out of range".into()))?;
 ```
 
-### 8. Magic numbers in validation
-**Location:** `src/game.rs:4`, `src/web.rs:113, 125`
-
-**Issue:** `1_000_000` and `100` repeated throughout code
-
-**Improvement:** Define as constants
-```rust
-pub const MAX_RANGE: i32 = 1_000_000;
-pub const MAX_WEB_GUESS_LIMIT: u32 = 100;
-pub const MAX_CLI_GUESS_LIMIT: u32 = 1000;
-```
 
 ### 9. Missing newtype pattern for game_id
 **Location:** `src/web.rs:38, 164`
@@ -103,36 +92,12 @@ impl GameId {
 
 ## **Code Organization & Architecture**
 
-### 11. CLI module has mixed responsibilities
-**Location:** `src/cli.rs:70-211`
-
-**Issue:** Input reading, validation, and prompting all mixed
-
-**Improvement:** Separate into validators and I/O functions
-- `validators.rs` - pure validation logic
-- `io.rs` - reading user input
-- `cli.rs` - CLI argument parsing only
-
-### 12. Duplicate validation logic across layers
-**Location:** `src/web.rs:104-120`, `src/game.rs:20-56`
-
-**Issue:** Web layer validates, then game layer validates again
-
-**Improvement:** Either trust validated data from web layer OR make validation a separate concern with a `validate` module
-
 ### 13. Hardcoded HTML strings in Rust
 **Location:** `src/web.rs:266-554`
 
 **Issue:** Mixing HTML with business logic makes both harder to maintain
 
 **Improvement:** Move to templates or separate HTML builder functions
-
-### 14. lib.rs re-exports too much
-**Location:** `src/lib.rs:7-8`
-
-**Issue:** Re-exporting CLI helpers like `get_guess_limit` in library API
-
-**Improvement:** These are binary-specific, not library concerns. Only export core game logic.
 
 ---
 
@@ -419,12 +384,12 @@ Priority improvements to tackle first:
 
 1. ✅ **Remove `#![allow(warnings)]`** from `main.rs:1`
 2. ✅ **Add `thiserror` dependency** and convert error types
-3. ✅ **Extract constants** (`MAX_ALLOWED`, `MAX_WEB_GUESS_LIMIT`, etc.)
+3. ✅ **Extract constants** (`MAX_RANGE`, `MAX_WEB_GUESS_LIMIT`, etc.) - in `validators.rs`
 4. ✅ **Add `.expect()` with messages** instead of `.unwrap()`
 5. ✅ **Add module-level doc comments**
 6. ✅ **Configure structured logging** with `tracing`
 7. ✅ **Add `/health` endpoint**
-8. ✅ **Extract validation logic** to shared function
+8. ✅ **Extract validation logic** to shared `validators` module
 
 ---
 
@@ -440,17 +405,17 @@ These suggestions would move it from **good** to **excellent production-ready co
 
 ### Implementation Priority
 
-**Phase 1 - Foundation (Quick Wins)**
-- Error types with `thiserror`
-- Extract constants
-- Add logging
-- Health check endpoint
+**Phase 1 - Foundation (Quick Wins)** ✅ COMPLETED
+- ✅ Error types with `thiserror`
+- ✅ Extract constants
+- ✅ Add logging
+- ✅ Health check endpoint
+- ✅ Refactor validation logic
 
 **Phase 2 - Code Quality**
-- Refactor validation logic
-- Improve documentation
-- Template engine for HTML
-- Test improvements
+- Improve documentation (items #26-28)
+- Template engine for HTML (item #13)
+- Test improvements (items #19-22)
 
 **Phase 3 - Production Readiness**
 - Rate limiting

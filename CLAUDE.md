@@ -76,7 +76,9 @@ make clean             # Clean everything
 
 ### Core Modules
 - **src/game.rs**: Pure game logic, no I/O. Contains `GuessingGame` struct and `GuessResult` enum
-- **src/cli.rs**: CLI argument parsing (clap) and user input handling
+- **src/cli.rs**: CLI argument parsing using clap (no validation or I/O)
+- **src/validators.rs**: Shared validation logic used by both CLI and web layers (pure functions, no I/O)
+- **src/io.rs**: User input/output helpers for CLI interactions
 - **src/db.rs**: PostgreSQL database layer with runtime-checked SQLx queries
 - **src/web.rs**: Axum-based web server with REST API and HTMX frontend
 - **src/main.rs**: Minimal entry point, mode selection (CLI vs Web), database initialization
@@ -84,10 +86,11 @@ make clean             # Clean everything
 - **migrations/**: SQLx database migrations
 
 ### Key Design Patterns
-1. **Separation of Concerns**: Game logic isolated from I/O, database layer separate from web layer
-2. **Result Types**: Extensive use of `Result<T, String>` for error handling
-3. **State Management**: Web server uses PostgreSQL with SQLx connection pooling (`PgPool`)
-4. **Validation**: Input validation at multiple layers (CLI, web, game logic, database)
+1. **Separation of Concerns**: Game logic isolated from I/O, validation separate from presentation, database layer separate from web layer
+2. **Shared Validation**: Single source of truth for validation logic in `validators` module
+3. **Result Types**: Extensive use of `Result<T, String>` for error handling
+4. **State Management**: Web server uses PostgreSQL with SQLx connection pooling (`PgPool`)
+5. **Module Organization**: Clear boundaries between argument parsing, validation, I/O, and business logic
 
 ## Important Constraints
 
@@ -134,11 +137,14 @@ cargo run -- --server
 
 ### Adding a New Feature
 1. Update game logic in `src/game.rs`
-2. Add CLI support in `src/cli.rs` if needed
-3. Update web handlers in `src/web.rs`
-4. Modify HTML in `static/index.html` for UI changes
-5. Write tests in the relevant module
-6. Update documentation (README.md, docs/api.md, docs/requirements.md)
+2. Add validation logic in `src/validators.rs` if needed
+3. Add CLI support:
+   - Argument parsing in `src/cli.rs`
+   - User I/O in `src/io.rs`
+4. Update web handlers in `src/web.rs` (uses shared validators)
+5. Modify HTML in `static/index.html` for UI changes
+6. Write tests in the relevant module
+7. Update documentation (README.md, docs/api.md, docs/requirements.md)
 
 ### Modifying Game Rules
 - Core logic in `game.rs::GuessingGame::make_guess()`
@@ -171,7 +177,9 @@ cargo run -- --server
 │   └── claude.md    # This file
 ├── src/
 │   ├── game.rs      # Core game logic
-│   ├── cli.rs       # CLI interface
+│   ├── cli.rs       # CLI argument parsing (clap only)
+│   ├── validators.rs # Shared validation logic (no I/O)
+│   ├── io.rs        # User input/output helpers
 │   ├── db.rs        # PostgreSQL database layer
 │   ├── web.rs       # Web server
 │   ├── lib.rs       # Library exports
@@ -189,12 +197,11 @@ cargo run -- --server
 │   │   └── assertions.rs # Custom test assertions
 │   ├── fixtures/    # Test data files
 │   │   └── test_data.json
-│   ├── smoke_test.rs           # Basic connectivity tests
-│   ├── game_lifecycle_test.rs  # API functionality tests
-│   ├── concurrent_games_test.rs # Concurrency tests
-│   ├── error_handling_test.rs  # Error scenario tests
-│   ├── cli_integration_test.rs # CLI interface tests
-│   └── stress_test.rs          # Performance/stress tests
+│   ├── api_edge_cases_test.rs  # API edge cases
+│   ├── cli_test.rs             # CLI interface tests
+│   ├── integration_test.rs     # Basic integration tests
+│   ├── web_endpoints_test.rs   # Web endpoint tests
+│   └── web_ui_test.rs          # Web UI tests
 ├── examples/        # Usage examples
 ├── docs/            # All documentation
 │   ├── api.md       # API documentation
@@ -202,6 +209,8 @@ cargo run -- --server
 │   ├── contributing.md # Dev guidelines
 │   ├── requirements.md # Technical specs
 │   └── security-todo.md # Security TODOs
+├── plans/           # Implementation plans
+│   └── code-improvement-suggestions.md
 ├── target/          # Build artifacts
 ├── Dockerfile       # Container configuration
 ├── docker-compose.yml # Docker Compose for development
