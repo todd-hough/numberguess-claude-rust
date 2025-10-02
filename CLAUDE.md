@@ -8,30 +8,69 @@ A Rust-based number guessing game with both CLI and web interfaces. The game gen
 - Cargo commands may run longer than 2 minutes.  Run them without a timeout.
 
 ## Quick Commands
+
+### Choose Your Tool: `make` or `just`
+Both command runners are available with identical functionality. Use whichever you prefer:
+- **make**: Pre-installed on most systems, traditional choice
+- **just**: Modern alternative with better syntax (install: `cargo install just`)
+
+Run `make` or `just --list` to see all available commands.
+
+### Common Workflows
+
 ```bash
-# Build and test (automatically builds Docker image if needed)
-cargo build
-cargo test
+# Development - Start full stack (postgres + app in Docker)
+make dev          # or: just dev
+# Access at http://localhost:3000
 
-# Or use Makefile for convenience
-make test              # Run all tests (checks Docker image first)
-make test-unit         # Unit tests only (no Docker)
-make test-web-ui       # Web UI tests only
-make docker-rebuild    # Force rebuild Docker image
-
-# Run test with output for troubleshooting
-cargo test -- --nocapture
-
-# Run CLI game
-cargo run -- --min 1 --max 100 --limit 10
-
-# Run web server
+# Development - Start only database (run app locally for faster iteration)
+make dev-db       # or: just dev-db
 cargo run -- --server --port 3000
 
-# Format code
-cargo fmt
-cargo clippy
+# Stop development services
+make dev-down     # or: just dev-down
+
+# Building (no database needed - uses runtime-checked SQLx)
+make build        # or: just build
+cargo build       # Direct cargo also works
+
+# Testing
+make test              # All tests (builds Docker if needed)
+make test-unit         # Unit tests only (fast, no Docker)
+make test-integration  # Integration tests with testcontainers
+
+# Or with just:
+just test
+just test-unit
+just test-integration
+just test-verbose      # With output for debugging
+
+# Running
+make run-cli           # CLI game with defaults
+cargo run -- --min 1 --max 100 --limit 10
+
+make run-server        # Web server (needs postgres)
+just run-server 8080   # With custom port
+
+# Code Quality
+make fmt               # Format code
+make lint              # Run clippy
+just check             # Format + lint
+
+# Database
+make db-shell          # PostgreSQL shell
+make logs              # View docker-compose logs
+
+# Cleanup
+make clean             # Clean everything
 ```
+
+### Key Points
+- **Build**: No database needed (SQLx uses runtime checking, not compile-time)
+- **CLI mode**: No database needed at all
+- **Web mode**: Requires PostgreSQL running
+- **Tests**: Unit tests are fast (no Docker), integration tests use testcontainers
+- **Docker**: Only needed for integration tests and optional full-stack development
 
 ## Architecture
 
@@ -133,11 +172,15 @@ cargo run -- --server
 ├── src/
 │   ├── game.rs      # Core game logic
 │   ├── cli.rs       # CLI interface
+│   ├── db.rs        # PostgreSQL database layer
 │   ├── web.rs       # Web server
 │   ├── lib.rs       # Library exports
 │   └── main.rs      # Entry point
 ├── static/
 │   └── index.html   # Web UI
+├── migrations/      # SQLx database migrations
+│   ├── 20250930000001_create_games_table.sql
+│   └── 20250930000002_add_cleanup_function.sql
 ├── tests/           # Integration tests with test containers
 │   ├── common/      # Shared test infrastructure
 │   │   ├── mod.rs   # Module declarations
@@ -161,7 +204,13 @@ cargo run -- --server
 │   └── security-todo.md # Security TODOs
 ├── target/          # Build artifacts
 ├── Dockerfile       # Container configuration
+├── docker-compose.yml # Docker Compose for development
 ├── .dockerignore    # Docker build exclusions
+├── .env             # Environment variables (DATABASE_URL)
+├── .env.example     # Example environment configuration
+├── Makefile         # Make command runner
+├── justfile         # Just command runner (modern alternative)
+├── build.rs         # Build script (Docker image for tests)
 ├── run_integration_tests.sh  # Test runner (Linux/macOS)
 ├── run_integration_tests.bat # Test runner (Windows)
 └── README.md        # Main documentation
@@ -170,35 +219,41 @@ cargo run -- --server
 ## Database Setup
 
 ### PostgreSQL Integration
-The web server now uses PostgreSQL for persistent storage instead of in-memory HashMap.
+The web server uses PostgreSQL for persistent storage.
 
-**Setup for Development:**
+**Quick Start:**
 ```bash
-# Option 1: Use docker-compose (if available)
-docker compose up -d postgres
+# Option 1: Full stack in Docker (easiest for manual testing)
+make dev              # or: just dev
+# Access at http://localhost:3000
 
-# Option 2: Use existing PostgreSQL instance
-# Just set DATABASE_URL in .env file
-
-# Create .env file (already done, but customize if needed)
-echo 'DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres' > .env
-
-# Build and run (migrations run automatically)
-cargo build
+# Option 2: Database only (run app locally for faster iteration)
+make dev-db           # or: just dev-db
 cargo run -- --server
+
+# Option 3: Use existing PostgreSQL instance
+# Copy .env.example to .env and set your DATABASE_URL
+cp .env.example .env
+# Edit .env with your database credentials
 ```
 
 **Database Schema:**
 - **games table**: Stores active game state (game_id, min/max values, secret_number, guess_count, max_guesses)
-- **Migrations**: Located in `migrations/` directory, run automatically on startup
+- **Migrations**: Located in `migrations/` directory, run automatically on server startup
 - **Connection pooling**: Max 5 connections via SQLx PgPool
 
 **Key Points:**
-- Runtime-checked queries (no compile-time database required)
-- Automatic migration execution on server startup
-- Games persist across server restarts
-- Completed games are automatically deleted from database
-- Environment variable `DATABASE_URL` required for web mode
+- **Runtime-checked queries**: No database needed at compile time (cargo build works without DB)
+- **Automatic migrations**: Migrations run on server startup
+- **Persistent storage**: Games persist across server restarts
+- **Auto-cleanup**: Completed games are automatically deleted from database
+- **Environment variables**: DATABASE_URL required for web mode (see `.env.example`)
+
+**Default Credentials (docker-compose):**
+- User: `numberguess`
+- Password: `password`
+- Database: `numberguess_dev`
+- Connection string: `postgresql://numberguess:password@localhost:5432/numberguess_dev`
 
 ## Dependencies to Know
 

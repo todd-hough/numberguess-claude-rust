@@ -15,5 +15,25 @@ services:
       timeout: 5s
       retries: 5
 
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: numberguess-claude-rust:latest
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://numberguess:password@postgres:5432/numberguess_dev
+      RUST_LOG: info
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - full-stack
+    # For development: uncomment to mount source and rebuild on changes
+    # volumes:
+    #   - ./src:/app/src
+    #   - ./static:/app/static
+
 volumes:
   postgres_data:

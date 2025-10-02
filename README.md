@@ -4,12 +4,14 @@ A fun and interactive number guessing game that can be played via command-line o
 
 ## Features
 
-- **CLI Mode**: Interactive command-line gameplay
+- **CLI Mode**: Interactive command-line gameplay (no database required)
 - **Web Server Mode**: REST API and web UI for browser-based play
+- **PostgreSQL Persistence**: Game state persists across server restarts
 - **Configurable Range**: Set custom min/max values for the guessing range
 - **Guess Limit**: Optional limit on number of guesses per game
 - **Input Validation**: Comprehensive validation with helpful error messages
 - **Web Interface**: Modern, responsive UI with real-time feedback
+- **Docker Support**: Easy setup with Docker Compose for local development
 
 ## Installation
 
@@ -19,18 +21,29 @@ git clone <repository-url>
 cd number_guessing_game
 
 # Build the project
+make build
+
+# Or build for release
 cargo build --release
 ```
+
+### Prerequisites
+- **Rust**: 1.89.0 or later
+- **PostgreSQL**: Required for web server mode (can use Docker Compose)
+- **Docker**: Optional, for running full stack or tests
+- **Make**: For convenient command running (or install `just` as alternative)
 
 ## Usage
 
 ### Command-Line Mode
 
-```bash
-# Basic usage (interactive prompts)
-cargo run
+CLI mode does not require a database.
 
-# With custom range
+```bash
+# Quick start with make
+make run-cli
+
+# Or use cargo directly with custom options
 cargo run -- --min 1 --max 100
 
 # With guess limit
@@ -42,12 +55,37 @@ cargo run -- --min 1 --max 100 --limit 5
 
 ### Web Server Mode
 
-```bash
-# Start server on default port (3000)
-cargo run -- --server
+Web server requires PostgreSQL. Use one of these approaches:
 
-# Start server on custom port
+**Option 1: Full Stack (easiest for quick start)**
+```bash
+# Starts both PostgreSQL and app server in Docker
+make dev
+
+# Access the web interface at http://localhost:3000
+# Stop with: make dev-down
+```
+
+**Option 2: Local Development (faster iteration)**
+```bash
+# Start just the database
+make dev-db
+
+# Run the app locally (in another terminal)
+make run-server
+
+# Or with custom port
 cargo run -- --server --port 8080
+```
+
+**Option 3: Use Your Own PostgreSQL**
+```bash
+# Copy and configure environment file
+cp .env.example .env
+# Edit .env with your database credentials
+
+# Run the server
+cargo run -- --server --port 3000
 ```
 
 Then visit `http://localhost:3000` in your browser for the web interface.
@@ -190,29 +228,65 @@ number_guessing_game/
 │   ├── lib.rs       # Library exports
 │   ├── game.rs      # Core game logic
 │   ├── cli.rs       # CLI interface and input handling
+│   ├── db.rs        # PostgreSQL database layer
 │   └── web.rs       # Web server and API endpoints
 ├── static/
 │   └── index.html   # Web UI
+├── migrations/      # Database migrations
+│   ├── 20250930000001_create_games_table.sql
+│   └── 20250930000002_add_cleanup_function.sql
+├── tests/           # Integration tests with testcontainers
+│   ├── common/      # Shared test utilities
+│   └── *_test.rs    # Integration test suites
 ├── examples/
 │   ├── demo.rs      # Library usage example
 │   └── web_client.rs # HTTP client example
-└── tests/           # Unit tests (in src files)
+├── docs/            # Detailed documentation
+├── Makefile         # Make command runner
+├── justfile         # Just command runner (modern alternative)
+├── docker-compose.yml # Docker orchestration
+├── .env.example     # Environment configuration template
+└── build.rs         # Build script for Docker image
 ```
 
 ## Development
 
+### Quick Reference
+
+```bash
+# View all available commands
+make help
+# or: just --list
+
+# Common commands
+make dev           # Start full stack for manual testing
+make dev-db        # Start only database (run app locally)
+make dev-down      # Stop services
+make build         # Build application (no DB needed!)
+make test          # Run all tests
+make test-unit     # Fast unit tests (no Docker)
+make fmt           # Format code
+make lint          # Run linter
+make clean         # Clean everything
+```
+
 ### Running Tests
 
 ```bash
-# Run all tests
-cargo test
+# Run all tests (builds Docker image if needed)
+make test
 
-# Run library tests only
-cargo test --lib
+# Run unit tests only (fast, no Docker required)
+make test-unit
 
-# Run with output
+# Run integration tests only
+make test-integration
+
+# Run with output (using cargo directly)
 cargo test -- --nocapture
 ```
+
+**Note**: Unit tests run quickly without Docker. Integration tests use testcontainers to manage their own database instances.
 
 ### Building for Release
 
@@ -221,6 +295,46 @@ cargo build --release
 ```
 
 The optimized binary will be in `target/release/number_guessing_game`
+
+### Development Workflow
+
+**For web development with live reload:**
+```bash
+# Terminal 1: Start database
+make dev-db
+
+# Terminal 2: Run app locally (restart on changes)
+cargo run -- --server
+
+# Or use cargo-watch for auto-reload
+cargo install cargo-watch
+cargo watch -x 'run -- --server'
+```
+
+**For full-stack testing:**
+```bash
+# Start everything in Docker
+make dev
+
+# View logs
+make logs
+
+# Access database
+make db-shell
+```
+
+### Code Quality
+
+```bash
+# Format code
+make fmt
+
+# Run linter
+make lint
+
+# Both format and lint
+just check  # (requires just: cargo install just)
+```
 
 ## Documentation
 
