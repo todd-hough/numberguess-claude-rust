@@ -431,7 +431,8 @@ async fn make_guess_web(
     match result {
         GuessResult::TooLow => {
             // Update game in database
-            if let Err(_) = db::update_game(&pool, game_id, &game).await {
+            if let Err(e) = db::update_game(&pool, game_id, &game).await {
+                eprintln!("Failed to update game {}: {}", game_id, e);
                 return Html(
                     r#"
                     <div id="feedback" class="active too-high">
@@ -477,7 +478,8 @@ async fn make_guess_web(
         }
         GuessResult::TooHigh => {
             // Update game in database
-            if let Err(_) = db::update_game(&pool, game_id, &game).await {
+            if let Err(e) = db::update_game(&pool, game_id, &game).await {
+                eprintln!("Failed to update game {}: {}", game_id, e);
                 return Html(
                     r#"
                     <div id="feedback" class="active too-high">
@@ -523,7 +525,9 @@ async fn make_guess_web(
         }
         GuessResult::Correct { number, attempts } => {
             // Remove the completed game from database
-            let _ = db::delete_game(&pool, game_id).await;
+            if let Err(e) = db::delete_game(&pool, game_id).await {
+                eprintln!("Failed to delete completed game {}: {}", game_id, e);
+            }
 
             Html(format!(r#"
                 <div id="feedback" class="active correct">
@@ -539,7 +543,9 @@ async fn make_guess_web(
             max_guesses,
         } => {
             // Remove the completed game from database
-            let _ = db::delete_game(&pool, game_id).await;
+            if let Err(e) = db::delete_game(&pool, game_id).await {
+                eprintln!("Failed to delete completed game {}: {}", game_id, e);
+            }
 
             Html(format!(r#"
                 <div id="feedback" class="active limit-reached" style="color: #e74c3c;">

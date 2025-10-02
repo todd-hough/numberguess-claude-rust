@@ -1,26 +1,21 @@
-use crate::game::GuessingGame;
+use crate::game::{GameError, GuessingGame};
 use rand::Rng;
 use sqlx::{PgPool, Row};
+use thiserror::Error;
 
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum DbError {
+    #[error("Game not found")]
     NotFound,
+
+    #[error("Database error: {0}")]
     DatabaseError(sqlx::Error),
-    ConversionError(String),
+
+    #[error("Game validation error: {0}")]
+    GameError(#[from] GameError),
 }
 
-impl std::fmt::Display for DbError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            DbError::NotFound => write!(f, "Game not found"),
-            DbError::DatabaseError(e) => write!(f, "Database error: {}", e),
-            DbError::ConversionError(e) => write!(f, "Conversion error: {}", e),
-        }
-    }
-}
-
-impl std::error::Error for DbError {}
-
+// Custom From implementation to handle RowNotFound specially
 impl From<sqlx::Error> for DbError {
     fn from(err: sqlx::Error) -> Self {
         match err {
@@ -38,8 +33,7 @@ pub async fn create_game(
     max_guesses: Option<u32>,
 ) -> Result<u64, DbError> {
     // Validate game parameters (same as GuessingGame::new_with_limit)
-    let game = GuessingGame::new_with_limit(min, max, max_guesses)
-        .map_err(|e| DbError::ConversionError(e))?;
+    let game = GuessingGame::new_with_limit(min, max, max_guesses)?;
 
     // Generate random game ID
     let game_id = rand::rng().random::<u64>();
@@ -90,14 +84,13 @@ pub async fn get_game(pool: &PgPool, game_id: u64) -> Result<GuessingGame, DbErr
     let max_guesses: Option<i32> = row.try_get("max_guesses")?;
 
     // Reconstruct GuessingGame from database row
-    GuessingGame::from_db(
+    Ok(GuessingGame::from_db(
         min_value,
         max_value,
         secret_number,
         guess_count as u32,
         max_guesses.map(|g| g as u32),
-    )
-    .map_err(|e| DbError::ConversionError(e))
+    )?)
 }
 
 /// Update game state after a guess
