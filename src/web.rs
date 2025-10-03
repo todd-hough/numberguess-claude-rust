@@ -157,8 +157,8 @@ async fn make_guess_api(
     Path(game_id): Path<GameId>,
     Json(payload): Json<MakeGuessRequest>,
 ) -> Result<Json<MakeGuessResponse>, (StatusCode, Json<ErrorResponse>)> {
-    // Get game from database
-    let mut game = db::get_game(&pool, game_id)
+    // Make guess using transactional approach (concurrency-safe)
+    let result = db::make_guess_transactional(&pool, game_id, payload.guess)
         .await
         .map_err(|e| match e {
             db::DbError::NotFound => (
@@ -175,46 +175,28 @@ async fn make_guess_api(
             ),
         })?;
 
-    let result = game.make_guess(payload.guess);
-    let guess_count = game.get_guess_count();
-
     let response = match result {
         GuessResult::TooLow => {
-            // Update game in database
-            db::update_game(&pool, game_id, &game)
-                .await
-                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse { error: e.to_string() })))?;
-
             MakeGuessResponse {
                 result: "too_low".to_string(),
                 message: format!(
                     "Too low! Your guess of {} is below the target.",
                     payload.guess
                 ),
-                attempts: Some(guess_count),
+                attempts: None, // Attempts not included for ongoing game
             }
         }
         GuessResult::TooHigh => {
-            // Update game in database
-            db::update_game(&pool, game_id, &game)
-                .await
-                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse { error: e.to_string() })))?;
-
             MakeGuessResponse {
                 result: "too_high".to_string(),
                 message: format!(
                     "Too high! Your guess of {} is above the target.",
                     payload.guess
                 ),
-                attempts: Some(guess_count),
+                attempts: None, // Attempts not included for ongoing game
             }
         }
         GuessResult::Correct { number, attempts } => {
-            // Remove the completed game from database
-            db::delete_game(&pool, game_id)
-                .await
-                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse { error: e.to_string() })))?;
-
             MakeGuessResponse {
                 result: "correct".to_string(),
                 message: format!(
@@ -228,11 +210,6 @@ async fn make_guess_api(
             number,
             max_guesses,
         } => {
-            // Remove the completed game from database
-            db::delete_game(&pool, game_id)
-                .await
-                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse { error: e.to_string() })))?;
-
             MakeGuessResponse {
                 result: "limit_reached".to_string(),
                 message: format!(
@@ -309,76 +286,71 @@ async fn make_guess_web(
     Path(game_id): Path<GameId>,
     Form(payload): Form<MakeGuessRequest>,
 ) -> impl IntoResponse {
-    // Get game from database
-    let mut game = match db::get_game(&pool, game_id).await {
-        Ok(g) => g,
-        Err(_) => {
+    // Make guess using transactional approach (concurrency-safe)
+    let result = match db::make_guess_transactional(&pool, game_id, payload.guess).await {
+        Ok(r) => r,
+        Err(db::DbError::NotFound) => {
             return AskamaIntoResponse::into_response(GameNotFoundTemplate);
         }
-    };
-
-    let result = game.make_guess(payload.guess);
-    let (min, max) = game.get_range();
-    let max_guesses = game.get_max_guesses();
-    let guess_count = game.get_guess_count();
-
-    // Calculate remaining guesses
-    let remaining_info = match max_guesses {
-        Some(limit) => {
-            let remaining = limit.saturating_sub(guess_count);
-            if remaining > 0 {
-                format!(
-                    "<p style='color: #666; font-weight: 600;'>Guesses remaining: {}</p>",
-                    remaining
-                )
-            } else {
-                String::new()
-            }
+        Err(e) => {
+            eprintln!("Failed to make guess for game {}: {}", game_id, e);
+            return AskamaIntoResponse::into_response(UpdateErrorTemplate);
         }
-        None => String::new(),
     };
 
     match result {
-        GuessResult::TooLow => {
-            // Update game in database
-            if let Err(e) = db::update_game(&pool, game_id, &game).await {
-                eprintln!("Failed to update game {}: {}", game_id, e);
-                return AskamaIntoResponse::into_response(UpdateErrorTemplate);
-            }
-
-            let template = GuessFormTemplate {
-                game_id,
-                min,
-                max,
-                remaining_info: if remaining_info.is_empty() { None } else { Some(remaining_info.clone()) },
-                feedback_class: "too-low".to_string(),
-                feedback_message: format!("Too low! Your guess of {} is below the target.", payload.guess),
+        GuessResult::TooLow | GuessResult::TooHigh => {
+            // For ongoing games, fetch current state for display
+            let game = match db::get_game(&pool, game_id).await {
+                Ok(g) => g,
+                Err(_) => {
+                    return AskamaIntoResponse::into_response(UpdateErrorTemplate);
+                }
             };
-            AskamaIntoResponse::into_response(template)
-        }
-        GuessResult::TooHigh => {
-            // Update game in database
-            if let Err(e) = db::update_game(&pool, game_id, &game).await {
-                eprintln!("Failed to update game {}: {}", game_id, e);
-                return AskamaIntoResponse::into_response(UpdateErrorTemplate);
-            }
+
+            let (min, max) = game.get_range();
+            let max_guesses = game.get_max_guesses();
+            let guess_count = game.get_guess_count();
+
+            // Calculate remaining guesses
+            let remaining_info = match max_guesses {
+                Some(limit) => {
+                    let remaining = limit.saturating_sub(guess_count);
+                    if remaining > 0 {
+                        Some(format!(
+                            "<p style='color: #666; font-weight: 600;'>Guesses remaining: {}</p>",
+                            remaining
+                        ))
+                    } else {
+                        None
+                    }
+                }
+                None => None,
+            };
+
+            let (feedback_class, feedback_message) = match result {
+                GuessResult::TooLow => (
+                    "too-low".to_string(),
+                    format!("Too low! Your guess of {} is below the target.", payload.guess),
+                ),
+                GuessResult::TooHigh => (
+                    "too-high".to_string(),
+                    format!("Too high! Your guess of {} is above the target.", payload.guess),
+                ),
+                _ => unreachable!(),
+            };
 
             let template = GuessFormTemplate {
                 game_id,
                 min,
                 max,
-                remaining_info: if remaining_info.is_empty() { None } else { Some(remaining_info.clone()) },
-                feedback_class: "too-high".to_string(),
-                feedback_message: format!("Too high! Your guess of {} is above the target.", payload.guess),
+                remaining_info,
+                feedback_class,
+                feedback_message,
             };
             AskamaIntoResponse::into_response(template)
         }
         GuessResult::Correct { number, attempts } => {
-            // Remove the completed game from database
-            if let Err(e) = db::delete_game(&pool, game_id).await {
-                eprintln!("Failed to delete completed game {}: {}", game_id, e);
-            }
-
             let template = GameCompleteTemplate {
                 feedback_class: "correct".to_string(),
                 emoji: "🎉 Congratulations! You got it!".to_string(),
@@ -392,11 +364,6 @@ async fn make_guess_web(
             number,
             max_guesses,
         } => {
-            // Remove the completed game from database
-            if let Err(e) = db::delete_game(&pool, game_id).await {
-                eprintln!("Failed to delete completed game {}: {}", game_id, e);
-            }
-
             let template = GameCompleteTemplate {
                 feedback_class: "limit-reached".to_string(),
                 emoji: "❌".to_string(),

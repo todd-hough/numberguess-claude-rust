@@ -157,6 +157,103 @@ pub async fn delete_game(pool: &PgPool, game_id: GameId) -> Result<(), DbError> 
     Ok(())
 }
 
+/// Make a guess in a transactional, concurrency-safe manner
+///
+/// This function combines get_game, make_guess, and update/delete operations
+/// in a single database transaction with row-level locking to prevent race conditions.
+pub async fn make_guess_transactional(
+    pool: &PgPool,
+    game_id: GameId,
+    guess: i32,
+) -> Result<crate::game::GuessResult, DbError> {
+    use crate::game::GuessResult;
+
+    let game_id_i64 = game_id.to_i64()
+        .map_err(DbError::ConversionError)?;
+
+    // Begin transaction
+    let mut tx = pool.begin().await?;
+
+    // Lock the row for update to prevent concurrent modifications
+    let row = sqlx::query(
+        r#"
+        SELECT game_id, min_value, max_value, secret_number, guess_count, max_guesses
+        FROM games
+        WHERE game_id = $1
+        FOR UPDATE
+        "#
+    )
+    .bind(game_id_i64)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    // Extract values from row
+    let min_value: i32 = row.try_get("min_value")?;
+    let max_value: i32 = row.try_get("max_value")?;
+    let secret_number: i32 = row.try_get("secret_number")?;
+    let guess_count_i32: i32 = row.try_get("guess_count")?;
+    let max_guesses_i32: Option<i32> = row.try_get("max_guesses")?;
+
+    // Convert to u32 with proper error handling
+    let guess_count: u32 = guess_count_i32
+        .try_into()
+        .map_err(|_| DbError::ConversionError("Guess count is negative".into()))?;
+    let max_guesses: Option<u32> = max_guesses_i32
+        .map(|g| g.try_into())
+        .transpose()
+        .map_err(|_| DbError::ConversionError("Max guesses is negative".into()))?;
+
+    // Reconstruct game and make guess
+    let mut game = GuessingGame::from_db(
+        min_value,
+        max_value,
+        secret_number,
+        guess_count,
+        max_guesses,
+    )?;
+
+    let result = game.make_guess(guess);
+
+    // Update or delete based on result
+    match result {
+        GuessResult::TooLow | GuessResult::TooHigh => {
+            // Game continues - update guess count
+            let new_guess_count: i32 = game.get_guess_count()
+                .try_into()
+                .map_err(|_| DbError::ConversionError("Guess count exceeds i32 range".into()))?;
+
+            sqlx::query(
+                r#"
+                UPDATE games
+                SET guess_count = $1, updated_at = NOW()
+                WHERE game_id = $2
+                "#
+            )
+            .bind(new_guess_count)
+            .bind(game_id_i64)
+            .execute(&mut *tx)
+            .await?;
+        }
+        GuessResult::Correct { .. } | GuessResult::LimitReached { .. } => {
+            // Game is over - delete from database
+            sqlx::query(
+                r#"
+                DELETE FROM games
+                WHERE game_id = $1
+                "#
+            )
+            .bind(game_id_i64)
+            .execute(&mut *tx)
+            .await?;
+        }
+    }
+
+    // Commit transaction
+    tx.commit().await?;
+
+    Ok(result)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -20,9 +20,16 @@ async fn main() {
         let database_url = std::env::var("DATABASE_URL")
             .expect("DATABASE_URL must be set in environment or .env file");
 
-        println!("Connecting to database...");
+        // Read max connections from environment with validation
+        let max_connections = std::env::var("DB_MAX_CONNECTIONS")
+            .unwrap_or_else(|_| "5".to_string())
+            .parse::<u32>()
+            .unwrap_or(5)
+            .clamp(1, 100);
+
+        println!("Connecting to database (max connections: {})...", max_connections);
         let pool = PgPoolOptions::new()
-            .max_connections(5)
+            .max_connections(max_connections)
             .connect(&database_url)
             .await
             .expect("Failed to connect to database");

@@ -64,18 +64,10 @@ This document outlines improvement suggestions for the number guessing game code
 
 ## **Database & State Management**
 
-### 15. No connection pooling configuration
-**Location:** `src/main.rs:23-27`
+### 15. ✅ Connection pooling configuration - COMPLETED
+**Location:** `src/main.rs:23-31`
 
-**Issue:** Hardcoded `max_connections(5)`
-
-**Improvement:** Make configurable via environment variables
-```rust
-let max_connections = std::env::var("DB_MAX_CONNECTIONS")
-    .unwrap_or_else(|_| "5".to_string())
-    .parse()
-    .unwrap_or(5);
-```
+**Status:** Made configurable via `DB_MAX_CONNECTIONS` environment variable with validation (1-100 range, defaults to 5)
 
 ### 16. Missing database indexes
 **Location:** `migrations/20250930000001_create_games_table.sql:14`
@@ -92,12 +84,10 @@ let max_connections = std::env::var("DB_MAX_CONNECTIONS")
 - Option 2: PostgreSQL cron extension
 - Option 3: Cleanup on server startup
 
-### 18. Transaction boundaries unclear
-**Location:** `src/db.rs:104-119`
+### 18. ✅ Transaction boundaries - COMPLETED
+**Location:** `src/db.rs:164-255`, `src/web.rs:155-225, 284-377`
 
-**Issue:** `update_game()` could race with concurrent operations
-
-**Improvement:** Consider using database transactions for multi-step operations
+**Status:** Implemented `make_guess_transactional()` function that combines get + guess + update/delete in a single transaction with row-level locking (`SELECT ... FOR UPDATE`) to prevent race conditions. Both API and web handlers updated to use this concurrency-safe approach.
 
 ---
 
