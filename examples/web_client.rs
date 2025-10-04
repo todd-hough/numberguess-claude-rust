@@ -3,7 +3,7 @@ use serde_json::json;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = reqwest::Client::new();
-    let base_url = "http://localhost:3000";
+    let base_url = "http://localhost:8080";
 
     println!("Testing Number Guessing Game Web API");
     println!("=====================================\n");

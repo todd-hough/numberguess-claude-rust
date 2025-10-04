@@ -46,7 +46,8 @@ dev:
 	docker compose --profile full-stack up -d
 	@echo ""
 	@echo "✓ Services started!"
-	@echo "  Web UI: http://localhost:3000"
+	@echo "  Web UI: http://localhost:8080"
+	@echo "  Health Check: http://localhost:8081/health"
 	@echo "  Database: postgresql://numberguess:password@localhost:5432/numberguess_dev"
 	@echo ""
 	@echo "View logs: make logs"
@@ -96,7 +97,7 @@ run-cli:
 ## run-server: Run web server (requires postgres running)
 run-server:
 	@echo "Starting web server (make sure postgres is running: make dev-db)..."
-	cargo run -- --server --port 3000
+	cargo run -- --server --port 8080
 
 ## fmt: Format code with rustfmt
 fmt:

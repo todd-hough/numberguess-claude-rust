@@ -21,7 +21,8 @@ services:
       dockerfile: Dockerfile
     image: numberguess-claude-rust:latest
     ports:
-      - "3000:3000"
+      - "8080:8080"
+      - "8081:8081"
     environment:
       DATABASE_URL: postgresql://numberguess:password@postgres:5432/numberguess_dev
       RUST_LOG: info

@@ -9,7 +9,7 @@ use axum::{
     extract::{Form, Path, State},
     http::StatusCode,
     response::{IntoResponse, Json},
-    routing::post,
+    routing::{get, post},
 };
 use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::PgPool;
@@ -64,6 +64,8 @@ pub struct ErrorResponse {
 }
 
 pub async fn run_server(pool: PgPool, port: u16) {
+    let health_port = 8081;
+
     // API routes
     let api_routes = Router::new()
         .route("/games", post(create_game_api))
@@ -76,26 +78,62 @@ pub async fn run_server(pool: PgPool, port: u16) {
         .route("/game/{game_id}/guess", post(make_guess_web))
         .with_state(pool.clone());
 
-    // Combine all routes
+    // Main application routes
     let app = Router::new()
         .nest("/api", api_routes)
         .merge(web_routes)
         .fallback_service(ServeDir::new("static"));
 
-    let addr = format!("0.0.0.0:{}", port);
-    println!("Starting web server on http://{}", addr);
-    println!("Web Interface: http://{}/", addr);
+    // Health check server (separate port)
+    let health_app = Router::new()
+        .route("/health", get(health_check))
+        .with_state(pool.clone());
+
+    let main_addr = format!("0.0.0.0:{}", port);
+    let health_addr = format!("0.0.0.0:{}", health_port);
+
+    println!("Starting web server on http://{}", main_addr);
+    println!("Web Interface: http://{}/", main_addr);
     println!("API Endpoints:");
     println!("  POST /api/games - Create a new game");
     println!("  POST /api/games/:game_id/guess - Make a guess");
+    println!("Health Check: http://{}/health", health_addr);
 
-    let listener = tokio::net::TcpListener::bind(&addr)
+    let main_listener = tokio::net::TcpListener::bind(&main_addr)
         .await
-        .unwrap_or_else(|_| panic!("Failed to bind to {}", addr));
+        .unwrap_or_else(|_| panic!("Failed to bind to {}", main_addr));
 
-    axum::serve(listener, app)
+    let health_listener = tokio::net::TcpListener::bind(&health_addr)
         .await
-        .unwrap_or_else(|_| panic!("Failed to start server"));
+        .unwrap_or_else(|_| panic!("Failed to bind to {}", health_addr));
+
+    // Run both servers concurrently with graceful shutdown
+    tokio::select! {
+        result = axum::serve(main_listener, app).with_graceful_shutdown(shutdown_signal()) => {
+            result.unwrap_or_else(|_| panic!("Main server failed"));
+        }
+        result = axum::serve(health_listener, health_app).with_graceful_shutdown(shutdown_signal()) => {
+            result.unwrap_or_else(|_| panic!("Health check server failed"));
+        }
+    }
+}
+
+// Graceful Shutdown Signal Handler
+
+async fn shutdown_signal() {
+    tokio::signal::ctrl_c()
+        .await
+        .expect("Failed to install CTRL+C handler");
+    println!("Shutting down gracefully...");
+}
+
+// Health Check Handler
+
+async fn health_check(State(pool): State<SharedState>) -> StatusCode {
+    match sqlx::query("SELECT 1").fetch_one(&pool).await {
+        Ok(_) => StatusCode::OK,
+        Err(_) => StatusCode::SERVICE_UNAVAILABLE,
+    }
 }
 
 // API Handlers (JSON responses)

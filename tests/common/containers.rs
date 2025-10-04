@@ -40,7 +40,7 @@ impl GameServerInstance {
         let container = image.start().expect("Failed to start game server container");
 
         let port = container
-            .get_host_port_ipv4(ContainerPort::Tcp(3000))
+            .get_host_port_ipv4(ContainerPort::Tcp(8080))
             .expect("Failed to get mapped port");
 
         println!("Game server container started on host port {}", port);
@@ -79,7 +79,7 @@ impl GameServerInstance {
 
         println!("Game server container IP: {}", ip_address);
 
-        format!("http://{}:3000", ip_address)
+        format!("http://{}:8080", ip_address)
     }
 }
 

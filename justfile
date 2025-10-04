@@ -23,7 +23,8 @@ dev:
     docker compose --profile full-stack up -d
     @echo ""
     @echo "✓ Services started!"
-    @echo "  Web UI: http://localhost:3000"
+    @echo "  Web UI: http://localhost:8080"
+    @echo "  Health Check: http://localhost:8081/health"
     @echo "  Database: postgresql://numberguess:password@localhost:5432/numberguess_dev"
     @echo ""
     @echo "View logs: just logs"
@@ -84,7 +85,7 @@ run-cli MIN="1" MAX="100" LIMIT="":
     fi
 
 # Run web server (requires postgres)
-run-server PORT="3000":
+run-server PORT="8080":
     @echo "Starting web server on port {{PORT}}..."
     @echo "Make sure postgres is running: just dev-db"
     cargo run -- --server --port {{PORT}}

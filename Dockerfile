@@ -36,12 +36,12 @@ COPY --from=builder /app/static ./static
 RUN useradd -r -s /bin/false appuser && chown -R appuser:appuser /app
 USER appuser
 
-# Expose the web port
-EXPOSE 3000
+# Expose the web ports (main app and health check)
+EXPOSE 8080 8081
 
 # Set environment variables
 ENV RUST_LOG=info
 
 # Default command runs the web server
 ENTRYPOINT ["number_guessing_game"]
-CMD ["--server", "--port", "3000"]
+CMD ["--server", "--port", "8080"]
