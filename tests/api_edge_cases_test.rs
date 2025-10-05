@@ -24,7 +24,7 @@ struct GuessResponse {
 #[test]
 fn test_guess_nonexistent_game() {
     let postgres = PostgresInstance::new();
-    let server = GameServerInstance::new(&postgres.database_url);
+    let server = GameServerInstance::new(&postgres.container_url());
     let client = Client::new();
     
     let response = client
@@ -40,7 +40,7 @@ fn test_guess_nonexistent_game() {
 #[test]
 fn test_concurrent_games() {
     let postgres = PostgresInstance::new();
-    let server = GameServerInstance::new(&postgres.database_url);
+    let server = GameServerInstance::new(&postgres.container_url());
     let client = Client::new();
     
     // Create 3 games
@@ -51,8 +51,12 @@ fn test_concurrent_games() {
                 .json(&json!({"min": 1, "max": 10}))
                 .send()
                 .unwrap();
-            
-            assert!(resp.status().is_success(), "Game creation should succeed");
+
+            if !resp.status().is_success() {
+                let status = resp.status();
+                let body = resp.text().unwrap_or_else(|_| "Could not read body".to_string());
+                panic!("Game creation failed with status {}: {}", status, body);
+            }
             let game: GameResponse = resp.json().unwrap();
             game.game_id
         })
@@ -80,7 +84,7 @@ fn test_concurrent_games() {
 #[test]
 fn test_guess_after_limit_reached() {
     let postgres = PostgresInstance::new();
-    let server = GameServerInstance::new(&postgres.database_url);
+    let server = GameServerInstance::new(&postgres.container_url());
     let client = Client::new();
     
     // Create game with limit=1 and min=max so we know the exact answer

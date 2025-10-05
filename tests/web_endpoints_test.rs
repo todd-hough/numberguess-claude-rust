@@ -16,7 +16,7 @@ struct GameResponse {
 #[test]
 fn test_static_file_serving() {
     let postgres = PostgresInstance::new();
-    let server = GameServerInstance::new(&postgres.database_url);
+    let server = GameServerInstance::new(&postgres.container_url());
     let client = Client::new();
     
     // Test root serves index.html
@@ -36,7 +36,7 @@ fn test_static_file_serving() {
 #[test]
 fn test_web_form_endpoints() {
     let postgres = PostgresInstance::new();
-    let server = GameServerInstance::new(&postgres.database_url);
+    let server = GameServerInstance::new(&postgres.container_url());
     let client = Client::new();
     
     // Test form submission to /game/new

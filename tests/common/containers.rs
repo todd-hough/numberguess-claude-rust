@@ -23,6 +23,10 @@ impl Image for GameServerImage {
     fn ready_conditions(&self) -> Vec<WaitFor> {
         vec![WaitFor::message_on_stdout("Starting web server on")]
     }
+
+    fn expose_ports(&self) -> &[ContainerPort] {
+        &[ContainerPort::Tcp(8080)]
+    }
 }
 
 pub struct GameServerInstance {
@@ -36,6 +40,8 @@ impl GameServerInstance {
 
         let image = GameServerImage::default()
             .with_env_var("DATABASE_URL", database_url);
+
+        println!("Using DATABASE_URL for container: {}", database_url);
 
         let container = image.start().expect("Failed to start game server container");
 
@@ -318,5 +324,34 @@ impl PostgresInstance {
             pool,
             database_url,
         }
+    }
+
+    /// Get database URL for inter-container communication
+    /// Uses container IP instead of localhost for container-to-container access
+    pub fn container_url(&self) -> String {
+        let container_id = self.container.id();
+
+        // Use docker inspect to get the container's IP address on the bridge network
+        let output = Command::new("docker")
+            .args([
+                "inspect",
+                "-f",
+                "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}",
+                container_id
+            ])
+            .output()
+            .expect("Failed to inspect PostgreSQL container");
+
+        let ip_address = String::from_utf8(output.stdout)
+            .expect("Invalid UTF-8 in IP address")
+            .trim()
+            .to_string();
+
+        println!("PostgreSQL container IP: {}", ip_address);
+
+        format!(
+            "postgresql://postgres:postgres@{}:5432/postgres",
+            ip_address
+        )
     }
 }

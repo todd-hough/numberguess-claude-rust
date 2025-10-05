@@ -27,7 +27,7 @@ fn test_basic_game_flow() {
     let postgres = PostgresInstance::new();
 
     // Start game server with database
-    let server = GameServerInstance::new(&postgres.database_url);
+    let server = GameServerInstance::new(&postgres.container_url());
     let base_url = server.url();
     
     println!("✅ Server is ready at {}", base_url);
@@ -100,7 +100,7 @@ fn test_invalid_game_parameters() {
     let postgres = PostgresInstance::new();
 
     // Start game server with database
-    let server = GameServerInstance::new(&postgres.database_url);
+    let server = GameServerInstance::new(&postgres.container_url());
     let base_url = server.url();
     
     println!("✅ Server is ready at {}", base_url);
