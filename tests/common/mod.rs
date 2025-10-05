@@ -1,3 +1,4 @@
+pub mod assertions;
 pub mod containers;
 pub mod docker_setup;
 pub mod page_objects;

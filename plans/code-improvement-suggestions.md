@@ -6,16 +6,6 @@ This document outlines improvement suggestions for the number guessing game code
 
 ## **Rust Idioms & Best Practices**
 
-### 4. ✅ Validation duplication - COMPLETED
-**Location:** `src/game.rs:32-58`
-
-**Status:** Extracted to private `validate_range()` method used by both `new_with_limit()` and `from_db()`
-
-### 5. ✅ Public field mutation in tests - COMPLETED
-**Location:** `src/game.rs:139-142`
-
-**Status:** Added test-only method `set_secret_for_testing()` - all tests updated to use it instead of direct field mutation
-
 ### 6. `#![allow(warnings)]` is too broad
 **Location:** `src/main.rs:1`
 
@@ -23,56 +13,13 @@ This document outlines improvement suggestions for the number guessing game code
 
 **Improvement:** Remove or use specific `#[allow(unused)]` on specific items
 
-### 7. ✅ Type conversions lack safety checks - COMPLETED
-**Location:** `src/db.rs` (multiple locations)
-
-**Status:** All unsafe `as` conversions replaced with `try_into()` with proper error handling. Added `DbError::ConversionError` variant for type conversion failures.
-
-
-### 9. ✅ Missing newtype pattern for game_id - COMPLETED
-**Location:** `src/game_id.rs`
-
-**Status:** Created type-safe `GameId` newtype wrapper with:
-- Automatic random ID generation via `GameId::new()`
-- Safe conversion methods (`to_i64()`, `as_u64()`)
-- Serde serialization support
-- Used throughout `db.rs` and `web.rs`
-
-### 10. ✅ Inefficient string building in HTML responses - COMPLETED
-**Location:** `templates/` directory
-
-**Status:** Implemented Askama template engine with compile-time templates. All HTML responses now use type-safe templates.
-
 ---
 
 ## **Code Organization & Architecture**
 
-### 13. ✅ Hardcoded HTML strings in Rust - COMPLETED
-**Location:** `src/templates.rs` and `templates/` directory
-
-**Status:** All hardcoded HTML moved to Askama templates:
-- `error.html` - Error messages
-- `game_started.html` - Game initialization
-- `guess_form.html` - Guess form with feedback
-- `game_complete.html` - Win/lose screens
-- `game_not_found.html` - Game not found error
-- `update_error.html` - Update error
-- Type-safe template structs in `src/templates.rs`
-- Clean separation of HTML and business logic
-
 ---
 
 ## **Database & State Management**
-
-### 15. ✅ Connection pooling configuration - COMPLETED
-**Location:** `src/main.rs:23-31`
-
-**Status:** Made configurable via `DB_MAX_CONNECTIONS` environment variable with validation (1-100 range, defaults to 5)
-
-### 16. Missing database indexes
-**Location:** `migrations/20250930000001_create_games_table.sql:14`
-
-**Note:** Only `created_at` indexed. `game_id` already covered as primary key, so this is fine.
 
 ### 17. Unbounded game storage
 **Location:** Per CLAUDE.md known issues
@@ -84,16 +31,11 @@ This document outlines improvement suggestions for the number guessing game code
 - Option 2: PostgreSQL cron extension
 - Option 3: Cleanup on server startup
 
-### 18. ✅ Transaction boundaries - COMPLETED
-**Location:** `src/db.rs:164-255`, `src/web.rs:155-225, 284-377`
-
-**Status:** Implemented `make_guess_transactional()` function that combines get + guess + update/delete in a single transaction with row-level locking (`SELECT ... FOR UPDATE`) to prevent race conditions. Both API and web handlers updated to use this concurrency-safe approach.
-
 ---
 
 ## **Testing**
 
-### 19. Tests use `.unwrap()` extensively
+### 19. ✅ Tests use `.unwrap()` extensively - COMPLETED
 **Location:** `src/game.rs:220-438`
 
 **Issue:** Test failures give poor error messages
@@ -104,7 +46,13 @@ let game = GuessingGame::new(1, 10)
     .expect("Should create game with valid range");
 ```
 
-### 20. Integration tests lack assertions
+**Status:** ✅ Completed - All `.unwrap()` calls replaced with `.expect()` with descriptive messages in:
+- Unit tests: `src/game.rs`
+- Integration tests: `tests/integration_test.rs`
+- API tests: `tests/api_edge_cases_test.rs`
+- Web tests: `tests/web_endpoints_test.rs`
+
+### 20. ✅ Integration tests lack assertions - COMPLETED
 **Location:** `tests/integration_test.rs:94`
 
 **Issue:** Only checks result equals "correct", doesn't verify attempts, message, etc.
@@ -115,6 +63,14 @@ assert_eq!(guess_result.result, "correct");
 assert!(guess_result.attempts > 0);
 assert!(guess_result.message.contains("You got it"));
 ```
+
+**Status:** ✅ Completed - Created comprehensive assertion helpers in `tests/common/assertions.rs`:
+- `assert_valid_game_response()` - Validates game structure and values
+- `assert_game_in_range()` - Verifies game range matches expectations
+- `assert_correct_guess()` - Validates correct guess with attempts and message
+- `assert_incorrect_guess()` - Validates too_low/too_high responses
+- `assert_limit_reached()` - Validates limit reached responses
+- Applied helpers to integration tests for comprehensive validation
 
 ### 21. Test isolation concerns
 **Location:** `tests/integration_test.rs:25`
@@ -270,19 +226,7 @@ async fn shutdown_signal() {
 }
 ```
 
-### 32. No health check endpoint
 
-**Issue:** Useful for deployment, monitoring, load balancers
-
-**Improvement:** Add `/health` or `/api/health` endpoint
-```rust
-async fn health_check(State(pool): State<SharedState>) -> StatusCode {
-    match sqlx::query("SELECT 1").fetch_one(&pool).await {
-        Ok(_) => StatusCode::OK,
-        Err(_) => StatusCode::SERVICE_UNAVAILABLE,
-    }
-}
-```
 
 ---
 

@@ -1,25 +1,12 @@
 mod common;
 
+use common::assertions::{
+    assert_valid_game_response, assert_game_in_range, assert_correct_guess,
+    GameResponse, GuessResponse,
+};
 use common::containers::{GameServerInstance, PostgresInstance};
 use reqwest::blocking::Client;
 use serde_json::json;
-use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Serialize, Deserialize)]
-struct GameResponse {
-    game_id: i64,
-    min: u32,
-    max: u32,
-    max_guesses: Option<u32>,
-    message: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct GuessResponse {
-    result: String,
-    attempts: Option<u32>,
-    message: String,
-}
 
 #[test]
 fn test_basic_game_flow() {
@@ -46,16 +33,17 @@ fn test_basic_game_flow() {
         .post(format!("{}/api/games", base_url))
         .json(&game_data)
         .send()
-        .expect("Should be able to create game");
-        
+        .expect("Should send POST request to create game");
+
     assert!(create_response.status().is_success(), "Game creation should return a success status");
-    
-    let game: GameResponse = create_response.json().expect("Should parse game response");
-    
+
+    let game: GameResponse = create_response.json().expect("Should parse JSON game response");
+
     println!("✅ Game created with ID: {}", game.game_id);
-    assert_eq!(game.min, 1, "Min should be 1");
-    assert_eq!(game.max, 10, "Max should be 10");
-    assert_eq!(game.max_guesses, None, "Max guesses should match limit");
+
+    // Use comprehensive assertion helpers
+    assert_valid_game_response(&game);
+    assert_game_in_range(&game, 1, 10);
     
     // Step 2: Try all possible numbers in range
     // This ensures we'll find the correct number regardless of what it is
@@ -69,25 +57,28 @@ fn test_basic_game_flow() {
             .post(format!("{}/api/games/{}/guess", base_url, game_id))
             .json(&json!({ "guess": guess_num }))
             .send()
-            .expect("Should be able to make guess");
-            
+            .expect("Should send POST request to make guess");
+
         if !guess_response.status().is_success() {
             panic!("Guess failed with status: {}", guess_response.status());
         }
-        
+
         let guess_result: GuessResponse = guess_response
             .json()
-            .expect("Should parse guess response");
-            
+            .expect("Should parse JSON guess response");
+
         println!("Guess result: {}", guess_result.result);
         result = guess_result.result.clone();
-        
+
         if guess_result.result == "correct" {
             println!("✅ Found the correct number: {}", guess_num);
+
+            // Use comprehensive assertion for correct guess
+            assert_correct_guess(&guess_result);
             break;
         }
     }
-    
+
     // We should have found the correct answer among all the numbers we tried
     assert_eq!(result, "correct", "Should eventually find the correct number");
     
@@ -137,7 +128,7 @@ fn test_invalid_game_parameters() {
             .post(format!("{}/api/games", base_url))
             .json(game_data)
             .send()
-            .expect("Should receive response for invalid game");
+            .expect("Should send POST request with invalid game parameters");
             
         assert!(
             create_response.status().as_u16() >= 400,
