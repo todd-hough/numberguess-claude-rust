@@ -418,4 +418,65 @@ mod tests {
             }
         );
     }
+
+    #[test]
+    fn test_from_db_with_secret_below_range() {
+        // Secret number below min should be rejected
+        let result = GuessingGame::from_db(10, 20, 5, 0, None);
+        assert!(result.is_err());
+        if let Err(e) = result {
+            assert!(matches!(e, GameError::SecretOutOfRange { .. }));
+            assert!(e.to_string().contains("Secret number (5)"));
+            assert!(e.to_string().contains("between min (10) and max (20)"));
+        }
+    }
+
+    #[test]
+    fn test_from_db_with_secret_above_range() {
+        // Secret number above max should be rejected
+        let result = GuessingGame::from_db(10, 20, 25, 0, None);
+        assert!(result.is_err());
+        if let Err(e) = result {
+            assert!(matches!(e, GameError::SecretOutOfRange { .. }));
+            assert!(e.to_string().contains("Secret number (25)"));
+        }
+    }
+
+    #[test]
+    fn test_from_db_with_secret_at_min_boundary() {
+        // Secret exactly at min should be valid
+        let result = GuessingGame::from_db(10, 20, 10, 0, None);
+        assert!(result.is_ok());
+        let game = result.unwrap();
+        assert_eq!(game.secret_number(), 10);
+    }
+
+    #[test]
+    fn test_from_db_with_secret_at_max_boundary() {
+        // Secret exactly at max should be valid
+        let result = GuessingGame::from_db(10, 20, 20, 0, None);
+        assert!(result.is_ok());
+        let game = result.unwrap();
+        assert_eq!(game.secret_number(), 20);
+    }
+
+    #[test]
+    fn test_from_db_with_valid_secret() {
+        // Valid secret within range
+        let result = GuessingGame::from_db(1, 100, 50, 5, Some(10));
+        assert!(result.is_ok());
+        let game = result.unwrap();
+        assert_eq!(game.get_range(), (1, 100));
+        assert_eq!(game.secret_number(), 50);
+        assert_eq!(game.get_guess_count(), 5);
+        assert_eq!(game.get_max_guesses(), Some(10));
+    }
+
+    #[test]
+    fn test_from_db_validates_range() {
+        // from_db should still validate the range itself
+        let result = GuessingGame::from_db(100, 10, 50, 0, None);
+        assert!(result.is_err());
+        // Should fail range validation (max < min) before checking secret
+    }
 }

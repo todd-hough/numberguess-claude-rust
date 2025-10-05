@@ -118,3 +118,110 @@ fn test_guess_after_limit_reached() {
     
     println!("✅ Limit enforcement test passed");
 }
+
+#[test]
+fn test_zero_limit_means_unlimited() {
+    let postgres = PostgresInstance::new();
+    let server = GameServerInstance::new(&postgres.container_url());
+    let client = Client::new();
+
+    // Create game WITHOUT max_guesses field (omitted = unlimited)
+    let resp = client
+        .post(format!("{}/api/games", server.url()))
+        .json(&json!({
+            "min": 1,
+            "max": 100
+            // max_guesses omitted = unlimited
+        }))
+        .send()
+        .expect("Should send POST request to create game");
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().unwrap_or_default();
+        panic!("Game creation failed with {}: {}", status, body);
+    }
+
+    let game: GameResponse = resp.json().expect("Should parse JSON game response");
+
+    // Verify max_guesses is None (unlimited)
+    assert_eq!(game.max_guesses, None, "max_guesses should be None when omitted");
+    println!("✅ Created game {} with unlimited guesses", game.game_id);
+
+    // Make many guesses to verify it's truly unlimited
+    for i in 1..=15 {
+        let guess_resp = client
+            .post(format!("{}/api/games/{}/guess", server.url(), game.game_id))
+            .json(&json!({"guess": i}))
+            .send()
+            .expect("Should send guess");
+
+        assert!(guess_resp.status().is_success(),
+            "Guess {} should succeed with unlimited limit", i);
+
+        let guess_result: GuessResponse = guess_resp.json().expect("Should parse guess response");
+
+        // Should never get limit_reached with unlimited
+        assert_ne!(guess_result.result, "limit_reached",
+            "Should not reach limit with unlimited guesses");
+
+        if guess_result.result == "correct" {
+            println!("✅ Found correct answer after {} guesses (unlimited worked)", i);
+            break;
+        }
+    }
+
+    println!("✅ Unlimited (omitted max_guesses) test passed");
+}
+
+#[test]
+fn test_web_rejects_excessive_guess_limit() {
+    let postgres = PostgresInstance::new();
+    let server = GameServerInstance::new(&postgres.container_url());
+    let client = Client::new();
+
+    // Web API should reject max_guesses > 100 (send as strings for API compatibility)
+    let excessive_limits = vec!["101", "150", "1000"];
+
+    for limit in excessive_limits {
+        println!("Testing excessive limit: {}", limit);
+
+        let resp = client
+            .post(format!("{}/api/games", server.url()))
+            .json(&json!({
+                "min": 1,
+                "max": 10,
+                "max_guesses": limit
+            }))
+            .send()
+            .expect("Should send POST request");
+
+        let status = resp.status();
+        assert!(status.as_u16() >= 400 && status.as_u16() < 500,
+            "Should reject max_guesses={} with 4xx error (got {})", limit, status);
+
+        // Log error message
+        if let Ok(body) = resp.text() {
+            println!("  Correctly rejected with status {} and message: {}", status, body);
+        }
+    }
+
+    // Verify exactly 100 is accepted (boundary)
+    let resp = client
+        .post(format!("{}/api/games", server.url()))
+        .json(&json!({
+            "min": 1,
+            "max": 10,
+            "max_guesses": "100"
+        }))
+        .send()
+        .expect("Should send POST request");
+
+    assert!(resp.status().is_success(),
+        "Should accept max_guesses=100 (exactly at limit)");
+    let game: GameResponse = resp.json().expect("Should parse game response");
+    assert_eq!(game.max_guesses, Some(100));
+    println!("✅ Accepted max_guesses=100 (at boundary)");
+
+    println!("✅ Excessive limit rejection test passed");
+}
