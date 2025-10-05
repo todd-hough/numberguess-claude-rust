@@ -6,6 +6,7 @@ A Rust-based number guessing game with both CLI and web interfaces. The game gen
 ## Development Environment
 - Even when working on Windows we work in a bash shell
 - Cargo commands may run longer than 2 minutes.  Run them without a timeout.
+- Building the Docker container image takes over 6 minutes. Use timeout of at least 600000ms (10 minutes) for `docker build` commands.
 
 ## Quick Commands
 

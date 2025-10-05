@@ -1,7 +1,7 @@
 //! Type-safe game ID wrapper.
 //!
 //! Provides a newtype pattern for game IDs to prevent accidentally
-//! mixing u64 values and improve type safety.
+//! mixing i64 values and improve type safety.
 
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -9,29 +9,23 @@ use serde::{Deserialize, Serialize};
 /// A type-safe game identifier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct GameId(u64);
+pub struct GameId(i64);
 
 impl GameId {
     /// Generate a new random game ID.
+    /// Generates a positive i64 value (0 to i64::MAX).
     pub fn new() -> Self {
-        Self(rand::rng().random())
+        Self(rand::rng().random_range(0..i64::MAX))
     }
 
-    /// Create a GameId from a u64 value.
-    pub fn from_u64(id: u64) -> Self {
+    /// Create a GameId from an i64 value.
+    pub fn from_i64(id: i64) -> Self {
         Self(id)
     }
 
-    /// Get the inner u64 value.
-    pub fn as_u64(&self) -> u64 {
+    /// Get the inner i64 value.
+    pub fn as_i64(&self) -> i64 {
         self.0
-    }
-
-    /// Convert to i64 with proper error handling.
-    pub fn to_i64(&self) -> Result<i64, String> {
-        self.0
-            .try_into()
-            .map_err(|_| "Game ID exceeds i64 range".to_string())
     }
 }
 
@@ -47,13 +41,13 @@ impl std::fmt::Display for GameId {
     }
 }
 
-impl From<u64> for GameId {
-    fn from(id: u64) -> Self {
+impl From<i64> for GameId {
+    fn from(id: i64) -> Self {
         Self(id)
     }
 }
 
-impl From<GameId> for u64 {
+impl From<GameId> for i64 {
     fn from(id: GameId) -> Self {
         id.0
     }
@@ -72,26 +66,26 @@ mod tests {
     }
 
     #[test]
-    fn test_game_id_from_u64() {
-        let id = GameId::from_u64(12345);
-        assert_eq!(id.as_u64(), 12345);
+    fn test_game_id_from_i64() {
+        let id = GameId::from_i64(12345);
+        assert_eq!(id.as_i64(), 12345);
     }
 
     #[test]
-    fn test_game_id_to_i64() {
-        let id = GameId::from_u64(12345);
-        assert_eq!(id.to_i64().unwrap(), 12345i64);
+    fn test_game_id_as_i64() {
+        let id = GameId::from_i64(12345);
+        assert_eq!(id.as_i64(), 12345i64);
     }
 
     #[test]
     fn test_game_id_display() {
-        let id = GameId::from_u64(12345);
+        let id = GameId::from_i64(12345);
         assert_eq!(format!("{}", id), "12345");
     }
 
     #[test]
     fn test_game_id_serialization() {
-        let id = GameId::from_u64(12345);
+        let id = GameId::from_i64(12345);
         let json = serde_json::to_string(&id).unwrap();
         assert_eq!(json, "12345");
 

@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct GameResponse {
-    game_id: u64,
+    game_id: i64,
     min: u32,
     max: u32,
     max_guesses: Option<u32>,
@@ -17,7 +17,7 @@ struct GameResponse {
 #[derive(Debug, Serialize, Deserialize)]
 struct GuessResponse {
     result: String,
-    attempts: u32,
+    attempts: Option<u32>,
     message: String,
 }
 

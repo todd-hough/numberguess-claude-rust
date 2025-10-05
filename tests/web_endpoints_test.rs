@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct GameResponse {
-    game_id: u64,
+    game_id: i64,
     min: u32,
     max: u32,
     max_guesses: Option<u32>,
