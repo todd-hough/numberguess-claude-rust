@@ -1,5 +1,5 @@
 # Multi-stage build for the Number Guessing Game
-FROM rust:1.89-slim as builder
+FROM rust:1.89-slim AS builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \

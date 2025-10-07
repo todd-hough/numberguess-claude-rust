@@ -303,18 +303,11 @@ async fn create_game_web(
         }
     };
 
-    let guess_info = guess_limit.map(|limit| {
-        format!(
-            "<p>You have <strong>{}</strong> guesses to find it!</p>",
-            limit
-        )
-    });
-
     let template = GameStartedTemplate {
         game_id,
         min: payload.min,
         max: payload.max,
-        guess_info,
+        max_guesses: guess_limit,
     };
     AskamaIntoResponse::into_response(template)
 }
@@ -351,20 +344,14 @@ async fn make_guess_web(
             let guess_count = game.get_guess_count();
 
             // Calculate remaining guesses
-            let remaining_info = match max_guesses {
-                Some(limit) => {
-                    let remaining = limit.saturating_sub(guess_count);
-                    if remaining > 0 {
-                        Some(format!(
-                            "<p style='color: #666; font-weight: 600;'>Guesses remaining: {}</p>",
-                            remaining
-                        ))
-                    } else {
-                        None
-                    }
+            let remaining_guesses = max_guesses.map(|limit| {
+                let remaining = limit.saturating_sub(guess_count);
+                if remaining > 0 {
+                    Some(remaining)
+                } else {
+                    None
                 }
-                None => None,
-            };
+            }).flatten();
 
             let (feedback_class, feedback_message) = match result {
                 GuessResult::TooLow => (
@@ -382,7 +369,7 @@ async fn make_guess_web(
                 game_id,
                 min,
                 max,
-                remaining_info,
+                remaining_guesses,
                 feedback_class,
                 feedback_message,
             };

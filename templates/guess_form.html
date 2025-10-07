@@ -20,8 +20,8 @@
     </div>
 </form>
 
-{% if let Some(info) = remaining_info %}
-{{ info|safe }}
+{% if let Some(remaining) = remaining_guesses %}
+<p style='color: #666; font-weight: 600;'>Guesses remaining: {{ remaining }}</p>
 {% endif %}
 <div id='feedback' class='active {{ feedback_class }}'>
     {{ feedback_message }}

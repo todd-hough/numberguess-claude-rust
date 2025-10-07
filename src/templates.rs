@@ -20,7 +20,7 @@ pub struct GameStartedTemplate {
     pub game_id: GameId,
     pub min: i32,
     pub max: i32,
-    pub guess_info: Option<String>,
+    pub max_guesses: Option<u32>,
 }
 
 /// Template for guess form with feedback
@@ -30,7 +30,7 @@ pub struct GuessFormTemplate {
     pub game_id: GameId,
     pub min: i32,
     pub max: i32,
-    pub remaining_info: Option<String>,
+    pub remaining_guesses: Option<u32>,
     pub feedback_class: String,
     pub feedback_message: String,
 }

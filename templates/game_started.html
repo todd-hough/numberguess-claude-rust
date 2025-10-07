@@ -4,8 +4,8 @@
         <h2>Game Started!</h2>
         <p>I'm thinking of a number between</p>
         <p class='range-display'>{{ min }} and {{ max }}</p>
-        {% if let Some(info) = guess_info %}
-        <p>{{ info|safe }}</p>
+        {% if let Some(limit) = max_guesses %}
+        <p>You have <strong>{{ limit }}</strong> guesses to find it!</p>
         {% endif %}
     </div>
 
