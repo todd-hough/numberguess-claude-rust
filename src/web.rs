@@ -124,19 +124,47 @@ pub async fn run_server(pool: PgPool, port: u16) {
     debug!("  POST /api/games/:game_id/guess - Make a guess");
     info!(url = %format!("http://{}/health", health_addr), "Health check available");
 
+    // Create channels to signal when each server task has started
+    let (main_ready_tx, main_ready_rx) = tokio::sync::oneshot::channel();
+    let (health_ready_tx, health_ready_rx) = tokio::sync::oneshot::channel();
+
+    // Spawn main server task
+    let main_server = tokio::spawn(async move {
+        debug!("Main server task started, beginning to accept connections");
+        // Signal that we're about to start serving (listener is already bound and ready)
+        let _ = main_ready_tx.send(());
+
+        axum::serve(main_listener, app)
+            .with_graceful_shutdown(shutdown_signal())
+            .await
+            .unwrap_or_else(|_| panic!("Main server failed"));
+    });
+
+    // Spawn health check server task
+    let health_server = tokio::spawn(async move {
+        debug!("Health check server task started, beginning to accept connections");
+        // Signal that we're about to start serving (listener is already bound and ready)
+        let _ = health_ready_tx.send(());
+
+        axum::serve(health_listener, health_app)
+            .with_graceful_shutdown(shutdown_signal())
+            .await
+            .unwrap_or_else(|_| panic!("Health check server failed"));
+    });
+
+    // Wait for both servers to signal they're ready
+    debug!("Waiting for server tasks to start accepting connections...");
+    let _ = main_ready_rx.await;
+    let _ = health_ready_rx.await;
+    debug!("Both server tasks are now accepting connections");
+
     // Emit ready marker to stdout for tests/orchestration tools
     // (stdout is for program output, stderr is for logs)
+    // This is only emitted AFTER both server tasks have started their accept loops
     println!("READY");
 
-    // Run both servers concurrently with graceful shutdown
-    tokio::select! {
-        result = axum::serve(main_listener, app).with_graceful_shutdown(shutdown_signal()) => {
-            result.unwrap_or_else(|_| panic!("Main server failed"));
-        }
-        result = axum::serve(health_listener, health_app).with_graceful_shutdown(shutdown_signal()) => {
-            result.unwrap_or_else(|_| panic!("Health check server failed"));
-        }
-    }
+    // Wait for both servers to complete
+    let _ = tokio::join!(main_server, health_server);
 }
 
 // Graceful Shutdown Signal Handler
