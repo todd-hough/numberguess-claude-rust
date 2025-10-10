@@ -25,7 +25,7 @@ services:
       - "8081:8081"
     environment:
       DATABASE_URL: postgresql://numberguess:password@postgres:5432/numberguess_dev
-      RUST_LOG: info
+      RUST_LOG: debug
     depends_on:
       postgres:
         condition: service_healthy

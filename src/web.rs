@@ -14,7 +14,9 @@ use axum::{
 use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::PgPool;
 use tower_http::services::ServeDir;
-use tracing::{info, error};
+use tower_http::trace::{TraceLayer, DefaultMakeSpan, DefaultOnResponse};
+use tower_http::LatencyUnit;
+use tracing::{info, error, debug, warn};
 
 type SharedState = PgPool;
 
@@ -67,6 +69,8 @@ pub struct ErrorResponse {
 pub async fn run_server(pool: PgPool, port: u16) {
     let health_port = 8081;
 
+    debug!(port = port, health_port = health_port, "Configuring web server");
+
     // API routes
     let api_routes = Router::new()
         .route("/games", post(create_game_api))
@@ -79,11 +83,16 @@ pub async fn run_server(pool: PgPool, port: u16) {
         .route("/game/{game_id}/guess", post(make_guess_web))
         .with_state(pool.clone());
 
-    // Main application routes
+    // Main application routes with tracing middleware
     let app = Router::new()
         .nest("/api", api_routes)
         .merge(web_routes)
-        .fallback_service(ServeDir::new("static"));
+        .fallback_service(ServeDir::new("static"))
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO))
+                .on_response(DefaultOnResponse::new().level(tracing::Level::INFO).latency_unit(LatencyUnit::Millis))
+        );
 
     // Health check server (separate port)
     let health_app = Router::new()
@@ -105,13 +114,15 @@ pub async fn run_server(pool: PgPool, port: u16) {
     info!(
         main_addr = %main_addr,
         health_addr = %health_addr,
+        main_port = port,
+        health_port = health_port,
         "Starting web server"
     );
-    info!("Web Interface: http://{}/", main_addr);
-    info!("API Endpoints:");
-    info!("  POST /api/games - Create a new game");
-    info!("  POST /api/games/:game_id/guess - Make a guess");
-    info!("Health Check: http://{}/health", health_addr);
+    info!(url = %format!("http://{}/", main_addr), "Web Interface available");
+    info!("API Endpoints available");
+    debug!("  POST /api/games - Create a new game");
+    debug!("  POST /api/games/:game_id/guess - Make a guess");
+    info!(url = %format!("http://{}/health", health_addr), "Health check available");
 
     // Emit ready marker to stdout for tests/orchestration tools
     // (stdout is for program output, stderr is for logs)
@@ -141,8 +152,14 @@ async fn shutdown_signal() {
 
 async fn health_check(State(pool): State<SharedState>) -> StatusCode {
     match sqlx::query("SELECT 1").fetch_one(&pool).await {
-        Ok(_) => StatusCode::OK,
-        Err(_) => StatusCode::SERVICE_UNAVAILABLE,
+        Ok(_) => {
+            debug!("Health check passed");
+            StatusCode::OK
+        }
+        Err(e) => {
+            error!(error = %e, "Health check failed: database unavailable");
+            StatusCode::SERVICE_UNAVAILABLE
+        }
     }
 }
 
@@ -152,8 +169,21 @@ async fn create_game_api(
     State(pool): State<SharedState>,
     Json(payload): Json<CreateGameRequest>,
 ) -> Result<Json<CreateGameResponse>, (StatusCode, Json<ErrorResponse>)> {
+    debug!(
+        min = payload.min,
+        max = payload.max,
+        max_guesses = ?payload.max_guesses,
+        "API: Creating new game"
+    );
+
     // Validate range using shared validator
     if let Err(e) = validators::validate_range(payload.min, payload.max) {
+        warn!(
+            min = payload.min,
+            max = payload.max,
+            error = %e,
+            "API: Game creation failed - invalid range"
+        );
         return Err((
             StatusCode::BAD_REQUEST,
             Json(ErrorResponse { error: e }),
@@ -165,6 +195,11 @@ async fn create_game_api(
         match validators::validate_guess_limit(limit, validators::MAX_WEB_GUESS_LIMIT) {
             Ok(validated) => validated,
             Err(e) => {
+                warn!(
+                    limit = limit,
+                    error = %e,
+                    "API: Game creation failed - invalid guess limit"
+                );
                 return Err((
                     StatusCode::BAD_REQUEST,
                     Json(ErrorResponse { error: e }),
@@ -178,7 +213,24 @@ async fn create_game_api(
     // Create game in database
     let game_id = db::create_game(&pool, payload.min, payload.max, guess_limit)
         .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse { error: e.to_string() })))?;
+        .map_err(|e| {
+            error!(
+                min = payload.min,
+                max = payload.max,
+                max_guesses = ?guess_limit,
+                error = %e,
+                "API: Failed to create game in database"
+            );
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse { error: e.to_string() }))
+        })?;
+
+    info!(
+        game_id = %game_id,
+        min = payload.min,
+        max = payload.max,
+        max_guesses = ?guess_limit,
+        "API: Game created successfully"
+    );
 
     let message = match guess_limit {
         Some(limit) => format!(
@@ -205,26 +257,52 @@ async fn make_guess_api(
     Path(game_id): Path<GameId>,
     Json(payload): Json<MakeGuessRequest>,
 ) -> Result<Json<MakeGuessResponse>, (StatusCode, Json<ErrorResponse>)> {
+    debug!(
+        game_id = %game_id,
+        guess = payload.guess,
+        "API: Processing guess"
+    );
+
     // Make guess using transactional approach (concurrency-safe)
     let result = db::make_guess_transactional(&pool, game_id, payload.guess)
         .await
         .map_err(|e| match e {
-            db::DbError::NotFound => (
-                StatusCode::NOT_FOUND,
-                Json(ErrorResponse {
-                    error: format!("Game with ID {} not found", game_id),
-                }),
-            ),
-            _ => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    error: e.to_string(),
-                }),
-            ),
+            db::DbError::NotFound => {
+                warn!(
+                    game_id = %game_id,
+                    "API: Guess failed - game not found"
+                );
+                (
+                    StatusCode::NOT_FOUND,
+                    Json(ErrorResponse {
+                        error: format!("Game with ID {} not found", game_id),
+                    }),
+                )
+            }
+            _ => {
+                error!(
+                    game_id = %game_id,
+                    guess = payload.guess,
+                    error = %e,
+                    "API: Failed to process guess"
+                );
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ErrorResponse {
+                        error: e.to_string(),
+                    }),
+                )
+            }
         })?;
 
     let response = match result {
         GuessResult::TooLow => {
+            debug!(
+                game_id = %game_id,
+                guess = payload.guess,
+                result = "too_low",
+                "API: Guess result"
+            );
             MakeGuessResponse {
                 result: "too_low".to_string(),
                 message: format!(
@@ -235,6 +313,12 @@ async fn make_guess_api(
             }
         }
         GuessResult::TooHigh => {
+            debug!(
+                game_id = %game_id,
+                guess = payload.guess,
+                result = "too_high",
+                "API: Guess result"
+            );
             MakeGuessResponse {
                 result: "too_high".to_string(),
                 message: format!(
@@ -245,6 +329,14 @@ async fn make_guess_api(
             }
         }
         GuessResult::Correct { number, attempts } => {
+            info!(
+                game_id = %game_id,
+                guess = payload.guess,
+                number = number,
+                attempts = attempts,
+                result = "correct",
+                "API: Game completed - correct guess"
+            );
             MakeGuessResponse {
                 result: "correct".to_string(),
                 message: format!(
@@ -258,6 +350,14 @@ async fn make_guess_api(
             number,
             max_guesses,
         } => {
+            info!(
+                game_id = %game_id,
+                guess = payload.guess,
+                number = number,
+                max_guesses = max_guesses,
+                result = "limit_reached",
+                "API: Game completed - limit reached"
+            );
             MakeGuessResponse {
                 result: "limit_reached".to_string(),
                 message: format!(
@@ -278,8 +378,21 @@ async fn create_game_web(
     State(pool): State<SharedState>,
     Form(payload): Form<CreateGameRequest>,
 ) -> impl IntoResponse {
+    debug!(
+        min = payload.min,
+        max = payload.max,
+        max_guesses = ?payload.max_guesses,
+        "Web: Creating new game"
+    );
+
     // Validate range using shared validator
     if let Err(e) = validators::validate_range(payload.min, payload.max) {
+        warn!(
+            min = payload.min,
+            max = payload.max,
+            error = %e,
+            "Web: Game creation failed - invalid range"
+        );
         let template = ErrorTemplate {
             error_message: &e,
         };
@@ -291,6 +404,11 @@ async fn create_game_web(
         match validators::validate_guess_limit(limit, validators::MAX_WEB_GUESS_LIMIT) {
             Ok(validated) => validated,
             Err(e) => {
+                warn!(
+                    limit = limit,
+                    error = %e,
+                    "Web: Game creation failed - invalid guess limit"
+                );
                 let template = ErrorTemplate {
                     error_message: &e,
                 };
@@ -303,8 +421,24 @@ async fn create_game_web(
 
     // Create game in database
     let game_id = match db::create_game(&pool, payload.min, payload.max, guess_limit).await {
-        Ok(id) => id,
+        Ok(id) => {
+            info!(
+                game_id = %id,
+                min = payload.min,
+                max = payload.max,
+                max_guesses = ?guess_limit,
+                "Web: Game created successfully"
+            );
+            id
+        }
         Err(e) => {
+            error!(
+                min = payload.min,
+                max = payload.max,
+                max_guesses = ?guess_limit,
+                error = %e,
+                "Web: Failed to create game in database"
+            );
             let err_str = e.to_string();
             let template = ErrorTemplate {
                 error_message: &err_str,
@@ -327,24 +461,56 @@ async fn make_guess_web(
     Path(game_id): Path<GameId>,
     Form(payload): Form<MakeGuessRequest>,
 ) -> impl IntoResponse {
+    debug!(
+        game_id = %game_id,
+        guess = payload.guess,
+        "Web: Processing guess"
+    );
+
     // Make guess using transactional approach (concurrency-safe)
     let result = match db::make_guess_transactional(&pool, game_id, payload.guess).await {
         Ok(r) => r,
         Err(db::DbError::NotFound) => {
+            warn!(
+                game_id = %game_id,
+                "Web: Guess failed - game not found"
+            );
             return AskamaIntoResponse::into_response(GameNotFoundTemplate);
         }
         Err(e) => {
-            error!(game_id = %game_id, error = %e, "Failed to make guess");
+            error!(
+                game_id = %game_id,
+                guess = payload.guess,
+                error = %e,
+                "Web: Failed to process guess"
+            );
             return AskamaIntoResponse::into_response(UpdateErrorTemplate);
         }
     };
 
     match result {
         GuessResult::TooLow | GuessResult::TooHigh => {
+            let result_str = match result {
+                GuessResult::TooLow => "too_low",
+                GuessResult::TooHigh => "too_high",
+                _ => unreachable!(),
+            };
+            debug!(
+                game_id = %game_id,
+                guess = payload.guess,
+                result = result_str,
+                "Web: Guess result"
+            );
+
             // For ongoing games, fetch current state for display
             let game = match db::get_game(&pool, game_id).await {
                 Ok(g) => g,
-                Err(_) => {
+                Err(e) => {
+                    error!(
+                        game_id = %game_id,
+                        error = %e,
+                        "Web: Failed to fetch game state after guess"
+                    );
                     return AskamaIntoResponse::into_response(UpdateErrorTemplate);
                 }
             };
@@ -386,6 +552,14 @@ async fn make_guess_web(
             AskamaIntoResponse::into_response(template)
         }
         GuessResult::Correct { number, attempts } => {
+            info!(
+                game_id = %game_id,
+                guess = payload.guess,
+                number = number,
+                attempts = attempts,
+                result = "correct",
+                "Web: Game completed - correct guess"
+            );
             let template = GameCompleteTemplate {
                 feedback_class: "correct".to_string(),
                 emoji: "🎉 Congratulations! You got it!".to_string(),
@@ -399,6 +573,14 @@ async fn make_guess_web(
             number,
             max_guesses,
         } => {
+            info!(
+                game_id = %game_id,
+                guess = payload.guess,
+                number = number,
+                max_guesses = max_guesses,
+                result = "limit_reached",
+                "Web: Game completed - limit reached"
+            );
             let template = GameCompleteTemplate {
                 feedback_class: "limit-reached".to_string(),
                 emoji: "❌".to_string(),
