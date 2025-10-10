@@ -58,32 +58,63 @@ A number guessing game that can be run either as a command-line application or a
   - All I/O operations
 - **Web Module** (`src/web.rs`):
   - REST API endpoints implementation
-  - Game session management with HashMap storage
   - Async request handlers using Axum
   - JSON serialization/deserialization
+  - Integration with database layer for game persistence
+- **Database Module** (`src/db.rs`):
+  - PostgreSQL database layer with SQLx
+  - Game CRUD operations (create, read, update, delete)
+  - Transaction management for concurrent guess processing
+  - Database migrations via SQLx
+- **Game ID Module** (`src/game_id.rs`):
+  - Type-safe newtype wrapper for game IDs
   - Random numeric game ID generation
+- **Validators Module** (`src/validators.rs`):
+  - Shared validation logic for CLI and web layers
+  - Pure functions, no I/O operations
+- **I/O Module** (`src/io.rs`):
+  - User input/output helpers for CLI
+  - Generic input reading and parsing
+- **Templates Module** (`src/templates.rs`):
+  - Askama template structs for HTML rendering
+  - Type-safe, compile-time checked templates
 - **Library Entry** (`src/lib.rs`):
-  - Exposes both game and cli modules
+  - Exposes all public modules
   - Re-exports commonly used types for convenience
 - **Main Application** (`src/main.rs`):
   - Minimal orchestration layer
   - Mode selection (CLI vs Web Server)
+  - Database connection and migration for web mode
   - Async runtime initialization for web mode
   - CLI game loop for interactive mode
 
 ### 2. Dependencies
-- **rand**: For random number generation (v0.8.5)
+- **rand**: For random number generation (v0.9.2)
 - **clap**: For command-line argument parsing (v4.5 with derive feature)
-- **axum**: Web framework for REST API (v0.7)
+- **axum**: Web framework for REST API (v0.8)
 - **tokio**: Async runtime for web server (v1 with full features)
 - **serde**: Serialization framework (v1.0)
 - **serde_json**: JSON serialization (v1.0)
-- **tower**: Middleware and service utilities (v0.4)
-- **tower-http**: HTTP-specific middleware (v0.5 with CORS)
+- **tower**: Middleware and service utilities (v0.5)
+- **tower-http**: HTTP-specific middleware (v0.6 with CORS, fs, trace)
+- **sqlx**: PostgreSQL driver with runtime-checked queries (v0.8 with postgres, runtime-tokio, tls-rustls, macros, migrate)
+- **dotenvy**: .env file support (v0.15)
+- **thiserror**: Error derive macros (v2.0)
+- **askama**: Type-safe compile-time HTML templates (v0.12 with with-axum)
+- **askama_axum**: Askama integration with Axum (v0.4)
+- **tracing**: Structured, async-aware logging framework (v0.1)
+- **tracing-subscriber**: Log collection and formatting (v0.3 with env-filter, fmt)
 - **Standard library**: For I/O operations and comparison
 
 [Dev Dependencies]
-- **reqwest**: HTTP client for testing (v0.11 with json)
+- **reqwest**: HTTP client for testing (v0.12 with json, blocking)
+- **testcontainers**: Docker container management for tests (v0.23 with blocking)
+- **tokio-test**: Async testing utilities (v0.4)
+- **assert_cmd**: CLI testing framework (v2.0)
+- **predicates**: Test assertion predicates (v3.0)
+- **serial_test**: Sequential test execution (v3.0)
+- **bollard**: Docker API client (v0.18)
+- **thirtyfour**: WebDriver client for browser testing (v0.33.0)
 
 ### 3. Command-Line Interface
 - **Help command**: Support `--help` flag to display usage information

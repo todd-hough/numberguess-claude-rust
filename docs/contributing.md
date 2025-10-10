@@ -5,9 +5,10 @@ Thank you for your interest in contributing to the Number Guessing Game project!
 ## Getting Started
 
 ### Prerequisites
-- Rust 1.70+ (check with `rustc --version`)
+- Rust 1.89.0+ (check with `rustc --version`) - Required for Rust Edition 2024
 - Cargo (comes with Rust)
 - Git
+- PostgreSQL 12+ (for web server development)
 
 ### Setting Up Development Environment
 ```bash

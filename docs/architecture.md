@@ -113,15 +113,20 @@ Axum Router
     └── / → Static File Server
            ↓
       Game State Management
-      Arc<Mutex<HashMap>>
+      PostgreSQL Database
 ```
 
 **State Management**:
 ```rust
-type SharedState = Arc<Mutex<GameState>>;
-struct GameState {
-    games: HashMap<u64, GuessingGame>,
-}
+type SharedState = PgPool;
+
+// Games stored in PostgreSQL with schema:
+// - game_id (BIGINT PRIMARY KEY)
+// - min (INTEGER)
+// - max (INTEGER)
+// - secret_number (INTEGER)
+// - guess_count (INTEGER)
+// - max_guesses (INTEGER, nullable)
 ```
 
 ### 4. Main Entry Point (`src/main.rs`)
@@ -132,8 +137,8 @@ struct GameState {
 1. Parse CLI arguments
 2. Check for `--server` flag
 3. Route to appropriate handler:
-   - Server mode → Initialize Tokio runtime → Start Axum server (serves both API and UI)
-   - CLI mode → Run interactive game loop
+   - Server mode → Initialize Tokio runtime → Connect to PostgreSQL → Run migrations → Start Axum server (serves both API and UI)
+   - CLI mode → Run interactive game loop (no database required)
 
 ## REST API Interface
 
@@ -262,9 +267,9 @@ HTML Form → HTMX Request → Axum Handler → HTML Fragment → DOM Update
 
 ### Web Server (API + UI)
 - **Tokio Runtime**: Async I/O for handling multiple connections
-- **Shared State**: `Arc<Mutex<HashMap>>` for thread-safe game storage
+- **Database Connection Pool**: SQLx PgPool for concurrent database access
 - **Request Handling**: Each request runs in its own task
-- **Lock Strategy**: Fine-grained locks, held briefly
+- **Transaction Strategy**: Database transactions with row-level locking for concurrent guess processing
 
 ### CLI
 - **Single-threaded**: Synchronous execution
@@ -294,34 +299,36 @@ Game:     Logic Error → Result<T, String> → Handler Decision
 
 ### Web Security
 - **No Authentication**: Public game sessions
-- **No Persistent Storage**: Memory-only, no injection risks
+- **PostgreSQL Database**: Persistent storage with parameterized queries (SQL injection protection via SQLx)
 - **JSON Parsing**: Serde handles malformed input
 - **Static Files**: Served from controlled directory
+- **Database Migrations**: Schema versioning with SQLx migrations
 
 ### Current Vulnerabilities
 - No rate limiting
 - No request size limits
-- Memory exhaustion possible (unlimited games)
+- Database growth possible (games persist until completed)
 - HTMX loaded from CDN
 - No CORS configuration
+- Database credentials in environment variables
 
 ## Performance Characteristics
 
-### Memory Usage
-- **Per Game**: ~40 bytes (5 fields)
-- **Web Overhead**: ~100 bytes per game (HashMap entry)
-- **Growth**: O(n) with active games
+### Database Storage
+- **Per Game**: Database row with 6 columns (game_id, min, max, secret_number, guess_count, max_guesses)
+- **Storage Growth**: Linear with active games, automatic cleanup on completion
+- **Connection Pool**: Configurable (default: 5 connections, max: 100)
 
 ### Time Complexity
-- **Game Creation**: O(1)
-- **Guess Processing**: O(1)
-- **Game Lookup**: O(1) average (HashMap)
-- **Game Cleanup**: O(1) on completion
+- **Game Creation**: O(1) database insert with index
+- **Guess Processing**: O(1) database query + update in transaction
+- **Game Lookup**: O(1) indexed primary key lookup
+- **Game Cleanup**: O(1) database delete on completion
 
 ### Scalability Limits
-- **Concurrent Games**: Limited by memory
-- **Requests/Second**: Limited by Tokio runtime
-- **Single Instance**: No clustering support
+- **Concurrent Games**: Limited by database storage and connection pool
+- **Requests/Second**: Limited by database throughput and connection pool size
+- **Single Instance**: Can support multiple instances with shared PostgreSQL database
 
 ## Deployment Architecture
 
@@ -336,14 +343,15 @@ target/release/number_guessing_game
 ### Runtime Requirements
 - **OS**: Any (Windows, Linux, macOS)
 - **Network**: Port binding capability
-- **Memory**: ~10MB base + game storage
+- **Memory**: ~10MB base + connection pool overhead
 - **CPU**: Single core sufficient
+- **Database**: PostgreSQL 12+ (for web server mode only, CLI mode has no database requirement)
 
 ### Configuration
-- **CLI Arguments**: Runtime configuration
-- **Environment Variables**: None required
-- **Config Files**: None
-- **Hardcoded Values**: Port default (3000), limits
+- **CLI Arguments**: Runtime configuration (--server, --port)
+- **Environment Variables**: Required for web mode (DATABASE_URL, optional: DB_MAX_CONNECTIONS, RUST_LOG)
+- **Config Files**: .env file support via dotenvy
+- **Hardcoded Values**: Port default (3000), health port (8081), connection pool default (5), limits
 
 ## Testing Architecture
 
@@ -392,23 +400,26 @@ cargo run -- --min 1 --max 100 --limit 10
 
 ## Future Architecture Considerations
 
+### Implemented Features
+1. ✅ **Database Integration**: PostgreSQL with persistent storage and migrations
+
 ### Potential Improvements
-1. **Database Integration**: Persistent game storage
-2. **Session Management**: User authentication
-3. **WebSocket Support**: Real-time updates
-4. **Microservices**: Separate game engine service
-5. **Caching Layer**: Redis for game state
-6. **Load Balancing**: Multiple instance support
-7. **API Versioning**: `/api/v1/games` structure
-8. **OpenAPI Spec**: Auto-generated API documentation
-9. **GraphQL**: Alternative to REST API
+1. **Session Management**: User authentication and authorization
+2. **WebSocket Support**: Real-time updates and multiplayer features
+3. **Microservices**: Separate game engine service
+4. **Caching Layer**: Redis for frequently accessed game state
+5. **Load Balancing**: Multiple instance support with connection pooling
+6. **API Versioning**: `/api/v1/games` structure
+7. **OpenAPI Spec**: Auto-generated API documentation
+8. **GraphQL**: Alternative to REST API
+9. **Read Replicas**: Database scaling for high read loads
 
 ### Scaling Strategy
 ```
-Current: Single Process → Memory Store
-Phase 1: Single Process → Redis Cache
-Phase 2: Multiple Processes → Shared Redis
-Phase 3: Microservices → Game Service + API Gateway
+Current: Single/Multiple Processes → PostgreSQL Database
+Phase 1: Multiple Processes → PostgreSQL + Redis Cache
+Phase 2: Load Balanced Instances → Shared PostgreSQL + Redis
+Phase 3: Microservices → Game Service + API Gateway + Message Queue
 ```
 
 ## Module Dependencies
@@ -416,22 +427,48 @@ Phase 3: Microservices → Game Service + API Gateway
 ```
 main.rs
   ├── cli.rs (use)
+  ├── db.rs (use via lib.rs)
   ├── game.rs (use via lib.rs)
   └── web.rs (use via lib.rs)
 
 lib.rs
   ├── game.rs (pub mod)
+  ├── game_id.rs (pub mod)
   ├── cli.rs (pub mod)
+  ├── validators.rs (pub mod)
+  ├── io.rs (pub mod)
+  ├── templates.rs (pub mod)
+  ├── db.rs (pub mod)
   └── web.rs (pub mod)
 
 web.rs
-  └── game.rs (use)
+  ├── db.rs (use)
+  ├── game.rs (use)
+  ├── game_id.rs (use)
+  ├── validators.rs (use)
+  └── templates.rs (use)
+
+db.rs
+  ├── game.rs (use)
+  └── game_id.rs (use)
 
 cli.rs
   └── (no internal deps)
 
+validators.rs
+  └── (no internal deps)
+
+io.rs
+  └── (no internal deps)
+
 game.rs
   └── (no internal deps)
+
+game_id.rs
+  └── (no internal deps)
+
+templates.rs
+  └── game_id.rs (use)
 ```
 
 ## Technology Stack Rationale

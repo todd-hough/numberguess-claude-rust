@@ -141,11 +141,11 @@ cargo run --example web_client
 
 - **Web Interface**: Visit `http://localhost:3000/` for the interactive web UI
 - **API Access**: REST API endpoints are available at `/api/*` paths
-- **Guess Limits**: 
+- **Guess Limits**:
   - Web UI and API support optional guess limits (max 100 for web)
   - Set `max_guesses` to `null` or `0` for unlimited guesses
   - Games end when limit is reached, revealing the answer
-- Games are stored in memory and will be lost when the server restarts
+- Games are stored in a PostgreSQL database and persist across server restarts
 - Each game has a unique random numeric ID that must be used for making guesses
-- Games are automatically removed from memory once they are completed (correct guess or limit reached)
+- Games are automatically removed from the database once they are completed (correct guess or limit reached)
 - Multiple games can be active simultaneously for different users
