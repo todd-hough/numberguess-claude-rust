@@ -331,7 +331,16 @@ cp .env.example .env
 - **Auto-cleanup**: Completed games are automatically deleted from database
 - **Environment variables**: DATABASE_URL required for web mode (see `.env.example`)
 
-**Default Credentials (docker-compose):**
+**Database Configuration:**
+The database name and credentials are centralized via environment variables in `.env` file:
+- `POSTGRES_USER`: Database username (default: `numberguess`)
+- `POSTGRES_PASSWORD`: Database password (default: `password`)
+- `POSTGRES_DB`: Database name (default: `numberguess_dev`)
+- `DATABASE_URL`: Full connection string (uses the variables above)
+
+All configuration files (docker-compose.yml, Makefile, justfile) reference these environment variables, providing a single source of truth. To change the database name, simply update `.env` and all components will use the new value.
+
+**Default Credentials:**
 - User: `numberguess`
 - Password: `password`
 - Database: `numberguess_dev`

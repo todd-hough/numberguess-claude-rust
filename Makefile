@@ -1,6 +1,15 @@
 .PHONY: help build test test-unit test-integration dev dev-db dev-down \
         docker-build docker-rebuild docker-check clean logs db-shell fmt lint run-cli run-server
 
+# Load environment variables from .env file if it exists
+-include .env
+export
+
+# Database configuration defaults (can be overridden by .env)
+POSTGRES_USER ?= numberguess
+POSTGRES_PASSWORD ?= password
+POSTGRES_DB ?= numberguess_dev
+
 # Default target
 .DEFAULT_GOAL := help
 
@@ -48,7 +57,7 @@ dev:
 	@echo "✓ Services started!"
 	@echo "  Web UI: http://localhost:8080"
 	@echo "  Health Check: http://localhost:8081/health"
-	@echo "  Database: postgresql://numberguess:password@localhost:5432/numberguess_dev"
+	@echo "  Database: postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@localhost:5432/$(POSTGRES_DB)"
 	@echo ""
 	@echo "View logs: make logs"
 	@echo "Stop services: make dev-down"
@@ -59,7 +68,7 @@ dev-db:
 	docker compose up -d postgres
 	@echo ""
 	@echo "✓ PostgreSQL started!"
-	@echo "  Connection: postgresql://numberguess:password@localhost:5432/numberguess_dev"
+	@echo "  Connection: postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@localhost:5432/$(POSTGRES_DB)"
 	@echo ""
 	@echo "Now run: cargo run -- --server"
 
@@ -74,7 +83,7 @@ logs:
 
 ## db-shell: Open PostgreSQL shell
 db-shell:
-	docker compose exec postgres psql -U numberguess -d numberguess_dev
+	docker compose exec postgres psql -U $(POSTGRES_USER) -d $(POSTGRES_DB)
 
 ## test: Run all tests (builds Docker image first if needed)
 test: docker-check

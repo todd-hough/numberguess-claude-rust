@@ -5,6 +5,11 @@
 # Load environment variables from .env
 set dotenv-load
 
+# Database configuration defaults (can be overridden by .env)
+POSTGRES_USER := env_var_or_default('POSTGRES_USER', 'numberguess')
+POSTGRES_PASSWORD := env_var_or_default('POSTGRES_PASSWORD', 'password')
+POSTGRES_DB := env_var_or_default('POSTGRES_DB', 'numberguess_dev')
+
 # Default recipe shows help
 default:
     @just --list
@@ -25,7 +30,7 @@ dev:
     @echo "✓ Services started!"
     @echo "  Web UI: http://localhost:8080"
     @echo "  Health Check: http://localhost:8081/health"
-    @echo "  Database: postgresql://numberguess:password@localhost:5432/numberguess_dev"
+    @echo "  Database: postgresql://{{POSTGRES_USER}}:{{POSTGRES_PASSWORD}}@localhost:5432/{{POSTGRES_DB}}"
     @echo ""
     @echo "View logs: just logs"
     @echo "Stop services: just dev-down"
@@ -36,7 +41,7 @@ dev-db:
     docker compose up -d postgres
     @echo ""
     @echo "✓ PostgreSQL started!"
-    @echo "  Connection: postgresql://numberguess:password@localhost:5432/numberguess_dev"
+    @echo "  Connection: postgresql://{{POSTGRES_USER}}:{{POSTGRES_PASSWORD}}@localhost:5432/{{POSTGRES_DB}}"
     @echo ""
     @echo "Now run: just run-server"
 
@@ -51,7 +56,7 @@ logs:
 
 # Open PostgreSQL shell
 db-shell:
-    docker compose exec postgres psql -U numberguess -d numberguess_dev
+    docker compose exec postgres psql -U {{POSTGRES_USER}} -d {{POSTGRES_DB}}
 
 # Run all tests
 test: docker-check
