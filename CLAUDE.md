@@ -106,11 +106,16 @@ make clean             # Clean everything
 - Guess limits: Max 1000 (CLI), Max 100 (Web/API)
 - Negative numbers not allowed
 
-### Web API
-- Games stored in memory (lost on restart)
+### Web API & UI
+- Games persisted in PostgreSQL database
 - Game IDs are random u64 values
 - Games auto-removed when completed
 - JSON request/response format
+- **Web UI Features**:
+  - HTMX-powered dynamic updates without page reloads
+  - Remaining guesses counter (displays "Guesses remaining: X" when limit is set)
+  - Styled with `.guesses-remaining` CSS class (blue background, prominent display)
+  - Counter shows initial count at game start and updates after each guess
 
 ### Security Considerations
 - Input validation prevents integer overflow

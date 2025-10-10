@@ -113,7 +113,10 @@ The game now supports an optional guess limit that restricts the number of attem
 - Optional "Guess Limit" field on the new game form
 - Maximum of 100 guesses for web games
 - Leave blank or enter 0 for unlimited guesses
-- Shows remaining guesses during gameplay
+- **Remaining guesses counter**: Displays "Guesses remaining: X" throughout gameplay
+  - Shows initial count when game starts
+  - Updates after each guess to show remaining attempts
+  - Only displayed when a guess limit is set
 
 ### API
 - Include `"max_guesses"` in the game creation request

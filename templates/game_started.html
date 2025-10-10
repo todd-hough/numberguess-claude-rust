@@ -10,6 +10,12 @@
     </div>
 
     <div id='game-content'>
+        {% if let Some(limit) = max_guesses %}
+        <div class='guesses-remaining-box'>
+            <p class='guesses-remaining'>Guesses remaining: <strong>{{ limit }}</strong></p>
+        </div>
+        {% endif %}
+
         <form class='guess-form'
               hx-post='/game/{{ game_id }}/guess'
               hx-target='#game-content'
