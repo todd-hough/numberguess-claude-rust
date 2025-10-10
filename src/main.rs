@@ -7,9 +7,24 @@ use number_guessing_game::{
     web::run_server,
 };
 use sqlx::postgres::PgPoolOptions;
+use tracing::{info, error};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
 async fn main() {
+    // Initialize tracing subscriber
+    // Configure to write to stderr (standard practice for logs)
+    tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "number_guessing_game=info".into()),
+        )
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_writer(std::io::stderr) // Explicitly write to stderr
+        )
+        .init();
+
     // Load environment variables from .env file
     dotenvy::dotenv().ok();
 
@@ -27,20 +42,20 @@ async fn main() {
             .unwrap_or(5)
             .clamp(1, 100);
 
-        println!("Connecting to database (max connections: {})...", max_connections);
+        info!(max_connections = %max_connections, "Connecting to database");
         let pool = PgPoolOptions::new()
             .max_connections(max_connections)
             .connect(&database_url)
             .await
             .expect("Failed to connect to database");
 
-        println!("Running database migrations...");
+        info!("Running database migrations");
         sqlx::migrate!("./migrations")
             .run(&pool)
             .await
             .expect("Failed to run migrations");
 
-        println!("Database initialized successfully");
+        info!("Database initialized successfully");
         run_server(pool, cli.port).await;
     } else {
         // Run as CLI game

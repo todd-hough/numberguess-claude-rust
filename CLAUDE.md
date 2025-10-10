@@ -97,6 +97,7 @@ make clean             # Clean everything
 5. **State Management**: Web server uses PostgreSQL with SQLx connection pooling (`PgPool`)
 6. **Module Organization**: Clear boundaries between argument parsing, validation, I/O, and business logic
 7. **Template-Based HTML**: Askama templates provide compile-time checked, type-safe HTML rendering
+8. **Structured Logging**: Uses `tracing` framework for async-aware, structured system logs while preserving user-facing CLI output
 
 ## Important Constraints
 
@@ -240,6 +241,63 @@ cargo run -- --server
 └── README.md        # Main documentation
 ```
 
+## Logging Configuration
+
+### Structured Logging with Tracing
+The application uses the `tracing` framework for structured, async-aware logging of system events.
+
+**Key Principles:**
+- **System logs** (database, web server, errors): Use `tracing` macros (`info!`, `error!`, etc.)
+- **User-facing output** (CLI prompts, game feedback): Use `println!` for direct console output
+- **Environment-controlled**: Configure verbosity via `RUST_LOG` environment variable
+
+**Configuration:**
+```bash
+# Default: info level for the application
+RUST_LOG=number_guessing_game=info cargo run -- --server
+
+# Debug level for troubleshooting
+RUST_LOG=number_guessing_game=debug cargo run -- --server
+
+# Trace level for detailed diagnostics
+RUST_LOG=trace cargo run -- --server
+
+# Multiple modules with different levels
+RUST_LOG=sqlx=warn,number_guessing_game=debug cargo run -- --server
+
+# Only show errors
+RUST_LOG=error cargo run -- --server
+```
+
+**Log Levels (most to least verbose):**
+1. `trace` - Very detailed, function-level tracing
+2. `debug` - Debugging information
+3. `info` - General informational messages (default)
+4. `warn` - Warning messages
+5. `error` - Error messages only
+
+**Structured Fields:**
+Logs include contextual information as structured fields:
+```
+INFO number_guessing_game: Connecting to database max_connections=5
+INFO number_guessing_game::web: Starting web server main_addr="0.0.0.0:3000" health_addr="0.0.0.0:8081"
+ERROR number_guessing_game::web: Failed to make guess game_id=12345 error="Database error"
+```
+
+**Development Tips:**
+- Start with `info` level for normal operation
+- Use `debug` when troubleshooting issues
+- Use `trace` for deep debugging (very verbose)
+- In `.env` file: Set `RUST_LOG=number_guessing_game=info` (see `.env.example`)
+
+**Stdout vs Stderr:**
+- **Stderr**: Structured logs via `tracing` (for monitoring, debugging)
+- **Stdout**: Program output only - emits `"READY"` when server is fully initialized
+- This separation follows Unix conventions and enables:
+  - Process managers (Docker, Kubernetes, systemd) to detect readiness
+  - Integration tests to wait for server startup
+  - Clean separation of logs from application output
+
 ## Database Setup
 
 ### PostgreSQL Integration
@@ -293,6 +351,8 @@ cp .env.example .env
 - **thiserror**: Error derive macros (v2.0)
 - **askama**: Type-safe compile-time HTML templates (v0.12)
 - **askama_axum**: Askama integration with Axum (v0.4)
+- **tracing**: Structured, async-aware logging framework (v0.1)
+- **tracing-subscriber**: Log collection and formatting with env-filter (v0.3)
 
 ### Test Dependencies  
 - **testcontainers**: Docker container management for tests (v0.23)

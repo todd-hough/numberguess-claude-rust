@@ -14,6 +14,7 @@ use axum::{
 use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::PgPool;
 use tower_http::services::ServeDir;
+use tracing::{info, error};
 
 type SharedState = PgPool;
 
@@ -92,13 +93,6 @@ pub async fn run_server(pool: PgPool, port: u16) {
     let main_addr = format!("0.0.0.0:{}", port);
     let health_addr = format!("0.0.0.0:{}", health_port);
 
-    println!("Starting web server on http://{}", main_addr);
-    println!("Web Interface: http://{}/", main_addr);
-    println!("API Endpoints:");
-    println!("  POST /api/games - Create a new game");
-    println!("  POST /api/games/:game_id/guess - Make a guess");
-    println!("Health Check: http://{}/health", health_addr);
-
     let main_listener = tokio::net::TcpListener::bind(&main_addr)
         .await
         .unwrap_or_else(|_| panic!("Failed to bind to {}", main_addr));
@@ -106,6 +100,22 @@ pub async fn run_server(pool: PgPool, port: u16) {
     let health_listener = tokio::net::TcpListener::bind(&health_addr)
         .await
         .unwrap_or_else(|_| panic!("Failed to bind to {}", health_addr));
+
+    // Log server startup info to stderr (structured logs)
+    info!(
+        main_addr = %main_addr,
+        health_addr = %health_addr,
+        "Starting web server"
+    );
+    info!("Web Interface: http://{}/", main_addr);
+    info!("API Endpoints:");
+    info!("  POST /api/games - Create a new game");
+    info!("  POST /api/games/:game_id/guess - Make a guess");
+    info!("Health Check: http://{}/health", health_addr);
+
+    // Emit ready marker to stdout for tests/orchestration tools
+    // (stdout is for program output, stderr is for logs)
+    println!("READY");
 
     // Run both servers concurrently with graceful shutdown
     tokio::select! {
@@ -124,7 +134,7 @@ async fn shutdown_signal() {
     tokio::signal::ctrl_c()
         .await
         .expect("Failed to install CTRL+C handler");
-    println!("Shutting down gracefully...");
+    info!("Shutting down gracefully");
 }
 
 // Health Check Handler
@@ -324,7 +334,7 @@ async fn make_guess_web(
             return AskamaIntoResponse::into_response(GameNotFoundTemplate);
         }
         Err(e) => {
-            eprintln!("Failed to make guess for game {}: {}", game_id, e);
+            error!(game_id = %game_id, error = %e, "Failed to make guess");
             return AskamaIntoResponse::into_response(UpdateErrorTemplate);
         }
     };

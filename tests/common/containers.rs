@@ -21,7 +21,9 @@ impl Image for GameServerImage {
     }
 
     fn ready_conditions(&self) -> Vec<WaitFor> {
-        vec![WaitFor::message_on_stdout("Starting web server on")]
+        // Wait for explicit "READY" marker on stdout
+        // (Logs go to stderr via tracing, stdout has the ready signal)
+        vec![WaitFor::message_on_stdout("READY")]
     }
 
     fn expose_ports(&self) -> &[ContainerPort] {

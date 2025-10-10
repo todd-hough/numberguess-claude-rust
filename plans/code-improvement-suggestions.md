@@ -64,20 +64,6 @@ proptest! {
 
 ## **Performance & Safety**
 
-### 23. Unnecessary heap allocations
-**Location:** `src/web.rs:346, 447, 493`
-
-**Issue:** Multiple `String::new()` then `format!()`
-
-**Improvement:** Use string builders or static templates
-
-### 24. Missing input sanitization
-**Location:** `src/web.rs:388-392`
-
-**Note:** User input directly interpolated into HTML. Already safe since inputs are integers, but use proper escaping for principle.
-
-**Improvement:** Use HTML escaping library or template engine that auto-escapes
-
 ### 25. No rate limiting
 
 **Issue:** Web endpoints have no protection against abuse
