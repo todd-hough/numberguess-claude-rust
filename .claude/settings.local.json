@@ -25,6 +25,8 @@
       "Bash(docker compose:*)",
       "WebSearch"
     ],
-    "deny": []
+    "deny": [
+      "Bash(git:*)"
+    ]
   }
 }
