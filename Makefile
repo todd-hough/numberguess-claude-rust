@@ -18,8 +18,6 @@ ifeq ($(strip $(DEVCONTAINER_BIN)),)
 DEVCONTAINER_BIN := $(shell find $(HOME)/.config/nvm/versions/node -maxdepth 5 \( -type f -o -type l \) -name devcontainer 2>/dev/null | head -n1)
 endif
 DEVCONTAINER_DIR := $(dir $(DEVCONTAINER_BIN))
-DEVCONTAINER_PROJECT := numberguess-claude-rust
-DEVCONTAINER_COMPOSE := docker compose --project-name $(DEVCONTAINER_PROJECT) -f docker-compose.yml -f .devcontainer/docker-compose.devcontainer.yml
 
 # Default target
 .DEFAULT_GOAL := help
@@ -104,10 +102,11 @@ devcontainer-up:
 	fi
 	PATH="$(DEVCONTAINER_DIR):$$PATH" "$(DEVCONTAINER_BIN)" up --workspace-folder .
 
-## devcontainer-down: Stop devcontainer services (uses docker compose - devcontainer CLI has no down command)
+## devcontainer-down: Stop devcontainer (devcontainer CLI has no down command, uses docker directly)
 devcontainer-down:
-	@echo "Stopping devcontainer services..."
-	@$(DEVCONTAINER_COMPOSE) down -v || true
+	@echo "Stopping devcontainer..."
+	@docker stop $$(docker ps -q --filter "label=devcontainer.local_folder=$$(pwd)") 2>/dev/null || echo "No running devcontainer found"
+	@docker rm $$(docker ps -aq --filter "label=devcontainer.local_folder=$$(pwd)") 2>/dev/null || true
 
 ## devcontainer-attach: Attach terminal to running devcontainer
 devcontainer-attach:

@@ -1,17 +1,14 @@
 {
   "name": "numberguess-dev",
-  "dockerComposeFile": [
-    "../docker-compose.yml",
-    "docker-compose.devcontainer.yml"
-  ],
-  "service": "devcontainer",
+  "image": "mcr.microsoft.com/devcontainers/rust:1-bullseye",
   "workspaceFolder": "/workspaces/numberguess-claude-rust",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/numberguess-claude-rust,type=bind,consistency=cached",
+  "runArgs": ["--init", "--privileged"],
   "features": {
     "ghcr.io/devcontainers/features/docker-in-docker:2": {
       "moby": "true"
     }
   },
-  "overrideCommand": false,
   "containerEnv": {
     "INSIDE_DEVCONTAINER": "1"
   },
