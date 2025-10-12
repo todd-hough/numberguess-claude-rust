@@ -26,10 +26,43 @@
       "WebSearch",
       "Bash(make:*)",
       "Bash(docker ps:*)",
-      "Bash(devcontainer:*)"
+      "Bash(devcontainer:*)",
+      "Bash(git status)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git branch)",
+      "Bash(git remote:*)",
+      "Bash(git ls-files:*)",
+      "Bash(git describe:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git config --get:*)"
     ],
     "deny": [
-      "Bash(git:*)"
+      "Bash(git push:*)",
+      "Bash(git commit:*)",
+      "Bash(git reset:*)",
+      "Bash(git rebase:*)",
+      "Bash(git merge:*)",
+      "Bash(git checkout:*)",
+      "Bash(git switch:*)",
+      "Bash(git pull:*)",
+      "Bash(git fetch:*)",
+      "Bash(git add:*)",
+      "Bash(git rm:*)",
+      "Bash(git mv:*)",
+      "Bash(git clean:*)",
+      "Bash(git stash:*)",
+      "Bash(git cherry-pick:*)",
+      "Bash(git revert:*)",
+      "Bash(git tag -d:*)",
+      "Bash(git branch -d:*)",
+      "Bash(git branch -D:*)",
+      "Bash(git config --set:*)",
+      "Bash(git config --add:*)",
+      "Bash(git config --unset:*)",
+      "Bash(git submodule:*)",
+      "Bash(git worktree:*)"
     ]
   }
 }

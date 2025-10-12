@@ -10,35 +10,30 @@ A Rust-based number guessing game with both CLI and web interfaces. The game gen
 
 ## Quick Commands
 
-### Choose Your Tool: `make` or `just`
-Both command runners are available with identical functionality. Use whichever you prefer:
-- **make**: Pre-installed on most systems, traditional choice
-- **just**: Modern alternative with better syntax (install: `cargo install just`)
-
-Run `make` or `just --list` to see all available commands.
+Run `make help` to see all available commands.
 
 ### Common Workflows
 
 ```bash
 # Development - Start full stack (postgres + app in Docker)
-make dev          # or: just dev
-# Access at http://localhost:3000
+make dev
+# Access at http://localhost:8080
 
 # Development - Start only database (run app locally for faster iteration)
-make dev-db       # or: just dev-db
-cargo run -- --server --port 3000
+make dev-db
+cargo run -- --server --port 8080
 
 # Stop development services
-make dev-down     # or: just dev-down
+make dev-down
 
 # Building (no database needed - uses runtime-checked SQLx)
-make build        # or: just build
+make build
 cargo build       # Direct cargo also works
 
 # Devcontainer (for VS Code / devcontainer CLI users)
-make devcontainer-up     # Start devcontainer
-make devcontainer-attach # Attach terminal to running devcontainer
-make devcontainer-down   # Stop devcontainer
+make dc-up         # Start devcontainer
+make dc-attach     # Attach terminal to running devcontainer
+make dc-down       # Stop devcontainer
 
 # Testing
 make test              # All tests (builds Docker if needed)
@@ -47,29 +42,21 @@ make test-compose      # Integration tests via docker compose
 make test-compose-ui   # Selenium UI tests via docker compose
 make test-compose-down # Stop integration test services (auto-cleanup on exit, rarely needed)
 
-# Or with just:
-just test
-just test-unit
-just test-integration
-just test-verbose      # With output for debugging
-
 # Running
-make run-cli           # CLI game with defaults
+make run-cli       # CLI game with defaults
 cargo run -- --min 1 --max 100 --limit 10
 
-make run-server        # Web server (needs postgres)
-just run-server 8080   # With custom port
+make run-server    # Web server (needs postgres)
 
 # Code Quality
-make fmt               # Format code
-make lint              # Run clippy
-just check             # Format + lint
+make fmt           # Format code
+make lint          # Run clippy
 
 # Database & Compose
-make db-shell          # PostgreSQL shell
-make compose-up        # Bring up compose stack (app + postgres)
-make compose-down      # Tear down compose stack
-make logs              # View docker-compose logs
+make db-shell      # PostgreSQL shell
+make compose-up    # Bring up compose stack (app + postgres)
+make compose-down  # Tear down compose stack
+make logs          # View docker-compose logs
 
 # Cleanup
 make clean             # Clean everything
@@ -240,8 +227,7 @@ make test
 ├── .dockerignore    # Docker build exclusions
 ├── .env             # Environment variables (DATABASE_URL)
 ├── .env.example     # Example environment configuration
-├── Makefile         # Make command runner
-├── justfile         # Just command runner (modern alternative)
+├── Makefile         # Make command runner with shortcuts (dc-up, dc-down, dc-attach)
 ├── build.rs         # Build script (Docker image for tests)
 ├── run_integration_tests.sh  # Test runner (Linux/macOS)
 ├── run_integration_tests.bat # Test runner (Windows)
@@ -313,11 +299,11 @@ The web server uses PostgreSQL for persistent storage.
 **Quick Start:**
 ```bash
 # Option 1: Full stack in Docker (easiest for manual testing)
-make dev              # or: just dev
-# Access at http://localhost:3000
+make dev
+# Access at http://localhost:8080
 
 # Option 2: Database only (run app locally for faster iteration)
-make dev-db           # or: just dev-db
+make dev-db
 cargo run -- --server
 
 # Option 3: Use existing PostgreSQL instance
@@ -345,7 +331,7 @@ The database name and credentials are centralized via environment variables in `
 - `POSTGRES_DB`: Database name (default: `numberguess_dev`)
 - `DATABASE_URL`: Full connection string (uses the variables above)
 
-All configuration files (docker-compose.yml, Makefile, justfile) reference these environment variables, providing a single source of truth. To change the database name, simply update `.env` and all components will use the new value.
+All configuration files (docker-compose.yml, Makefile) reference these environment variables, providing a single source of truth. To change the database name, simply update `.env` and all components will use the new value.
 
 **Default Credentials:**
 - User: `numberguess`

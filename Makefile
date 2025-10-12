@@ -1,6 +1,7 @@
 .PHONY: help build test test-unit test-integration dev dev-db dev-down \
         docker-build docker-rebuild docker-check clean logs db-shell fmt lint run-cli run-server \
-        devcontainer-up devcontainer-down devcontainer-attach compose-up compose-down test-compose test-compose-ui test-compose-down
+        devcontainer-up devcontainer-down devcontainer-attach dc-up dc-down dc-attach \
+        compose-up compose-down test-compose test-compose-ui test-compose-down
 
 # Load environment variables from .env file if it exists
 -include .env
@@ -28,9 +29,9 @@ help:
 	@echo "Number Guessing Game - Development Commands"
 	@echo ""
 	@echo "Development:"
-	@echo "  make devcontainer-up - Launch devcontainer (requires devcontainer CLI)"
-	@echo "  make devcontainer-down - Stop devcontainer services"
-	@echo "  make devcontainer-attach - Attach terminal to running devcontainer"
+	@echo "  make dc-up         - Launch devcontainer (alias for devcontainer-up)"
+	@echo "  make dc-down       - Stop devcontainer (alias for devcontainer-down)"
+	@echo "  make dc-attach     - Attach terminal to devcontainer (alias for devcontainer-attach)"
 	@echo "  make dev           - Start postgres + app server for manual testing"
 	@echo "  make dev-db        - Start only postgres (run app locally with cargo run)"
 	@echo "  make dev-down      - Stop development services"
@@ -116,6 +117,11 @@ devcontainer-attach:
 	fi
 	@echo "Attaching to devcontainer..."
 	PATH="$(DEVCONTAINER_DIR):$$PATH" "$(DEVCONTAINER_BIN)" exec --workspace-folder . bash
+
+## Devcontainer shortcuts
+dc-up: devcontainer-up
+dc-down: devcontainer-down
+dc-attach: devcontainer-attach
 
 COMPOSE_STACK = docker compose -f docker-compose.yml -f docker-compose.integration.yml
 

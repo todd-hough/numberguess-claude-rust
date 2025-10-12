@@ -31,7 +31,7 @@ cargo build --release
 - **Rust**: 1.89.0 or later
 - **PostgreSQL**: Required for web server mode (can use Docker Compose)
 - **Docker**: Optional, for running full stack or tests
-- **Make**: For convenient command running (or install `just` as alternative)
+- **Make**: For convenient command running
 
 ## Usage
 
@@ -256,8 +256,7 @@ number_guessing_game/
 │   ├── demo.rs      # Library usage example
 │   └── web_client.rs # HTTP client example
 ├── docs/            # Detailed documentation
-├── Makefile         # Make command runner
-├── justfile         # Just command runner (modern alternative)
+├── Makefile         # Make command runner with shortcuts (dc-up, dc-down, dc-attach)
 ├── docker-compose.yml # Docker orchestration
 ├── .env.example     # Environment configuration template
 └── build.rs         # Build script for Docker image
@@ -270,15 +269,14 @@ number_guessing_game/
 ```bash
 # View all available commands
 make help
-# or: just --list
 
 # Common commands
 make dev           # Start full stack for manual testing
 make dev-db        # Start only database (run app locally)
 make dev-down      # Stop services
-make devcontainer-up    # Boot the devcontainer (requires devcontainer CLI)
-make devcontainer-down  # Stop devcontainer
-make devcontainer-attach # Attach terminal to devcontainer
+make dc-up         # Boot the devcontainer (requires devcontainer CLI)
+make dc-down       # Stop devcontainer
+make dc-attach     # Attach terminal to devcontainer
 make compose-up    # Bring up app + postgres via docker compose
 make compose-down  # Tear down compose stack
 make build         # Build application (no DB needed!)
@@ -359,9 +357,6 @@ make fmt
 
 # Run linter
 make lint
-
-# Both format and lint
-just check  # (requires just: cargo install just)
 ```
 
 ## Documentation
