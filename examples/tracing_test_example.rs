@@ -8,7 +8,7 @@
 
 #[cfg(test)]
 mod tests {
-    use tracing::{info, error};
+    use tracing::{error, info};
 
     // Annotate tests with #[traced_test] to capture logs
     #[test]

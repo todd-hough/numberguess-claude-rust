@@ -15,9 +15,7 @@ where
 {
     loop {
         print!("{}", prompt);
-        io::stdout()
-            .flush()
-            .expect("Failed to flush stdout");
+        io::stdout().flush().expect("Failed to flush stdout");
 
         let mut input = String::new();
         io::stdin()
@@ -36,10 +34,7 @@ pub fn prompt_min_value(cli_min: Option<i32>) -> i32 {
     match cli_min {
         Some(m) => {
             if let Err(e) = validators::validate_min_value(m) {
-                println!(
-                    "{}. Please provide a valid minimum.",
-                    e
-                );
+                println!("{}. Please provide a valid minimum.", e);
                 loop {
                     let min: i32 = read_input(&format!(
                         "Enter minimum number (inclusive, 0 to {}): ",
@@ -128,7 +123,8 @@ pub fn prompt_guess_limit(cli_limit: Option<u32>) -> Option<u32> {
                     if validated_limit < limit {
                         println!(
                             "Guess limit ({}) is very high. Using a maximum limit of {}.",
-                            limit, validators::MAX_CLI_GUESS_LIMIT
+                            limit,
+                            validators::MAX_CLI_GUESS_LIMIT
                         );
                     } else {
                         println!("Using guess limit from command line: {} guesses", limit);
@@ -144,9 +140,7 @@ pub fn prompt_guess_limit(cli_limit: Option<u32>) -> Option<u32> {
         None => {
             // Ask the user if they want to set a guess limit
             print!("Would you like to set a maximum number of guesses? (y/n): ");
-            io::stdout()
-                .flush()
-                .expect("Failed to flush stdout");
+            io::stdout().flush().expect("Failed to flush stdout");
 
             let mut input = String::new();
             io::stdin()

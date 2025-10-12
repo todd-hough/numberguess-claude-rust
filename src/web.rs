@@ -13,10 +13,10 @@ use axum::{
 };
 use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::PgPool;
-use tower_http::services::ServeDir;
-use tower_http::trace::{TraceLayer, DefaultMakeSpan, DefaultOnResponse};
 use tower_http::LatencyUnit;
-use tracing::{info, error, debug, warn};
+use tower_http::services::ServeDir;
+use tower_http::trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer};
+use tracing::{debug, error, info, warn};
 
 type SharedState = PgPool;
 
@@ -69,7 +69,11 @@ pub struct ErrorResponse {
 pub async fn run_server(pool: PgPool, port: u16) {
     let health_port = 8081;
 
-    debug!(port = port, health_port = health_port, "Configuring web server");
+    debug!(
+        port = port,
+        health_port = health_port,
+        "Configuring web server"
+    );
 
     // API routes
     let api_routes = Router::new()
@@ -91,7 +95,11 @@ pub async fn run_server(pool: PgPool, port: u16) {
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO))
-                .on_response(DefaultOnResponse::new().level(tracing::Level::INFO).latency_unit(LatencyUnit::Millis))
+                .on_response(
+                    DefaultOnResponse::new()
+                        .level(tracing::Level::INFO)
+                        .latency_unit(LatencyUnit::Millis),
+                ),
         );
 
     // Health check server (separate port)
@@ -212,10 +220,7 @@ async fn create_game_api(
             error = %e,
             "API: Game creation failed - invalid range"
         );
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse { error: e }),
-        ));
+        return Err((StatusCode::BAD_REQUEST, Json(ErrorResponse { error: e })));
     }
 
     // Validate guess limit using shared validator
@@ -228,10 +233,7 @@ async fn create_game_api(
                     error = %e,
                     "API: Game creation failed - invalid guess limit"
                 );
-                return Err((
-                    StatusCode::BAD_REQUEST,
-                    Json(ErrorResponse { error: e }),
-                ));
+                return Err((StatusCode::BAD_REQUEST, Json(ErrorResponse { error: e })));
             }
         }
     } else {
@@ -249,7 +251,12 @@ async fn create_game_api(
                 error = %e,
                 "API: Failed to create game in database"
             );
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse { error: e.to_string() }))
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: e.to_string(),
+                }),
+            )
         })?;
 
     info!(
@@ -421,9 +428,7 @@ async fn create_game_web(
             error = %e,
             "Web: Game creation failed - invalid range"
         );
-        let template = ErrorTemplate {
-            error_message: &e,
-        };
+        let template = ErrorTemplate { error_message: &e };
         return AskamaIntoResponse::into_response(template);
     }
 
@@ -437,9 +442,7 @@ async fn create_game_web(
                     error = %e,
                     "Web: Game creation failed - invalid guess limit"
                 );
-                let template = ErrorTemplate {
-                    error_message: &e,
-                };
+                let template = ErrorTemplate { error_message: &e };
                 return AskamaIntoResponse::into_response(template);
             }
         }
@@ -548,23 +551,25 @@ async fn make_guess_web(
             let guess_count = game.get_guess_count();
 
             // Calculate remaining guesses
-            let remaining_guesses = max_guesses.map(|limit| {
+            let remaining_guesses = max_guesses.and_then(|limit| {
                 let remaining = limit.saturating_sub(guess_count);
-                if remaining > 0 {
-                    Some(remaining)
-                } else {
-                    None
-                }
-            }).flatten();
+                if remaining > 0 { Some(remaining) } else { None }
+            });
 
             let (feedback_class, feedback_message) = match result {
                 GuessResult::TooLow => (
                     "too-low".to_string(),
-                    format!("Too low! Your guess of {} is below the target.", payload.guess),
+                    format!(
+                        "Too low! Your guess of {} is below the target.",
+                        payload.guess
+                    ),
                 ),
                 GuessResult::TooHigh => (
                     "too-high".to_string(),
-                    format!("Too high! Your guess of {} is above the target.", payload.guess),
+                    format!(
+                        "Too high! Your guess of {} is above the target.",
+                        payload.guess
+                    ),
                 ),
                 _ => unreachable!(),
             };
@@ -612,7 +617,10 @@ async fn make_guess_web(
             let template = GameCompleteTemplate {
                 feedback_class: "limit-reached".to_string(),
                 emoji: "❌".to_string(),
-                message: format!("Sorry! You've reached the limit of {} guesses!", max_guesses),
+                message: format!(
+                    "Sorry! You've reached the limit of {} guesses!",
+                    max_guesses
+                ),
                 number,
                 attempts: None,
             };

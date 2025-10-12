@@ -3,8 +3,8 @@
 //! This module contains template structs that render HTML using the Askama template engine.
 //! Templates are type-safe and compiled at build time.
 
-use askama::Template;
 use crate::game_id::GameId;
+use askama::Template;
 
 /// Template for displaying error messages
 #[derive(Template)]

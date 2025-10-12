@@ -1,0 +1,31 @@
+{
+  "name": "numberguess-dev",
+  "dockerComposeFile": [
+    "../docker-compose.yml",
+    "docker-compose.devcontainer.yml"
+  ],
+  "service": "devcontainer",
+  "workspaceFolder": "/workspaces/numberguess-claude-rust",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "moby": "true"
+    }
+  },
+  "overrideCommand": false,
+  "containerEnv": {
+    "INSIDE_DEVCONTAINER": "1"
+  },
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y postgresql-client curl pkg-config libssl-dev && rustup component add clippy rustfmt && cargo fetch",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "rust-analyzer.cargo.features": "all",
+        "editor.formatOnSave": true
+      },
+      "extensions": [
+        "rust-lang.rust-analyzer",
+        "vadimcn.vscode-lldb"
+      ]
+    }
+  }
+}

@@ -50,6 +50,41 @@ dev-down:
     @echo "Stopping development services..."
     docker compose --profile full-stack down
 
+# Launch devcontainer environment using devcontainer CLI
+devcontainer-up:
+    #!/usr/bin/env bash
+    DEVCONTAINER_BIN=$(command -v devcontainer 2>/dev/null || find ~/.config/nvm/versions/node -maxdepth 5 \( -type f -o -type l \) -name devcontainer 2>/dev/null | head -n1)
+    if [ -z "$DEVCONTAINER_BIN" ]; then
+        echo "devcontainer CLI not found. Install from https://github.com/devcontainers/cli"
+        exit 1
+    fi
+    DEVCONTAINER_DIR=$(dirname "$DEVCONTAINER_BIN")
+    PATH="$DEVCONTAINER_DIR:$PATH" "$DEVCONTAINER_BIN" up --workspace-folder .
+
+# Stop devcontainer services and clean up using devcontainer CLI
+devcontainer-down:
+    #!/usr/bin/env bash
+    DEVCONTAINER_BIN=$(command -v devcontainer 2>/dev/null || find ~/.config/nvm/versions/node -maxdepth 5 \( -type f -o -type l \) -name devcontainer 2>/dev/null | head -n1)
+    if [ -z "$DEVCONTAINER_BIN" ]; then
+        echo "devcontainer CLI not found. Install from https://github.com/devcontainers/cli"
+        exit 1
+    fi
+    echo "Stopping devcontainer..."
+    DEVCONTAINER_DIR=$(dirname "$DEVCONTAINER_BIN")
+    PATH="$DEVCONTAINER_DIR:$PATH" "$DEVCONTAINER_BIN" down --workspace-folder . || true
+
+# Attach terminal to running devcontainer
+devcontainer-attach:
+    #!/usr/bin/env bash
+    DEVCONTAINER_BIN=$(command -v devcontainer 2>/dev/null || find ~/.config/nvm/versions/node -maxdepth 5 \( -type f -o -type l \) -name devcontainer 2>/dev/null | head -n1)
+    if [ -z "$DEVCONTAINER_BIN" ]; then
+        echo "devcontainer CLI not found. Install from https://github.com/devcontainers/cli"
+        exit 1
+    fi
+    echo "Attaching to devcontainer..."
+    DEVCONTAINER_DIR=$(dirname "$DEVCONTAINER_BIN")
+    PATH="$DEVCONTAINER_DIR:$PATH" "$DEVCONTAINER_BIN" exec --workspace-folder . bash
+
 # View docker-compose logs
 logs:
     docker compose --profile full-stack logs -f
@@ -67,10 +102,10 @@ test-unit:
     @echo "Running unit tests (no Docker required)..."
     cargo test --lib
 
-# Run integration tests (uses testcontainers)
-test-integration: docker-check
-    @echo "Running integration tests (testcontainers will manage databases)..."
-    cargo test --test '*'
+# Run integration tests via docker compose
+test-integration:
+    @echo "Running integration tests against docker compose stack..."
+    make test-compose
 
 # Run a specific test
 test-one TEST:
@@ -79,6 +114,11 @@ test-one TEST:
 # Run tests with output
 test-verbose:
     cargo test -- --nocapture
+
+# Stop and remove integration test services (auto-cleanup on exit, rarely needed)
+test-compose-down:
+    @echo "Stopping integration test services..."
+    @make test-compose-down
 
 # Run CLI game with custom range
 run-cli MIN="1" MAX="100" LIMIT="":

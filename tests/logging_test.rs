@@ -3,8 +3,8 @@
 //
 // Run with: cargo test logging_test -- --nocapture
 
-use std::process::{Command, Stdio};
 use std::io::{BufRead, BufReader};
+use std::process::{Command, Stdio};
 use std::time::Duration;
 
 #[test]
@@ -58,9 +58,7 @@ fn test_server_startup_logs() {
     child.kill().expect("Failed to kill server");
 
     // Stop database
-    let _ = Command::new("make")
-        .arg("dev-down")
-        .output();
+    let _ = Command::new("make").arg("dev-down").output();
 
     // Assert expected log messages appeared
     let all_logs = logs.join("\n");
@@ -89,10 +87,7 @@ fn test_server_startup_logs() {
         all_logs.contains("main_addr"),
         "Missing structured field 'main_addr'"
     );
-    assert!(
-        all_logs.contains("INFO"),
-        "Missing INFO log level"
-    );
+    assert!(all_logs.contains("INFO"), "Missing INFO log level");
 }
 
 #[test]

@@ -1,0 +1,8 @@
+services:
+  devcontainer:
+    image: mcr.microsoft.com/devcontainers/rust:1-bullseye
+    command: sleep infinity
+    privileged: true
+    init: true
+    volumes:
+      - .:/workspaces/numberguess-claude-rust:cached

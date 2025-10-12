@@ -1,6 +1,11 @@
 services:
   postgres:
     image: postgres:16
+    profiles:
+      - dev
+      - full-stack
+      - integration
+      - integration-ui
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-numberguess}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
@@ -31,6 +36,8 @@ services:
         condition: service_healthy
     profiles:
       - full-stack
+      - integration
+      - integration-ui
     # For development: uncomment to mount source and rebuild on changes
     # volumes:
     #   - ./src:/app/src

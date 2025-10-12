@@ -11,7 +11,7 @@
 
 #[cfg(test)]
 mod tests {
-    use tracing::{info, debug, error};
+    use tracing::{debug, error, info};
 
     // Replace #[test] with #[test_log::test]
     #[test_log::test]

@@ -1,5 +1,6 @@
 .PHONY: help build test test-unit test-integration dev dev-db dev-down \
-        docker-build docker-rebuild docker-check clean logs db-shell fmt lint run-cli run-server
+        docker-build docker-rebuild docker-check clean logs db-shell fmt lint run-cli run-server \
+        devcontainer-up devcontainer-down devcontainer-attach compose-up compose-down test-compose test-compose-ui test-compose-down
 
 # Load environment variables from .env file if it exists
 -include .env
@@ -10,6 +11,15 @@ POSTGRES_USER ?= numberguess
 POSTGRES_PASSWORD ?= password
 POSTGRES_DB ?= numberguess_dev
 
+# Resolve devcontainer CLI path (supports NVM installs)
+DEVCONTAINER_BIN ?= $(shell command -v devcontainer 2>/dev/null)
+ifeq ($(strip $(DEVCONTAINER_BIN)),)
+DEVCONTAINER_BIN := $(shell find $(HOME)/.config/nvm/versions/node -maxdepth 5 \( -type f -o -type l \) -name devcontainer 2>/dev/null | head -n1)
+endif
+DEVCONTAINER_DIR := $(dir $(DEVCONTAINER_BIN))
+DEVCONTAINER_PROJECT := numberguess-claude-rust
+DEVCONTAINER_COMPOSE := docker compose --project-name $(DEVCONTAINER_PROJECT) -f docker-compose.yml -f .devcontainer/docker-compose.devcontainer.yml
+
 # Default target
 .DEFAULT_GOAL := help
 
@@ -18,9 +28,14 @@ help:
 	@echo "Number Guessing Game - Development Commands"
 	@echo ""
 	@echo "Development:"
+	@echo "  make devcontainer-up - Launch devcontainer (requires devcontainer CLI)"
+	@echo "  make devcontainer-down - Stop devcontainer services"
+	@echo "  make devcontainer-attach - Attach terminal to running devcontainer"
 	@echo "  make dev           - Start postgres + app server for manual testing"
 	@echo "  make dev-db        - Start only postgres (run app locally with cargo run)"
 	@echo "  make dev-down      - Stop development services"
+	@echo "  make compose-up    - Start docker-compose integration stack (postgres + app)"
+	@echo "  make compose-down  - Stop docker-compose integration stack"
 	@echo "  make logs          - View docker-compose logs"
 	@echo "  make db-shell      - Open PostgreSQL shell"
 	@echo ""
@@ -32,7 +47,10 @@ help:
 	@echo "Testing:"
 	@echo "  make test          - Run all tests (builds Docker if needed)"
 	@echo "  make test-unit     - Run unit tests only (fast, no Docker)"
-	@echo "  make test-integration - Run integration tests (with testcontainers)"
+	@echo "  make test-integration - Legacy integration tests (testcontainers)"
+	@echo "  make test-compose  - Run integration tests against docker-compose stack"
+	@echo "  make test-compose-ui - Run UI integration tests against docker-compose stack"
+	@echo "  make test-compose-down - Stop and remove integration test services"
 	@echo ""
 	@echo "Running:"
 	@echo "  make run-cli       - Run CLI game (interactive)"
@@ -77,6 +95,38 @@ dev-down:
 	@echo "Stopping development services..."
 	docker compose --profile full-stack down
 
+## devcontainer-up: Launch devcontainer environment using devcontainer CLI
+devcontainer-up:
+	@if [ -z "$(strip $(DEVCONTAINER_BIN))" ]; then \
+		echo "devcontainer CLI not found. Install from https://github.com/devcontainers/cli or set DEVCONTAINER_BIN"; \
+		exit 1; \
+	fi
+	PATH="$(DEVCONTAINER_DIR):$$PATH" "$(DEVCONTAINER_BIN)" up --workspace-folder .
+
+## devcontainer-down: Stop devcontainer services (uses docker compose - devcontainer CLI has no down command)
+devcontainer-down:
+	@echo "Stopping devcontainer services..."
+	@$(DEVCONTAINER_COMPOSE) down -v || true
+
+## devcontainer-attach: Attach terminal to running devcontainer
+devcontainer-attach:
+	@if [ -z "$(strip $(DEVCONTAINER_BIN))" ]; then \
+		echo "devcontainer CLI not found. Install from https://github.com/devcontainers/cli or set DEVCONTAINER_BIN"; \
+		exit 1; \
+	fi
+	@echo "Attaching to devcontainer..."
+	PATH="$(DEVCONTAINER_DIR):$$PATH" "$(DEVCONTAINER_BIN)" exec --workspace-folder . bash
+
+COMPOSE_STACK = docker compose -f docker-compose.yml -f docker-compose.integration.yml
+
+## compose-up: Start integration stack with postgres + app
+compose-up:
+	$(COMPOSE_STACK) --profile integration up -d postgres app
+
+## compose-down: Stop integration stack and remove volumes
+compose-down:
+	$(COMPOSE_STACK) --profile integration down -v
+
 ## logs: View docker-compose logs
 logs:
 	docker compose --profile full-stack logs -f
@@ -94,10 +144,57 @@ test-unit:
 	@echo "Running unit tests (no Docker required)..."
 	cargo test --lib
 
-## test-integration: Run integration tests (uses testcontainers)
+## test-integration: Run legacy integration tests (uses testcontainers)
 test-integration: docker-check
-	@echo "Running integration tests (testcontainers will manage databases)..."
+	@echo "Running legacy integration tests (testcontainers will manage containers)..."
 	cargo test --test '*'
+
+## test-compose: Run integration tests via docker compose (postgres + app)
+test-compose:
+	@bash -c 'set -euo pipefail; \
+	COMPOSE_CMD="docker compose -f docker-compose.yml -f docker-compose.integration.yml"; \
+	cleanup(){ $$COMPOSE_CMD --profile integration down -v >/dev/null 2>&1 || true; }; \
+	trap cleanup EXIT; \
+	$$COMPOSE_CMD --profile integration up -d postgres >/dev/null; \
+	$$COMPOSE_CMD --profile integration up --wait postgres >/dev/null; \
+	DB_HOST=localhost; \
+	TEST_DB=$${TEST_DB_NAME:-numberguess_test}; \
+	POSTGRES_HOST=$$DB_HOST TEST_DB_NAME=$$TEST_DB ./scripts/reset-db.sh; \
+	$$COMPOSE_CMD --profile integration up -d app >/dev/null; \
+	HEALTH_URL=http://localhost:8081/health; \
+	./scripts/wait-for-http.sh $$HEALTH_URL 90; \
+	BASE_URL=http://localhost:8080; \
+	GAME_SERVER_BASE_URL=$$BASE_URL cargo test --tests -- --test-threads=1; \
+	'
+
+## test-compose-ui: Run web UI integration tests via docker compose (app + selenium)
+test-compose-ui:
+	@bash -c 'set -euo pipefail; \
+	COMPOSE_CMD="docker compose -f docker-compose.yml -f docker-compose.integration.yml"; \
+	cleanup(){ $$COMPOSE_CMD --profile integration-ui down -v >/dev/null 2>&1 || true; }; \
+	trap cleanup EXIT; \
+	$$COMPOSE_CMD --profile integration-ui up -d postgres >/dev/null; \
+	$$COMPOSE_CMD --profile integration-ui up --wait postgres >/dev/null; \
+	DB_HOST=localhost; \
+	TEST_DB=$${TEST_DB_NAME:-numberguess_test}; \
+	POSTGRES_HOST=$$DB_HOST TEST_DB_NAME=$$TEST_DB ./scripts/reset-db.sh; \
+	$$COMPOSE_CMD --profile integration-ui up -d app selenium >/dev/null; \
+	APP_HEALTH=http://localhost:8081/health; \
+	SEL_HEALTH=http://localhost:4444/status; \
+	./scripts/wait-for-http.sh $$APP_HEALTH 90; \
+	./scripts/wait-for-http.sh $$SEL_HEALTH 90; \
+	BASE_URL=http://localhost:8080; \
+	BROWSER_URL=http://app:8080; \
+	SEL_URL=http://localhost:4444; \
+	GAME_SERVER_BASE_URL=$$BASE_URL GAME_SERVER_BROWSER_URL=$$BROWSER_URL SELENIUM_REMOTE_URL=$$SEL_URL cargo test --test web_ui_test -- --test-threads=1; \
+	'
+
+## test-compose-down: Stop and remove integration test services
+test-compose-down:
+	@echo "Stopping integration test services..."
+	@docker compose -f docker-compose.yml -f docker-compose.integration.yml --profile integration down -v 2>/dev/null || true
+	@docker compose -f docker-compose.yml -f docker-compose.integration.yml --profile integration-ui down -v 2>/dev/null || true
+	@echo "✓ Integration test services stopped"
 
 ## run-cli: Run CLI game
 run-cli:

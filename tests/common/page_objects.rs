@@ -1,5 +1,5 @@
-use thirtyfour::prelude::*;
 use std::time::Duration;
+use thirtyfour::prelude::*;
 
 /// Represents the feedback type shown to the user after a guess
 #[derive(Debug, PartialEq, Clone)]
@@ -65,12 +65,7 @@ impl<'a> GamePage<'a> {
     }
 
     /// Fill and submit the game setup form in one step
-    pub async fn start_game(
-        &self,
-        min: u32,
-        max: u32,
-        limit: Option<u32>,
-    ) -> WebDriverResult<()> {
+    pub async fn start_game(&self, min: u32, max: u32, limit: Option<u32>) -> WebDriverResult<()> {
         self.fill_game_setup(min, max, limit).await?;
         self.submit_game_setup().await?;
         Ok(())

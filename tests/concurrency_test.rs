@@ -1,19 +1,46 @@
 mod common;
 
 use common::assertions::{GameResponse, GuessResponse};
-use common::containers::{GameServerInstance, PostgresInstance};
+use common::environment;
 use reqwest::blocking::Client;
 use serde_json::json;
+use std::process::Command;
 use std::sync::{Arc, Barrier};
 use std::thread;
+
+const COMPOSE_FILES: [&str; 4] = [
+    "-f",
+    "docker-compose.yml",
+    "-f",
+    "docker-compose.integration.yml",
+];
+
+fn restart_app_via_compose() {
+    let mut args = Vec::new();
+    args.extend_from_slice(&COMPOSE_FILES);
+    args.extend_from_slice(&["--profile", "integration", "restart", "app"]);
+
+    let status = Command::new("docker")
+        .arg("compose")
+        .args(&args)
+        .status()
+        .expect("Failed to run docker compose restart app");
+
+    assert!(
+        status.success(),
+        "docker compose restart app failed with status {:?}",
+        status
+    );
+
+    // Wait for app to come back online using existing helper
+    environment::ensure_server_ready();
+}
 
 /// Test concurrent guesses on the SAME game to verify transaction isolation
 /// This tests the FOR UPDATE row-level locking in make_guess_transactional
 #[test]
 fn test_concurrent_guesses_on_same_game() {
-    let postgres = PostgresInstance::new();
-    let server = GameServerInstance::new(&postgres.container_url());
-    let base_url = server.url();
+    let base_url = environment::ensure_server_ready();
     let client = Client::new();
 
     println!("✅ Server ready at {}", base_url);
@@ -73,8 +100,14 @@ fn test_concurrent_guesses_on_same_game() {
 
     // All requests should succeed
     let success_count = results.iter().filter(|(success, _)| *success).count();
-    println!("✅ {}/{} concurrent guesses succeeded", success_count, num_threads);
-    assert_eq!(success_count, num_threads, "All concurrent guesses should succeed");
+    println!(
+        "✅ {}/{} concurrent guesses succeeded",
+        success_count, num_threads
+    );
+    assert_eq!(
+        success_count, num_threads,
+        "All concurrent guesses should succeed"
+    );
 
     println!("✅ Concurrent guesses test passed - transaction isolation verified");
 }
@@ -82,9 +115,7 @@ fn test_concurrent_guesses_on_same_game() {
 /// Test race condition: one thread makes winning guess while others try to guess
 #[test]
 fn test_race_condition_guess_during_deletion() {
-    let postgres = PostgresInstance::new();
-    let server = GameServerInstance::new(&postgres.container_url());
-    let base_url = server.url();
+    let base_url = environment::ensure_server_ready();
     let client = Client::new();
 
     println!("✅ Server ready at {}", base_url);
@@ -174,7 +205,10 @@ fn test_race_condition_guess_during_deletion() {
         }
     }
 
-    assert_eq!(correct_count, 1, "Exactly one thread should get the correct answer");
+    assert_eq!(
+        correct_count, 1,
+        "Exactly one thread should get the correct answer"
+    );
     assert!(not_found_count + other_success >= num_threads - 1);
 
     println!("✅ Race condition test passed");
@@ -183,75 +217,52 @@ fn test_race_condition_guess_during_deletion() {
 /// Test that games persist across server restarts
 #[test]
 fn test_game_persistence_across_restart() {
-    let postgres = PostgresInstance::new();
+    let base_url = environment::ensure_server_ready();
+    let client = Client::new();
 
-    let game_id;
-    {
-        let server1 = GameServerInstance::new(&postgres.container_url());
-        let base_url = server1.url();
-        let client = Client::new();
+    println!("✅ Server running at {}", base_url);
 
-        println!("✅ Server 1 started at {}", base_url);
+    let create_response = client
+        .post(format!("{}/api/games", base_url))
+        .json(&json!({
+            "min": 1,
+            "max": 100,
+            "max_guesses": "10"
+        }))
+        .send()
+        .expect("Should create game");
 
-        let create_response = client
-            .post(format!("{}/api/games", base_url))
-            .json(&json!({
-                "min": 1,
-                "max": 100,
-                "max_guesses": "10"
-            }))
-            .send()
-            .expect("Should create game");
-
-        if !create_response.status().is_success() {
-            let status = create_response.status();
-            let body = create_response.text().unwrap_or_default();
-            panic!("Game creation failed with {}: {}", status, body);
-        }
-        let game: GameResponse = create_response.json().expect("Should parse game response");
-        game_id = game.game_id;
-
-        println!("✅ Created game {}", game_id);
-
-        for guess in [25, 50] {
-            let guess_response = client
-                .post(format!("{}/api/games/{}/guess", base_url, game_id))
-                .json(&json!({"guess": guess}))
-                .send()
-                .expect("Should make guess");
-
-            assert!(guess_response.status().is_success());
-            let result: GuessResponse = guess_response.json().expect("Should parse guess response");
-            println!("  Guess {} -> {}", guess, result.result);
-        }
-
-        println!("✅ Made 2 guesses on server 1");
+    if !create_response.status().is_success() {
+        let status = create_response.status();
+        let body = create_response.text().unwrap_or_default();
+        panic!("Game creation failed with {}: {}", status, body);
     }
+    let game: GameResponse = create_response.json().expect("Should parse game response");
+    let game_id = game.game_id;
 
-    println!("🔄 Server 1 stopped, starting server 2...");
+    println!("✅ Created game {}; restarting app container...", game_id);
 
-    {
-        let server2 = GameServerInstance::new(&postgres.container_url());
-        let base_url = server2.url();
-        let client = Client::new();
+    restart_app_via_compose();
 
-        println!("✅ Server 2 started at {}", base_url);
+    // After restart the first request may fail while connections recover; retry via helper
+    let base_url = environment::ensure_server_ready();
+    let guess_response = client
+        .post(format!("{}/api/games/{}/guess", base_url, game_id))
+        .json(&json!({"guess": 75}))
+        .send()
+        .expect("Should make guess on restarted server");
 
-        let guess_response = client
-            .post(format!("{}/api/games/{}/guess", base_url, game_id))
-            .json(&json!({"guess": 75}))
-            .send()
-            .expect("Should make guess on restarted server");
+    assert!(
+        guess_response.status().is_success(),
+        "Game should still exist after server restart"
+    );
 
-        assert!(guess_response.status().is_success(),
-            "Game should still exist after server restart");
+    let result: GuessResponse = guess_response.json().expect("Should parse guess response");
+    println!("  Guess 75 -> {}", result.result);
 
-        let result: GuessResponse = guess_response.json().expect("Should parse guess response");
-        println!("  Guess 75 -> {}", result.result);
-
-        assert!(result.result == "too_low" || result.result == "too_high" || result.result == "correct");
-        println!("✅ Game persisted across restart");
-    }
-
-    println!("✅ Persistence test passed");
+    assert!(matches!(
+        result.result.as_str(),
+        "too_low" | "too_high" | "correct"
+    ));
+    println!("✅ Game persisted across restart");
 }

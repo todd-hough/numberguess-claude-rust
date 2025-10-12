@@ -52,7 +52,8 @@ pub async fn create_game(
     // Get game state
     let (min_val, max_val) = game.get_range();
     let secret = game.secret_number();
-    let guess_count: i32 = game.get_guess_count()
+    let guess_count: i32 = game
+        .get_guess_count()
         .try_into()
         .map_err(|_| DbError::ConversionError("Guess count exceeds i32 range".into()))?;
     let max_guesses_i32: Option<i32> = max_guesses
@@ -65,7 +66,7 @@ pub async fn create_game(
         r#"
         INSERT INTO games (game_id, min_value, max_value, secret_number, guess_count, max_guesses)
         VALUES ($1, $2, $3, $4, $5, $6)
-        "#
+        "#,
     )
     .bind(game_id.as_i64())
     .bind(min_val)
@@ -106,7 +107,7 @@ pub async fn get_game(pool: &PgPool, game_id: GameId) -> Result<GuessingGame, Db
         SELECT game_id, min_value, max_value, secret_number, guess_count, max_guesses
         FROM games
         WHERE game_id = $1
-        "#
+        "#,
     )
     .bind(game_id.as_i64())
     .fetch_one(pool)
@@ -155,8 +156,13 @@ pub async fn get_game(pool: &PgPool, game_id: GameId) -> Result<GuessingGame, Db
 }
 
 /// Update game state after a guess
-pub async fn update_game(pool: &PgPool, game_id: GameId, game: &GuessingGame) -> Result<(), DbError> {
-    let guess_count: i32 = game.get_guess_count()
+pub async fn update_game(
+    pool: &PgPool,
+    game_id: GameId,
+    game: &GuessingGame,
+) -> Result<(), DbError> {
+    let guess_count: i32 = game
+        .get_guess_count()
         .try_into()
         .map_err(|_| DbError::ConversionError("Guess count exceeds i32 range".into()))?;
 
@@ -171,7 +177,7 @@ pub async fn update_game(pool: &PgPool, game_id: GameId, game: &GuessingGame) ->
         UPDATE games
         SET guess_count = $1, updated_at = NOW()
         WHERE game_id = $2
-        "#
+        "#,
     )
     .bind(guess_count)
     .bind(game_id.as_i64())
@@ -199,7 +205,7 @@ pub async fn delete_game(pool: &PgPool, game_id: GameId) -> Result<(), DbError> 
         r#"
         DELETE FROM games
         WHERE game_id = $1
-        "#
+        "#,
     )
     .bind(game_id.as_i64())
     .execute(pool)
@@ -254,7 +260,7 @@ pub async fn make_guess_transactional(
         FROM games
         WHERE game_id = $1
         FOR UPDATE
-        "#
+        "#,
     )
     .bind(game_id.as_i64())
     .fetch_one(&mut *tx)
@@ -311,7 +317,8 @@ pub async fn make_guess_transactional(
     match result {
         GuessResult::TooLow | GuessResult::TooHigh => {
             // Game continues - update guess count
-            let new_guess_count: i32 = game.get_guess_count()
+            let new_guess_count: i32 = game
+                .get_guess_count()
                 .try_into()
                 .map_err(|_| DbError::ConversionError("Guess count exceeds i32 range".into()))?;
 
@@ -326,7 +333,7 @@ pub async fn make_guess_transactional(
                 UPDATE games
                 SET guess_count = $1, updated_at = NOW()
                 WHERE game_id = $2
-                "#
+                "#,
             )
             .bind(new_guess_count)
             .bind(game_id.as_i64())
@@ -349,7 +356,7 @@ pub async fn make_guess_transactional(
                 r#"
                 DELETE FROM games
                 WHERE game_id = $1
-                "#
+                "#,
             )
             .bind(game_id.as_i64())
             .execute(&mut *tx)
@@ -396,7 +403,7 @@ mod tests {
     use super::*;
 
     // Note: These tests require a running PostgreSQL database
-    // They will be run as integration tests with testcontainers
+    // They are exercised by integration tests that expect DATABASE_URL to be configured
 
     #[tokio::test]
     #[ignore] // Only run when DATABASE_URL is available

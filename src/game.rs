@@ -341,7 +341,8 @@ mod tests {
 
     #[test]
     fn test_game_with_guess_limit() {
-        let mut game = GuessingGame::new_with_limit(1, 10, Some(3)).expect("Should create game with guess limit");
+        let mut game = GuessingGame::new_with_limit(1, 10, Some(3))
+            .expect("Should create game with guess limit");
         game.set_secret_for_testing(5);
 
         assert_eq!(game.get_max_guesses(), Some(3));
@@ -377,7 +378,8 @@ mod tests {
 
     #[test]
     fn test_game_with_no_limit() {
-        let mut game = GuessingGame::new_with_limit(1, 10, None).expect("Should create game with no guess limit");
+        let mut game = GuessingGame::new_with_limit(1, 10, None)
+            .expect("Should create game with no guess limit");
         game.set_secret_for_testing(5);
 
         assert_eq!(game.get_max_guesses(), None);
@@ -405,7 +407,8 @@ mod tests {
 
     #[test]
     fn test_correct_guess_within_limit() {
-        let mut game = GuessingGame::new_with_limit(1, 10, Some(5)).expect("Should create game with range 1-10 and limit 5");
+        let mut game = GuessingGame::new_with_limit(1, 10, Some(5))
+            .expect("Should create game with range 1-10 and limit 5");
         game.set_secret_for_testing(7);
 
         assert_eq!(game.make_guess(3), GuessResult::TooLow);

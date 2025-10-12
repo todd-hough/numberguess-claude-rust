@@ -23,7 +23,10 @@
       "Bash(docker images:*)",
       "Bash(docker-compose up:*)",
       "Bash(docker compose:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(make:*)",
+      "Bash(docker ps:*)",
+      "Bash(devcontainer:*)"
     ],
     "deny": [
       "Bash(git:*)"

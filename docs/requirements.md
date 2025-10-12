@@ -108,12 +108,9 @@ A number guessing game that can be run either as a command-line application or a
 
 [Dev Dependencies]
 - **reqwest**: HTTP client for testing (v0.12 with json, blocking)
-- **testcontainers**: Docker container management for tests (v0.23 with blocking)
 - **tokio-test**: Async testing utilities (v0.4)
 - **assert_cmd**: CLI testing framework (v2.0)
 - **predicates**: Test assertion predicates (v3.0)
-- **serial_test**: Sequential test execution (v3.0)
-- **bollard**: Docker API client (v0.18)
 - **thirtyfour**: WebDriver client for browser testing (v0.33.0)
 
 ### 3. Command-Line Interface

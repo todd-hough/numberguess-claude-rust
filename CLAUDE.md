@@ -35,10 +35,17 @@ make dev-down     # or: just dev-down
 make build        # or: just build
 cargo build       # Direct cargo also works
 
+# Devcontainer (for VS Code / devcontainer CLI users)
+make devcontainer-up     # Start devcontainer
+make devcontainer-attach # Attach terminal to running devcontainer
+make devcontainer-down   # Stop devcontainer
+
 # Testing
 make test              # All tests (builds Docker if needed)
 make test-unit         # Unit tests only (fast, no Docker)
-make test-integration  # Integration tests with testcontainers
+make test-compose      # Integration tests via docker compose
+make test-compose-ui   # Selenium UI tests via docker compose
+make test-compose-down # Stop integration test services (auto-cleanup on exit, rarely needed)
 
 # Or with just:
 just test
@@ -58,8 +65,10 @@ make fmt               # Format code
 make lint              # Run clippy
 just check             # Format + lint
 
-# Database
+# Database & Compose
 make db-shell          # PostgreSQL shell
+make compose-up        # Bring up compose stack (app + postgres)
+make compose-down      # Tear down compose stack
 make logs              # View docker-compose logs
 
 # Cleanup
@@ -70,7 +79,7 @@ make clean             # Clean everything
 - **Build**: No database needed (SQLx uses runtime checking, not compile-time)
 - **CLI mode**: No database needed at all
 - **Web mode**: Requires PostgreSQL running
-- **Tests**: Unit tests are fast (no Docker), integration tests use testcontainers
+- **Tests**: Unit tests are fast (no Docker); integration and UI suites run via `make test-compose*` against Docker Compose
 - **Docker**: Only needed for integration tests and optional full-stack development
 
 ## Architecture
@@ -128,21 +137,14 @@ make clean             # Clean everything
 # Unit tests in src/game.rs
 cargo test --lib
 
-# Integration tests with test containers (requires Docker)
-cargo test --test smoke_test   # Basic connectivity test
-cargo test --test game_lifecycle_test   # API functionality
-cargo test --test concurrent_games_test # Concurrency testing
-cargo test --test error_handling_test   # Error scenarios
-cargo test --test cli_integration_test  # CLI testing
-cargo test --test stress_test           # Performance/stress testing
+# Integration tests via docker compose (API)
+make test-compose
 
-# Integration test via examples (legacy)
-cargo run --example demo
-cargo run --example web_client  # requires server running
+# Web UI tests via docker compose (Selenium)
+make test-compose-ui
 
-# Manual web UI test
-cargo run -- --server
-# Visit http://localhost:3000
+# Full suite via make
+make test
 ```
 
 ## Common Tasks
@@ -369,11 +371,10 @@ All configuration files (docker-compose.yml, Makefile, justfile) reference these
 - **tracing-subscriber**: Log collection and formatting with env-filter (v0.3)
 
 ### Test Dependencies  
-- **testcontainers**: Docker container management for tests (v0.23)
+- **Docker Compose**: Orchestrates Postgres/app/Selenium for integration tests (see `docker-compose.integration.yml`)
 - **reqwest**: HTTP client for API testing (v0.12.23)
 - **assert_cmd**: CLI testing framework (v2.0)
 - **predicates**: Test assertion predicates (v3.0)
-- **serial_test**: Sequential test execution (v3.0)
 - **tokio-test**: Async testing utilities (v0.4)
 
 ## Version Information

@@ -7,7 +7,7 @@ use number_guessing_game::{
     web::run_server,
 };
 use sqlx::postgres::PgPoolOptions;
-use tracing::{info, error};
+use tracing::{error, info};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
@@ -20,8 +20,7 @@ async fn main() {
     tracing_subscriber::registry()
         .with(env_filter)
         .with(
-            tracing_subscriber::fmt::layer()
-                .with_writer(std::io::stderr) // Explicitly write to stderr
+            tracing_subscriber::fmt::layer().with_writer(std::io::stderr), // Explicitly write to stderr
         )
         .init();
 
@@ -55,10 +54,7 @@ async fn main() {
             })
             .clamp(1, 100);
 
-        info!(
-            max_connections = max_connections,
-            "Connecting to database"
-        );
+        info!(max_connections = max_connections, "Connecting to database");
 
         let pool = PgPoolOptions::new()
             .max_connections(max_connections)

@@ -249,7 +249,7 @@ number_guessing_game/
 ├── migrations/      # Database migrations
 │   ├── 20250930000001_create_games_table.sql
 │   └── 20250930000002_add_cleanup_function.sql
-├── tests/           # Integration tests with testcontainers
+├── tests/           # Integration and UI tests (Compose-backed)
 │   ├── common/      # Shared test utilities
 │   └── *_test.rs    # Integration test suites
 ├── examples/
@@ -276,9 +276,17 @@ make help
 make dev           # Start full stack for manual testing
 make dev-db        # Start only database (run app locally)
 make dev-down      # Stop services
+make devcontainer-up    # Boot the devcontainer (requires devcontainer CLI)
+make devcontainer-down  # Stop devcontainer
+make devcontainer-attach # Attach terminal to devcontainer
+make compose-up    # Bring up app + postgres via docker compose
+make compose-down  # Tear down compose stack
 make build         # Build application (no DB needed!)
 make test          # Run all tests
 make test-unit     # Fast unit tests (no Docker)
+make test-compose  # Run API integration tests via docker compose
+make test-compose-ui # Run Selenium UI tests via docker compose
+make test-compose-down # Stop integration test services (auto-cleanup, rarely needed)
 make fmt           # Format code
 make lint          # Run linter
 make clean         # Clean everything
@@ -293,14 +301,20 @@ make test
 # Run unit tests only (fast, no Docker required)
 make test-unit
 
-# Run integration tests only
-make test-integration
+# Run integration tests against docker compose stack
+make test-compose
+
+# Run Selenium-powered UI tests
+make test-compose-ui
 
 # Run with output (using cargo directly)
 cargo test -- --nocapture
+
+# Manually stop integration test services (optional - they auto-cleanup on exit)
+make test-compose-down
 ```
 
-**Note**: Unit tests run quickly without Docker. Integration tests use testcontainers to manage their own database instances.
+**Note**: Compose-backed integration tests (`make test-compose` and `make test-compose-ui`) automatically clean up services on exit. They also reset the database via `scripts/reset-db.sh` for deterministic results. Use `make test-compose-down` only if you need to manually stop services (e.g., after interrupting tests with Ctrl+C).
 
 ### Building for Release
 
