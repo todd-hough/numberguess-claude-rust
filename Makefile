@@ -1,5 +1,5 @@
 .PHONY: help build test test-unit test-integration dev dev-db dev-down \
-        docker-build docker-rebuild docker-check clean logs db-shell fmt lint run-cli run-server \
+        docker-build docker-build-debug docker-rebuild docker-check clean logs db-shell fmt lint run-cli run-server \
         devcontainer-up devcontainer-down devcontainer-attach dc-up dc-down dc-attach \
         compose-up compose-down test-compose test-compose-ui test-compose-down
 
@@ -40,8 +40,9 @@ help:
 	@echo ""
 	@echo "Building:"
 	@echo "  make build         - Build the application (no database needed)"
-	@echo "  make docker-build  - Build Docker image"
-	@echo "  make docker-rebuild - Force rebuild Docker image (no cache)"
+	@echo "  make docker-build  - Build Docker image (release mode, optimized)"
+	@echo "  make docker-build-debug - Build Docker image (debug mode, fast builds)"
+	@echo "  make docker-rebuild - Force rebuild Docker image (no cache, release mode)"
 	@echo ""
 	@echo "Testing:"
 	@echo "  make test          - Run all tests (builds Docker if needed)"
@@ -218,14 +219,19 @@ fmt:
 lint:
 	cargo clippy -- -D warnings
 
-## docker-build: Build Docker image
+## docker-build: Build Docker image (release mode by default)
 docker-build:
-	@echo "Building Docker image..."
+	@echo "Building Docker image (release mode)..."
 	docker build -t numberguess-claude-rust:latest .
 
-## docker-rebuild: Force rebuild Docker image (no cache)
+## docker-build-debug: Build Docker image in debug mode (faster builds for dev/test)
+docker-build-debug:
+	@echo "Building Docker image (debug mode)..."
+	docker build --build-arg BUILD_TYPE=debug -t numberguess-claude-rust:latest .
+
+## docker-rebuild: Force rebuild Docker image (no cache, release mode)
 docker-rebuild:
-	@echo "Rebuilding Docker image (no cache)..."
+	@echo "Rebuilding Docker image (no cache, release mode)..."
 	docker build --no-cache -t numberguess-claude-rust:latest .
 
 ## docker-check: Check if Docker image exists, build if not

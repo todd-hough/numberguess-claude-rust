@@ -6,7 +6,7 @@ A Rust-based number guessing game with both CLI and web interfaces. The game gen
 ## Development Environment
 - Even when working on Windows we work in a bash shell
 - Cargo commands may run longer than 2 minutes.  Run them without a timeout.
-- Building the Docker container image takes over 6 minutes. Use timeout of at least 600000ms (10 minutes) for `docker build` commands.
+- Building the Docker container image in release mode takes over 6 minutes. Use timeout of at least 600000ms (10 minutes) for release builds. Debug builds are significantly faster (~2-3 minutes).
 
 ## Quick Commands
 
@@ -29,6 +29,14 @@ make dev-down
 # Building (no database needed - uses runtime-checked SQLx)
 make build
 cargo build       # Direct cargo also works
+
+# Docker Builds (release vs debug)
+make docker-build        # Release build (optimized, slower to build)
+make docker-build-debug  # Debug build (fast iteration, for dev/test)
+make docker-rebuild      # Force rebuild with no cache (release mode)
+
+# Note: docker-compose automatically uses debug builds for faster dev/test cycles
+# To override: BUILD_TYPE=release make dev
 
 # Devcontainer (for VS Code / devcontainer CLI users)
 make dc-up         # Start devcontainer
@@ -68,6 +76,7 @@ make clean             # Clean everything
 - **Web mode**: Requires PostgreSQL running
 - **Tests**: Unit tests are fast (no Docker); integration and UI suites run via `make test-compose*` against Docker Compose
 - **Docker**: Only needed for integration tests and optional full-stack development
+- **Docker Builds**: Development/test workflows use debug builds (fast); production uses release builds (optimized). Configure via `BUILD_TYPE` env var or make targets.
 
 ## Architecture
 

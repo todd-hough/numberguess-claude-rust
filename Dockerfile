@@ -1,6 +1,9 @@
 # Multi-stage build for the Number Guessing Game
 FROM rust:1.89-slim AS builder
 
+# Build configuration: "release" or "debug"
+ARG BUILD_TYPE=release
+
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
     pkg-config \
@@ -12,19 +15,26 @@ WORKDIR /app
 # Copy source files
 COPY . .
 
-# Build the application in release mode
-RUN cargo build --release
+# Build the application (conditional: release or debug)
+RUN if [ "$BUILD_TYPE" = "release" ]; then \
+        cargo build --release; \
+    else \
+        cargo build; \
+    fi
 
 # Runtime stage
 FROM debian:bookworm-slim
+
+# Build configuration (must match builder stage)
+ARG BUILD_TYPE=release
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy the built binary from builder stage
-COPY --from=builder /app/target/release/number_guessing_game /usr/local/bin/
+# Copy the built binary from builder stage (from release or debug dir)
+COPY --from=builder /app/target/${BUILD_TYPE}/number_guessing_game /usr/local/bin/
 
 # Set working directory
 WORKDIR /app
