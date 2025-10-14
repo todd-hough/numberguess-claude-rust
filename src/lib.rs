@@ -1,5 +1,6 @@
 pub mod cli;
 pub mod db;
+pub mod features;
 pub mod game;
 pub mod game_id;
 pub mod io;

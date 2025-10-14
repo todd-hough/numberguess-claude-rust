@@ -3,6 +3,7 @@
 //! This module contains template structs that render HTML using the Askama template engine.
 //! Templates are type-safe and compiled at build time.
 
+use crate::features::difficulty::DifficultyInfo;
 use crate::game_id::GameId;
 use askama::Template;
 
@@ -55,3 +56,10 @@ pub struct GameNotFoundTemplate;
 #[derive(Template)]
 #[template(path = "update_error.html")]
 pub struct UpdateErrorTemplate;
+
+/// Template for difficulty indicator preview
+#[derive(Template)]
+#[template(path = "difficulty_indicator.html")]
+pub struct DifficultyIndicator {
+    pub info: DifficultyInfo,
+}

@@ -27,7 +27,7 @@
             border-radius: 20px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
             padding: 40px;
-            max-width: 500px;
+            max-width: 1000px;
             width: 100%;
         }
         
@@ -233,6 +233,128 @@
             text-align: center;
             box-shadow: 0 2px 8px rgba(33, 150, 243, 0.15);
         }
+
+        /* Difficulty Indicator Styles */
+        .form-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            align-items: start;
+        }
+
+        @media (max-width: 768px) {
+            .form-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .difficulty-preview {
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            align-self: start;
+            position: sticky;
+            top: 20px;
+            min-height: 200px;
+        }
+
+        .difficulty-box {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .difficulty-header {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .difficulty-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 700;
+            font-size: 1.1em;
+            text-align: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .difficulty-icon {
+            font-size: 1.3em;
+        }
+
+        .difficulty-name {
+            letter-spacing: 0.5px;
+        }
+
+        .difficulty-meter-container {
+            width: 100%;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .difficulty-meter {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        .difficulty-stats {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px 0;
+        }
+
+        .stat-label {
+            color: #666;
+            font-weight: 600;
+            font-size: 0.95em;
+        }
+
+        .stat-value {
+            color: #333;
+            font-weight: 700;
+            font-size: 1em;
+        }
+
+        .difficulty-message {
+            padding: 15px;
+            background: #fff;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            color: #555;
+            font-size: 0.95em;
+            line-height: 1.5;
+            font-style: italic;
+        }
+
+        .difficulty-preview:empty::before {
+            content: "Adjust settings to see difficulty preview";
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 200px;
+            color: #999;
+            font-style: italic;
+        }
     </style>
 </head>
 <body>
@@ -240,29 +362,52 @@
         <h1>🎯 Number Guessing Game</h1>
         
         <div id="setup-area">
-            <form class="game-form" 
-                  hx-post="/game/new" 
-                  hx-target=".container" 
-                  hx-swap="innerHTML">
-                <div class="form-group">
-                    <label for="min">Minimum Number (0 to 1,000,000):</label>
-                    <input type="number" id="min" name="min" value="1" min="0" max="1000000" required>
+            <div class="form-container">
+                <form class="game-form"
+                      hx-post="/game/new"
+                      hx-target=".container"
+                      hx-swap="innerHTML">
+                    <div class="form-group">
+                        <label for="min">Minimum Number (0 to 1,000,000):</label>
+                        <input type="number" id="min" name="min" value="1" min="0" max="1000000" required
+                               hx-get="/difficulty-preview"
+                               hx-trigger="input changed delay:300ms, load"
+                               hx-include="[name='min'],[name='max'],[name='max_guesses']"
+                               hx-target="#difficulty-preview">
+                    </div>
+                    <div class="form-group">
+                        <label for="max">Maximum Number (0 to 1,000,000):</label>
+                        <input type="number" id="max" name="max" value="100" min="0" max="1000000" required
+                               hx-get="/difficulty-preview"
+                               hx-trigger="input changed delay:300ms, load"
+                               hx-include="[name='min'],[name='max'],[name='max_guesses']"
+                               hx-target="#difficulty-preview">
+                    </div>
+                    <div class="form-group">
+                        <label for="max_guesses">Guess Limit (Optional, max 100):</label>
+                        <input type="number" id="max_guesses" name="max_guesses" min="0" max="100" placeholder="Leave blank for no limit"
+                               hx-get="/difficulty-preview"
+                               hx-trigger="input changed delay:300ms, load"
+                               hx-include="[name='min'],[name='max'],[name='max_guesses']"
+                               hx-target="#difficulty-preview">
+                    </div>
+                    <button type="submit">
+                        Start New Game
+                        <span class="htmx-indicator">
+                            <span class="spinner"></span>
+                        </span>
+                    </button>
+                </form>
+
+                <!-- Difficulty preview sidebar -->
+                <div id="difficulty-preview"
+                     class="difficulty-preview"
+                     role="region"
+                     aria-live="polite"
+                     aria-label="Difficulty preview">
+                    <!-- HTMX will populate this on load and input change -->
                 </div>
-                <div class="form-group">
-                    <label for="max">Maximum Number (0 to 1,000,000):</label>
-                    <input type="number" id="max" name="max" value="100" min="0" max="1000000" required>
-                </div>
-                <div class="form-group">
-                    <label for="max_guesses">Guess Limit (Optional, max 100):</label>
-                    <input type="number" id="max_guesses" name="max_guesses" min="0" max="100" placeholder="Leave blank for no limit">
-                </div>
-                <button type="submit">
-                    Start New Game
-                    <span class="htmx-indicator">
-                        <span class="spinner"></span>
-                    </span>
-                </button>
-            </form>
+            </div>
         </div>
     </div>
 </body>

@@ -1,0 +1,38 @@
+<div class="difficulty-box">
+    <div class="difficulty-header">
+        <span class="difficulty-badge {{ info.level.css_class() }}"
+              style="background: {{ info.level.color() }};">
+            <span class="difficulty-icon">{{ info.level.icon() }}</span>
+            <span class="difficulty-name">{{ info.level.name() }}</span>
+        </span>
+        <div class="difficulty-meter-container">
+            <div class="difficulty-meter"
+                 style="width: {{ info.level.meter_width() }}%; background: {{ info.level.color() }};"></div>
+        </div>
+    </div>
+
+    <div class="difficulty-stats">
+        <div class="stat-row">
+            <span class="stat-label">Range:</span>
+            <span class="stat-value">{{ info.range_size_description() }}</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Optimal:</span>
+            <span class="stat-value">{{ info.optimal_description() }}</span>
+        </div>
+        {% if info.has_limit() %}
+        <div class="stat-row">
+            <span class="stat-label">Your limit:</span>
+            <span class="stat-value">{{ info.limit_description() }}</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Buffer:</span>
+            <span class="stat-value">{{ info.buffer_description() }}</span>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="difficulty-message">
+        {{ info.level.message() }}
+    </div>
+</div>
