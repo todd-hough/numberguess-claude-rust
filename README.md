@@ -252,9 +252,6 @@ number_guessing_game/
 ├── tests/           # Integration and UI tests (Compose-backed)
 │   ├── common/      # Shared test utilities
 │   └── *_test.rs    # Integration test suites
-├── examples/
-│   ├── demo.rs      # Library usage example
-│   └── web_client.rs # HTTP client example
 ├── docs/            # Detailed documentation
 ├── Makefile         # Make command runner with shortcuts (dc-up, dc-down, dc-attach)
 ├── docker-compose.yml # Docker orchestration

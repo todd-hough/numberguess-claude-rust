@@ -218,9 +218,6 @@ cargo test game::tests
 
 # Test web endpoints
 curl -v http://localhost:3000/api/games
-
-# Test examples
-cargo run --example demo
 ```
 
 #### Check System Resources

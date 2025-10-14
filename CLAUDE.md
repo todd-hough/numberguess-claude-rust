@@ -285,7 +285,6 @@ make test
 │   ├── integration_test.rs     # Basic integration tests
 │   ├── web_endpoints_test.rs   # Web endpoint tests
 │   └── web_ui_test.rs          # Web UI tests
-├── examples/        # Usage examples
 ├── docs/            # All documentation
 │   ├── api.md       # API documentation
 │   ├── architecture.md # System design

@@ -86,9 +86,6 @@ cargo test game::tests
 
 # Run with output
 cargo test -- --nocapture
-
-# Run examples
-cargo run --example demo
 ```
 
 #### Writing Tests

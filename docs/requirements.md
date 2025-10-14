@@ -133,9 +133,6 @@ A number guessing game that can be run either as a command-line application or a
 - **Unit tests**: Comprehensive tests for game logic in `game.rs`
 - **Test coverage**: Game creation, range validation, guess processing, state tracking
 - **Testability**: Core logic separated from I/O for easy testing
-- **Examples**: 
-  - `examples/demo.rs`: Library usage demonstration
-  - `examples/web_client.rs`: HTTP client for testing web API
 
 ## Usage Examples
 

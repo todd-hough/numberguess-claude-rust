@@ -1,9 +1,9 @@
 .PHONY: help build test test-unit test-integration test-fast test-api test-ui dev dev-db dev-down dev-restart dev-logs dev-status \
-        docker-build docker-build-debug docker-rebuild docker-check docker-clean clean logs db-shell fmt lint run-cli run-server \
+        docker-rebuild docker-check docker-clean clean logs db-shell fmt lint run-cli run-server \
         devcontainer-up devcontainer-down devcontainer-attach devcontainer-restart devcontainer-status \
         dc-up dc-down dc-attach dc-shell dc-restart dc-status \
         compose-up compose-down test-compose test-compose-ui test-compose-down \
-        release release-test status info quick check reset
+        release status info quick check reset
 
 # Load environment variables from .env file if it exists
 -include .env
@@ -39,6 +39,13 @@ help:
 	@echo "  make dc-status     - Show devcontainer status"
 	@echo ""
 	@echo "════════════════════════════════════════════════════════════════"
+	@echo "BUILD & RELEASE"
+	@echo "════════════════════════════════════════════════════════════════"
+	@echo "  make build         - Build Docker image (debug mode, fast)"
+	@echo "  make release       - Build production Docker image (optimized)"
+	@echo "  make docker-clean  - Clean Docker images and containers"
+	@echo ""
+	@echo "════════════════════════════════════════════════════════════════"
 	@echo "TESTING (Full Suite)"
 	@echo "════════════════════════════════════════════════════════════════"
 	@echo "  make test          - Run complete test suite (unit + API + UI)"
@@ -60,15 +67,6 @@ help:
 	@echo "  make db-shell      - Open PostgreSQL shell"
 	@echo ""
 	@echo "════════════════════════════════════════════════════════════════"
-	@echo "RELEASE BUILDS"
-	@echo "════════════════════════════════════════════════════════════════"
-	@echo "  make release       - Build production Docker image (optimized)"
-	@echo "  make release-test  - Build release + run full test suite"
-	@echo "  make docker-build  - Build Docker image (release mode)"
-	@echo "  make docker-build-debug - Build Docker image (debug mode)"
-	@echo "  make docker-clean  - Clean Docker images and containers"
-	@echo ""
-	@echo "════════════════════════════════════════════════════════════════"
 	@echo "UTILITIES"
 	@echo "════════════════════════════════════════════════════════════════"
 	@echo "  make status        - Show overall system status"
@@ -76,7 +74,6 @@ help:
 	@echo "  make quick         - Fast feedback (fmt + unit tests)"
 	@echo "  make check         - Verify prerequisites"
 	@echo "  make reset         - Stop everything, clean, start fresh"
-	@echo "  make build         - Build the application (cargo build)"
 	@echo "  make fmt           - Format code with rustfmt"
 	@echo "  make lint          - Run clippy linter"
 	@echo "  make clean         - Clean build artifacts"
@@ -86,10 +83,6 @@ help:
 	@echo "════════════════════════════════════════════════════════════════"
 	@echo "For more details: https://github.com/your-repo/numberguess"
 	@echo "════════════════════════════════════════════════════════════════"
-
-## build: Build the application (no database needed for build with runtime-checked SQLx)
-build:
-	cargo build
 
 ## dev: Start postgres + app server for manual testing (full stack)
 dev:
@@ -318,13 +311,8 @@ fmt:
 lint:
 	cargo clippy -- -D warnings
 
-## docker-build: Build Docker image (release mode by default)
-docker-build:
-	@echo "Building Docker image (release mode)..."
-	docker build -t numberguess-claude-rust:latest .
-
-## docker-build-debug: Build Docker image in debug mode (faster builds for dev/test)
-docker-build-debug:
+## build: Build Docker image (debug mode - faster for dev/test)
+build:
 	@echo "Building Docker image (debug mode)..."
 	docker build --build-arg BUILD_TYPE=debug -t numberguess-claude-rust:latest .
 
@@ -337,7 +325,7 @@ docker-rebuild:
 docker-check:
 	@if ! docker images numberguess-claude-rust:latest | grep -q latest; then \
 		echo "Docker image not found, building..."; \
-		$(MAKE) docker-build; \
+		$(MAKE) build; \
 	else \
 		echo "✓ Docker image exists"; \
 	fi
@@ -349,11 +337,6 @@ release:
 	@echo ""
 	@echo "✓ Release image built successfully!"
 	@echo "  Tags: numberguess-claude-rust:latest, numberguess-claude-rust:release"
-
-## release-test: Build release image and run full test suite
-release-test: release test
-	@echo ""
-	@echo "✓ Release build passed all tests!"
 
 ## docker-clean: Clean Docker images and containers
 docker-clean:
