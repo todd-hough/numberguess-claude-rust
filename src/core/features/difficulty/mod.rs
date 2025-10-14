@@ -33,4 +33,4 @@ mod types;
 
 // Re-export public API
 pub use calculator::calculate_optimal_guesses;
-pub use types::{calculate_difficulty, DifficultyInfo, DifficultyLevel};
+pub use types::{DifficultyInfo, DifficultyLevel, calculate_difficulty};

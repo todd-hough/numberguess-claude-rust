@@ -2,8 +2,8 @@
 //!
 //! Provides real-time difficulty feedback as users configure game parameters.
 
-use crate::features::difficulty;
-use crate::templates::DifficultyIndicator;
+use crate::core::features::difficulty;
+use crate::web::templates::DifficultyIndicator;
 use crate::web::types::DifficultyParams;
 use askama::Template;
 use axum::{extract::Query, response::Html};

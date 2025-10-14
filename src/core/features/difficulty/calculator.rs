@@ -34,7 +34,7 @@ pub fn calculate_optimal_guesses(min: i32, max: i32) -> u32 {
     let mut remaining = range_size;
 
     while remaining > 1 {
-        remaining = (remaining + 1) / 2; // Ceiling division
+        remaining = remaining.div_ceil(2);
         guesses += 1;
     }
 
@@ -74,19 +74,19 @@ mod tests {
     #[test]
     fn test_calculate_optimal_guesses_power_of_two() {
         // Powers of 2 are exact (no ceiling needed)
-        assert_eq!(calculate_optimal_guesses(1, 2), 1);   // 2^1
-        assert_eq!(calculate_optimal_guesses(1, 4), 2);   // 2^2
-        assert_eq!(calculate_optimal_guesses(1, 8), 3);   // 2^3
-        assert_eq!(calculate_optimal_guesses(1, 16), 4);  // 2^4
-        assert_eq!(calculate_optimal_guesses(1, 32), 5);  // 2^5
-        assert_eq!(calculate_optimal_guesses(1, 64), 6);  // 2^6
+        assert_eq!(calculate_optimal_guesses(1, 2), 1); // 2^1
+        assert_eq!(calculate_optimal_guesses(1, 4), 2); // 2^2
+        assert_eq!(calculate_optimal_guesses(1, 8), 3); // 2^3
+        assert_eq!(calculate_optimal_guesses(1, 16), 4); // 2^4
+        assert_eq!(calculate_optimal_guesses(1, 32), 5); // 2^5
+        assert_eq!(calculate_optimal_guesses(1, 64), 6); // 2^6
         assert_eq!(calculate_optimal_guesses(1, 128), 7); // 2^7
     }
 
     #[test]
     fn test_calculate_optimal_guesses_arbitrary_min() {
         // Range size is what matters, not the starting point
-        assert_eq!(calculate_optimal_guesses(10, 19), 4);  // 10 numbers
+        assert_eq!(calculate_optimal_guesses(10, 19), 4); // 10 numbers
         assert_eq!(calculate_optimal_guesses(50, 149), 7); // 100 numbers
         assert_eq!(calculate_optimal_guesses(500, 1499), 10); // 1000 numbers
     }

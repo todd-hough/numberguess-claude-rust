@@ -86,7 +86,9 @@ impl DifficultyLevel {
             Self::Medium => "Good balance of challenge and fun! Use a smart strategy.",
             Self::Hard => "This is challenging! You'll need an efficient approach to win.",
             Self::Expert => "No room for error! Perfect binary search required.",
-            Self::Impossible => "Your limit is below optimal. You'd need perfect play plus incredible luck!",
+            Self::Impossible => {
+                "Your limit is below optimal. You'd need perfect play plus incredible luck!"
+            }
         }
     }
 

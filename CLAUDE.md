@@ -80,29 +80,56 @@ make clean             # Clean everything
 
 ## Architecture
 
-### Core Modules
-- **src/game.rs**: Pure game logic, no I/O. Contains `GuessingGame` struct and `GuessResult` enum
-- **src/cli.rs**: CLI argument parsing using clap (no validation or I/O)
-- **src/validators.rs**: Shared validation logic used by both CLI and web layers (pure functions, no I/O)
-- **src/io.rs**: User input/output helpers for CLI interactions
-- **src/templates.rs**: Askama template structs for type-safe HTML rendering
-- **src/game_id.rs**: Type-safe newtype wrapper for game IDs
-- **src/db.rs**: PostgreSQL database layer with runtime-checked SQLx queries
-- **src/web.rs**: Axum-based web server with REST API and HTMX frontend
-- **src/main.rs**: Minimal entry point, mode selection (CLI vs Web), database initialization
+### Module Organization
+The codebase is organized into clear architectural layers:
+
+#### Core (`src/core/`)
+Pure business logic with no I/O dependencies:
+- **game.rs**: Core game logic - `GuessingGame` struct and `GuessResult` enum
+- **game_id.rs**: Type-safe newtype wrapper for game IDs
+- **validators.rs**: Shared validation logic used by CLI, API, and Web layers
+- **features/**: Feature modules (e.g., difficulty calculator)
+
+#### API (`src/api/`)
+REST API with JSON endpoints:
+- **handlers/**: API request handlers (game creation, guessing, health check)
+- **types.rs**: Request/response types for JSON API
+
+#### Web UI (`src/web/`)
+HTML/HTMX interface:
+- **handlers/**: Web UI handlers (game creation, guessing, difficulty preview)
+- **templates.rs**: Askama template structs for type-safe HTML rendering
+- **types.rs**: Form request types for web UI
+
+#### CLI (`src/cli/`)
+Command-line interface:
+- **args.rs**: Argument parsing using clap
+- **io.rs**: User input/output helpers
+- **runner.rs**: CLI game loop
+
+#### Database (`src/db/`)
+- **mod.rs**: PostgreSQL layer with runtime-checked SQLx queries
+
+#### Server (`src/server/`)
+- **mod.rs**: Server initialization, routing configuration, and startup
+
+#### Other
+- **src/main.rs**: Entry point, mode selection (CLI vs Server), database initialization
 - **static/index.html**: Web UI with HTMX for dynamic updates
 - **templates/**: Askama HTML templates (compile-time checked)
 - **migrations/**: SQLx database migrations
 
 ### Key Design Patterns
-1. **Separation of Concerns**: Game logic isolated from I/O, validation separate from presentation, database layer separate from web layer
-2. **Shared Validation**: Single source of truth for validation logic in `validators` module
-3. **Type Safety**: Newtype pattern for `GameId`, compile-time template checking with Askama
-4. **Result Types**: Extensive use of `Result<T, String>` for error handling with safe type conversions
-5. **State Management**: Web server uses PostgreSQL with SQLx connection pooling (`PgPool`)
-6. **Module Organization**: Clear boundaries between argument parsing, validation, I/O, and business logic
-7. **Template-Based HTML**: Askama templates provide compile-time checked, type-safe HTML rendering
-8. **Structured Logging**: Uses `tracing` framework for async-aware, structured system logs while preserving user-facing CLI output
+1. **Layered Architecture**: Clear separation between Core, API, Web UI, CLI, Database, and Server layers
+2. **Separation of Concerns**: Game logic isolated from I/O, validation separate from presentation, database layer separate from web layer
+3. **Shared Validation**: Single source of truth for validation logic in `core/validators` module
+4. **API vs Web UI Separation**: JSON API handlers in `src/api/`, HTML handlers in `src/web/`
+5. **Type Safety**: Newtype pattern for `GameId`, compile-time template checking with Askama
+6. **Result Types**: Extensive use of `Result<T, String>` for error handling with safe type conversions
+7. **State Management**: Web server uses PostgreSQL with SQLx connection pooling (`PgPool`)
+8. **Module Organization**: Clear boundaries between core logic, API, web UI, CLI, database, and server
+9. **Template-Based HTML**: Askama templates provide compile-time checked, type-safe HTML rendering
+10. **Structured Logging**: Uses `tracing` framework for async-aware, structured system logs while preserving user-facing CLI output
 
 ## Important Constraints
 
@@ -146,20 +173,27 @@ make test
 ## Common Tasks
 
 ### Adding a New Feature
-1. Update game logic in `src/game.rs`
-2. Add validation logic in `src/validators.rs` if needed
+1. Update game logic in `src/core/game.rs`
+2. Add validation logic in `src/core/validators.rs` if needed
 3. Add CLI support:
-   - Argument parsing in `src/cli.rs`
-   - User I/O in `src/io.rs`
-4. Update web handlers in `src/web.rs` (uses shared validators)
-5. Modify HTML in `static/index.html` for UI changes
-6. Write tests in the relevant module
-7. Update documentation (README.md, docs/api.md, docs/requirements.md)
+   - Argument parsing in `src/cli/args.rs`
+   - User I/O in `src/cli/io.rs`
+   - Game loop in `src/cli/runner.rs`
+4. Add API support:
+   - Request/response types in `src/api/types.rs`
+   - Handlers in `src/api/handlers/`
+5. Add Web UI support:
+   - Form types in `src/web/types.rs`
+   - Handlers in `src/web/handlers/`
+   - Templates in `src/web/templates.rs` and `templates/`
+6. Modify HTML in `static/index.html` for UI changes
+7. Write tests in the relevant module
+8. Update documentation (README.md, docs/api.md, docs/requirements.md)
 
 ### Modifying Game Rules
-- Core logic in `game.rs::GuessingGame::make_guess()`
+- Core logic in `src/core/game.rs::GuessingGame::make_guess()`
 - Add new `GuessResult` variants as needed
-- Update all match statements handling `GuessResult`
+- Update all match statements handling `GuessResult` in API, Web, and CLI layers
 
 ### Debugging Web Issues
 - Check browser console for HTMX errors
@@ -186,14 +220,43 @@ make test
 ├── .claude/
 │   └── claude.md    # This file
 ├── src/
-│   ├── game.rs      # Core game logic
-│   ├── cli.rs       # CLI argument parsing (clap only)
-│   ├── validators.rs # Shared validation logic (no I/O)
-│   ├── io.rs        # User input/output helpers
-│   ├── templates.rs # Askama template structs
-│   ├── game_id.rs   # Type-safe game ID wrapper
-│   ├── db.rs        # PostgreSQL database layer
-│   ├── web.rs       # Web server
+│   ├── core/        # Core business logic (no I/O)
+│   │   ├── mod.rs
+│   │   ├── game.rs      # Game logic (GuessingGame, GuessResult)
+│   │   ├── game_id.rs   # Type-safe game ID wrapper
+│   │   ├── validators.rs # Shared validation logic
+│   │   └── features/    # Feature modules
+│   │       ├── mod.rs
+│   │       └── difficulty/
+│   │           ├── mod.rs
+│   │           ├── calculator.rs
+│   │           └── types.rs
+│   ├── api/         # REST API (JSON endpoints)
+│   │   ├── mod.rs
+│   │   ├── types.rs     # API request/response types
+│   │   └── handlers/
+│   │       ├── mod.rs
+│   │       ├── game.rs  # Game creation API handler
+│   │       ├── guess.rs # Guess processing API handler
+│   │       └── health.rs # Health check handler
+│   ├── web/         # Web UI (HTML/HTMX)
+│   │   ├── mod.rs
+│   │   ├── templates.rs # Askama template structs
+│   │   ├── types.rs     # Web form types
+│   │   └── handlers/
+│   │       ├── mod.rs
+│   │       ├── game.rs       # Game creation web handler
+│   │       ├── guess.rs      # Guess processing web handler
+│   │       └── difficulty.rs # Difficulty preview handler
+│   ├── cli/         # Command-line interface
+│   │   ├── mod.rs
+│   │   ├── args.rs      # CLI argument parsing (clap)
+│   │   ├── io.rs        # User input/output helpers
+│   │   └── runner.rs    # CLI game loop
+│   ├── db/          # Database layer
+│   │   └── mod.rs       # PostgreSQL operations (SQLx)
+│   ├── server/      # Server setup
+│   │   └── mod.rs       # Server initialization & routing
 │   ├── lib.rs       # Library exports
 │   └── main.rs      # Entry point
 ├── static/
@@ -204,7 +267,8 @@ make test
 │   ├── guess_form.html
 │   ├── game_complete.html
 │   ├── game_not_found.html
-│   └── update_error.html
+│   ├── update_error.html
+│   └── difficulty_indicator.html
 ├── migrations/      # SQLx database migrations
 │   ├── 20250930000001_create_games_table.sql
 │   └── 20250930000002_add_cleanup_function.sql
@@ -417,3 +481,5 @@ cargo build --release
 - **../docs/contributing.md**: Development guidelines
 - **../docs/**: All documentation and guides
 ```
+- NEVER change an external API such as a REST endpoint without explicit approval to make the change
+- ALWAYS document external API so the document becomes a reference for behavior

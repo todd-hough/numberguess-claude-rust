@@ -5,7 +5,7 @@
 
 use std::io::{self, Write};
 
-use crate::validators;
+use crate::core::validators;
 
 /// Reads a value from stdin with a prompt, retrying until valid input is received
 pub fn read_input<T>(prompt: &str) -> T

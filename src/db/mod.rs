@@ -1,5 +1,4 @@
-use crate::game::{GameError, GuessingGame};
-use crate::game_id::GameId;
+use crate::core::{GameError, GameId, GuessResult, GuessingGame};
 use sqlx::{PgPool, Row};
 use thiserror::Error;
 use tracing::{debug, error, info};
@@ -232,9 +231,7 @@ pub async fn make_guess_transactional(
     pool: &PgPool,
     game_id: GameId,
     guess: i32,
-) -> Result<crate::game::GuessResult, DbError> {
-    use crate::game::GuessResult;
-
+) -> Result<GuessResult, DbError> {
     debug!(
         game_id = %game_id,
         guess = guess,
