@@ -2,6 +2,7 @@
 //!
 //! Provides real-time difficulty feedback as users configure game parameters.
 
+use crate::auth::AuthenticatedUser;
 use crate::core::features::difficulty;
 use crate::web::templates::DifficultyIndicator;
 use crate::web::types::DifficultyParams;
@@ -17,7 +18,12 @@ use tracing::debug;
 ///
 /// Returns an empty response for invalid inputs to avoid showing errors
 /// while the user is still typing.
-pub async fn difficulty_preview(Query(params): Query<DifficultyParams>) -> Html<String> {
+///
+/// Requires authentication via oauth2-proxy.
+pub async fn difficulty_preview(
+    _user: AuthenticatedUser,
+    Query(params): Query<DifficultyParams>,
+) -> Html<String> {
     // Extract parameters with defaults
     let min = params.min.unwrap_or(1);
     let max = params.max.unwrap_or(100);

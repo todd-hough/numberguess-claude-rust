@@ -2,6 +2,7 @@
 //!
 //! Handles creating new game instances via HTML forms (HTMX).
 
+use crate::auth::AuthenticatedUser;
 use crate::core::validators;
 use crate::db;
 use crate::web::templates::{ErrorTemplate, GameStartedTemplate};
@@ -19,11 +20,15 @@ type SharedState = PgPool;
 /// Web UI handler for game creation (HTML).
 ///
 /// Creates a new game and returns HTML response for HTMX.
+/// Requires authentication via oauth2-proxy.
 pub async fn create_game_web(
     State(pool): State<SharedState>,
+    user: AuthenticatedUser,
     Form(payload): Form<CreateGameRequest>,
 ) -> impl IntoResponse {
     debug!(
+        user_id = %user.user_id,
+        user_email = %user.email,
         min = payload.min,
         max = payload.max,
         max_guesses = ?payload.max_guesses,
@@ -64,6 +69,8 @@ pub async fn create_game_web(
     let game_id = match db::create_game(&pool, payload.min, payload.max, guess_limit).await {
         Ok(id) => {
             info!(
+                user_id = %user.user_id,
+                user_email = %user.email,
                 game_id = %id,
                 min = payload.min,
                 max = payload.max,

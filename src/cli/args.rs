@@ -22,6 +22,6 @@ pub struct Cli {
     #[arg(short, long, help = "Run as a web server")]
     pub server: bool,
 
-    #[arg(short, long, default_value = "8080", help = "Port for the web server")]
+    #[arg(short, long, default_value = "4080", help = "Port for the web server (internal, accessed via oauth2-proxy on 8080)")]
     pub port: u16,
 }

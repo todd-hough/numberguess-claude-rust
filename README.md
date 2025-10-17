@@ -6,6 +6,7 @@ A fun and interactive number guessing game that can be played via command-line o
 
 - **CLI Mode**: Interactive command-line gameplay (no database required)
 - **Web Server Mode**: REST API and web UI for browser-based play
+- **Authentication**: OAuth2/OIDC authentication via Keycloak for web access
 - **PostgreSQL Persistence**: Game state persists across server restarts
 - **Configurable Range**: Set custom min/max values for the guessing range
 - **Guess Limit**: Optional limit on number of guesses per game
@@ -30,6 +31,8 @@ cargo build --release
 ### Prerequisites
 - **Rust**: 1.89.0 or later
 - **PostgreSQL**: Required for web server mode (can use Docker Compose)
+- **Keycloak**: OIDC identity provider for web authentication (included in Docker Compose)
+- **Redis**: Session storage for oauth2-proxy (included in Docker Compose)
 - **Docker**: Optional, for running full stack or tests
 - **Make**: For convenient command running
 
@@ -55,40 +58,35 @@ cargo run -- --min 1 --max 100 --limit 5
 
 ### Web Server Mode
 
-Web server requires PostgreSQL. Use one of these approaches:
+Web server requires PostgreSQL and authentication stack (Keycloak, oauth2-proxy, Redis).
 
-**Option 1: Full Stack (easiest for quick start)**
+**Option 1: Full Stack (recommended - includes authentication)**
 ```bash
-# Starts both PostgreSQL and app server in Docker
+# Starts full authentication stack (PostgreSQL, Keycloak, Redis, oauth2-proxy, and app) in Docker
 make dev
 
-# Access the web interface at http://localhost:3000
+# Access the web interface at http://localhost:8080
+# Login with: admin@local.test / password
 # Stop with: make dev-down
 ```
 
-**Option 2: Local Development (faster iteration)**
+**Option 2: Local Development (faster iteration, but requires auth setup)**
 ```bash
-# Start just the database
+# Start auth stack and database only
 make dev-db
 
-# Run the app locally (in another terminal)
-make run-server
+# Run the app locally (in another terminal) on port 4080 (accessed via oauth2-proxy)
+cargo run -- --server --port 4080
 
-# Or with custom port
-cargo run -- --server --port 8080
+# Access via oauth2-proxy at http://localhost:8080
 ```
 
-**Option 3: Use Your Own PostgreSQL**
-```bash
-# Copy and configure environment file
-cp .env.example .env
-# Edit .env with your database credentials
-
-# Run the server
-cargo run -- --server --port 3000
-```
-
-Then visit `http://localhost:3000` in your browser for the web interface.
+**Note on Authentication:**
+- The application runs behind oauth2-proxy on port 4080 (internal only)
+- External access is via oauth2-proxy on port 8080
+- All web routes require authentication
+- Default credentials: admin@local.test / password
+- Users are managed in Keycloak at http://localhost:8090
 
 ## Command-Line Options
 
@@ -96,7 +94,7 @@ Then visit `http://localhost:3000` in your browser for the web interface.
 - `-x, --max <MAX>`: Maximum number (inclusive, 0 to 1,000,000)
 - `-l, --limit <LIMIT>`: Maximum number of guesses allowed (optional)
 - `-s, --server`: Run as a web server
-- `-p, --port <PORT>`: Port for the web server (default: 3000)
+- `-p, --port <PORT>`: Port for the web server (default: 4080, internal port accessed via oauth2-proxy on 8080)
 - `-h, --help`: Display help information
 
 ## Guess Limit Feature

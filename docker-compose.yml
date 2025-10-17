@@ -1,4 +1,20 @@
 services:
+  # Redis - Session storage for oauth2-proxy
+  redis:
+    image: redis:7-alpine
+    profiles:
+      - dev
+      - full-stack
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # PostgreSQL - Application database
   postgres:
     image: postgres:16
     profiles:
@@ -20,6 +36,100 @@ services:
       timeout: 5s
       retries: 5
 
+  # Keycloak - OIDC Identity Provider
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    profiles:
+      - dev
+      - full-stack
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HTTP_PORT: 8090
+      KC_HEALTH_ENABLED: true
+      KC_HOSTNAME: localhost
+      KC_HOSTNAME_PORT: 8090
+      KC_HOSTNAME_STRICT: false
+      KC_HTTP_ENABLED: true
+    command:
+      - start-dev
+      - --import-realm
+    volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm.json:ro
+    ports:
+      - "8090:8090"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/9000 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && timeout 2 cat <&3 | grep -q 'HTTP/1.1 200'"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  # oauth2-proxy - Authentication Gateway
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.7.1
+    profiles:
+      - dev
+      - full-stack
+    restart: on-failure
+    extra_hosts:
+      - "localhost:host-gateway"
+    command:
+      # Provider Configuration
+      - --provider=oidc
+      - --provider-display-name=Keycloak
+      - --oidc-issuer-url=http://keycloak:8090/realms/numberguess
+      - --client-id=numberguess-client
+      - --client-secret=${OAUTH2_CLIENT_SECRET:-your-client-secret-change-me}
+      - --redirect-url=http://localhost:8080/oauth2/callback
+      - --code-challenge-method=S256
+      - --insecure-oidc-skip-issuer-verification=true
+
+      # Upstream Configuration
+      - --upstream=http://app:4080
+      - --http-address=0.0.0.0:4180
+
+      # Session Storage (Redis)
+      - --session-store-type=redis
+      - --redis-connection-url=redis://redis:6379
+
+      # Cookie Configuration
+      - --cookie-name=_oauth2_proxy
+      - --cookie-secret=${OAUTH2_COOKIE_SECRET:-CHANGE_ME_GENERATE_32_BYTE_SECRET}
+      - --cookie-secure=false
+      - --cookie-httponly=true
+      - --cookie-samesite=lax
+      - --cookie-refresh=1h
+
+      # Authentication Configuration
+      - --email-domain=*
+      - --skip-provider-button=true
+
+      # Header Configuration
+      - --set-xauthrequest=true
+      - --pass-user-headers=true
+      - --pass-access-token=false
+
+      # All routes require authentication (no skip-auth-route flags)
+
+      # Logging
+      - --standard-logging=true
+      - --auth-logging=true
+      - --request-logging=true
+    ports:
+      - "8080:4180"
+    depends_on:
+      redis:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+      app:
+        condition: service_started
+
+  # Number Guessing Game Application
   app:
     build:
       context: .
@@ -27,16 +137,19 @@ services:
       args:
         BUILD_TYPE: ${BUILD_TYPE:-debug}
     image: numberguess-claude-rust:latest
-    ports:
-      - "8080:8080"
-      - "8081:8081"
+    command: ["--server", "--port", "4080"]
+    # Internal ports only - accessed via oauth2-proxy
+    expose:
+      - "4080"  # Main application port (internal)
+      - "8081"  # Health check port (internal)
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-numberguess}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-numberguess_dev}
-      RUST_LOG: debug
+      RUST_LOG: ${RUST_LOG:-number_guessing_game=info}
     depends_on:
       postgres:
         condition: service_healthy
     profiles:
+      - dev
       - full-stack
       - integration
       - integration-ui
@@ -47,3 +160,4 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:

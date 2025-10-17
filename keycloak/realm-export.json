@@ -1,0 +1,121 @@
+{
+  "realm": "numberguess",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+
+  "groups": [
+    {
+      "name": "admin",
+      "path": "/admin"
+    }
+  ],
+
+  "users": [
+    {
+      "username": "admin",
+      "email": "admin@local.test",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Admin",
+      "lastName": "User",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "groups": ["/admin"],
+      "realmRoles": ["user"]
+    }
+  ],
+
+  "clients": [
+    {
+      "clientId": "numberguess-client",
+      "name": "Number Guessing Game",
+      "description": "OAuth2/OIDC client for the number guessing game",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "95hMa5T1hokrdStmaSWwrSCa1nHJxxCTifJzEqoeY9Y",
+      "redirectUris": [
+        "http://localhost:8080/oauth2/callback"
+      ],
+      "webOrigins": [
+        "http://localhost:8080"
+      ],
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "authorizationServicesEnabled": false,
+      "fullScopeAllowed": true,
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:8080/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "groups",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "email",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "email",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "email",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "preferred_username",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "username",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "preferred_username",
+            "jsonType.label": "String"
+          }
+        }
+      ]
+    }
+  ],
+
+  "roles": {
+    "realm": [
+      {
+        "name": "user",
+        "description": "User role"
+      }
+    ]
+  },
+
+  "defaultRoles": ["user"]
+}

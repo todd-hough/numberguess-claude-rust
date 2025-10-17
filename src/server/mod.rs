@@ -17,11 +17,18 @@ use tracing::{debug, info};
 /// Runs the web server with both main and health check endpoints.
 ///
 /// Starts two servers:
-/// - Main server on the specified port (web UI + API)
-/// - Health check server on port 8081
+/// - Main server on the specified port (web UI + API) - accessed via oauth2-proxy
+/// - Health check server on port 8081 (internal only)
+///
+/// # Authentication
+///
+/// This server runs behind oauth2-proxy, which handles all authentication.
+/// All routes require authentication via Keycloak (OIDC provider).
+/// User information is extracted from headers added by oauth2-proxy.
 pub async fn run_server(pool: PgPool, port: u16) {
     let health_port = 8081;
 
+    info!("Running behind oauth2-proxy - all routes require authentication");
     debug!(
         port = port,
         health_port = health_port,
@@ -80,11 +87,18 @@ pub async fn run_server(pool: PgPool, port: u16) {
         health_port = health_port,
         "Starting web server"
     );
-    info!(url = %format!("http://{}/", main_addr), "Web Interface available");
-    info!("API Endpoints available");
+    info!(
+        internal_addr = %main_addr,
+        "Application listening on internal port (accessed via oauth2-proxy)"
+    );
+    info!("External access: http://localhost:8080 (via oauth2-proxy)");
+    info!("API Endpoints:");
     debug!("  POST /api/games - Create a new game");
     debug!("  POST /api/games/:game_id/guess - Make a guess");
-    info!(url = %format!("http://{}/health", health_addr), "Health check available");
+    info!(
+        internal_addr = %health_addr,
+        "Health check available (internal only)"
+    );
 
     // Create channels to signal when each server task has started
     let (main_ready_tx, main_ready_rx) = tokio::sync::oneshot::channel();

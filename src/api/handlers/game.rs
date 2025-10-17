@@ -3,6 +3,7 @@
 //! Handles creating new game instances via JSON API.
 
 use crate::api::types::{CreateGameRequest, CreateGameResponse, ErrorResponse};
+use crate::auth::AuthenticatedUser;
 use crate::core::validators;
 use crate::db;
 use axum::{extract::State, http::StatusCode, response::Json};
@@ -14,11 +15,15 @@ type SharedState = PgPool;
 /// API handler for game creation (JSON).
 ///
 /// Creates a new game with the specified parameters and returns JSON response.
+/// Requires authentication via oauth2-proxy.
 pub async fn create_game_api(
     State(pool): State<SharedState>,
+    user: AuthenticatedUser,
     Json(payload): Json<CreateGameRequest>,
 ) -> Result<Json<CreateGameResponse>, (StatusCode, Json<ErrorResponse>)> {
     debug!(
+        user_id = %user.user_id,
+        user_email = %user.email,
         min = payload.min,
         max = payload.max,
         max_guesses = ?payload.max_guesses,
@@ -74,6 +79,8 @@ pub async fn create_game_api(
 
     info!(
         game_id = %game_id,
+        user_id = %user.user_id,
+        user_email = %user.email,
         min = payload.min,
         max = payload.max,
         max_guesses = ?guess_limit,

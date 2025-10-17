@@ -3,6 +3,7 @@
 //! Processes player guesses via JSON API.
 
 use crate::api::types::{ErrorResponse, MakeGuessRequest, MakeGuessResponse};
+use crate::auth::AuthenticatedUser;
 use crate::core::{GameId, GuessResult};
 use crate::db;
 use axum::{
@@ -18,12 +19,16 @@ type SharedState = PgPool;
 /// API handler for making a guess (JSON).
 ///
 /// Processes a guess and returns the result as JSON.
+/// Requires authentication via oauth2-proxy.
 pub async fn make_guess_api(
     State(pool): State<SharedState>,
+    user: AuthenticatedUser,
     Path(game_id): Path<GameId>,
     Json(payload): Json<MakeGuessRequest>,
 ) -> Result<Json<MakeGuessResponse>, (StatusCode, Json<ErrorResponse>)> {
     debug!(
+        user_id = %user.user_id,
+        user_email = %user.email,
         game_id = %game_id,
         guess = payload.guess,
         "API: Processing guess"
@@ -96,6 +101,8 @@ pub async fn make_guess_api(
         }
         GuessResult::Correct { number, attempts } => {
             info!(
+                user_id = %user.user_id,
+                user_email = %user.email,
                 game_id = %game_id,
                 guess = payload.guess,
                 number = number,
@@ -117,6 +124,8 @@ pub async fn make_guess_api(
             max_guesses,
         } => {
             info!(
+                user_id = %user.user_id,
+                user_email = %user.email,
                 game_id = %game_id,
                 guess = payload.guess,
                 number = number,

@@ -2,6 +2,7 @@
 //!
 //! Processes player guesses via HTML forms (HTMX).
 
+use crate::auth::AuthenticatedUser;
 use crate::core::{GameId, GuessResult};
 use crate::db;
 use crate::web::templates::{
@@ -21,12 +22,16 @@ type SharedState = PgPool;
 /// Web UI handler for making a guess (HTML).
 ///
 /// Processes a guess and returns HTML response for HTMX.
+/// Requires authentication via oauth2-proxy.
 pub async fn make_guess_web(
     State(pool): State<SharedState>,
+    user: AuthenticatedUser,
     Path(game_id): Path<GameId>,
     Form(payload): Form<MakeGuessRequest>,
 ) -> impl IntoResponse {
     debug!(
+        user_id = %user.user_id,
+        user_email = %user.email,
         game_id = %game_id,
         guess = payload.guess,
         "Web: Processing guess"
@@ -120,6 +125,8 @@ pub async fn make_guess_web(
         }
         GuessResult::Correct { number, attempts } => {
             info!(
+                user_id = %user.user_id,
+                user_email = %user.email,
                 game_id = %game_id,
                 guess = payload.guess,
                 number = number,
@@ -141,6 +148,8 @@ pub async fn make_guess_web(
             max_guesses,
         } => {
             info!(
+                user_id = %user.user_id,
+                user_email = %user.email,
                 game_id = %game_id,
                 guess = payload.guess,
                 number = number,

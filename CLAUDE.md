@@ -15,13 +15,14 @@ Run `make help` to see all available commands.
 ### Common Workflows
 
 ```bash
-# Development - Start full stack (postgres + app in Docker)
+# Development - Start full stack (postgres + keycloak + oauth2-proxy + app in Docker)
 make dev
-# Access at http://localhost:8080
+# Access at http://localhost:8080 (via oauth2-proxy)
+# Login with admin@local.test / password
 
 # Development - Start only database (run app locally for faster iteration)
 make dev-db
-cargo run -- --server --port 8080
+cargo run -- --server --port 4080
 
 # Stop development services
 make dev-down
@@ -73,15 +74,49 @@ make clean             # Clean everything
 ### Key Points
 - **Build**: No database needed (SQLx uses runtime checking, not compile-time)
 - **CLI mode**: No database needed at all
-- **Web mode**: Requires PostgreSQL running
+- **Web mode**: Requires PostgreSQL and authentication stack (Keycloak + oauth2-proxy + Redis)
 - **Tests**: Unit tests are fast (no Docker); integration and UI suites run via `make test-compose*` against Docker Compose
 - **Docker**: Only needed for integration tests and optional full-stack development
 - **Docker Builds**: Development/test workflows use debug builds (fast); production uses release builds (optimized). Configure via `BUILD_TYPE` env var or make targets.
+- **Authentication**: All web routes require authentication via oauth2-proxy + Keycloak (OIDC)
 
 ## Architecture
 
+### Authentication Architecture
+The application uses an authentication proxy pattern with OAuth2/OIDC:
+
+**Components:**
+- **oauth2-proxy (Port 8080)**: Authentication gateway, external access point
+- **Keycloak (Port 8090)**: OIDC identity provider with user management
+- **Redis**: Session storage for oauth2-proxy
+- **Application (Port 4080)**: Internal only, accessed via oauth2-proxy
+- **Health Check (Port 8081)**: Internal only health endpoint
+
+**Flow:**
+1. User accesses http://localhost:8080
+2. oauth2-proxy checks for valid session
+3. If not authenticated, redirects to Keycloak (localhost:8090)
+4. User logs in with Keycloak credentials (admin@local.test / password)
+5. Keycloak redirects back to oauth2-proxy with OAuth2 code
+6. oauth2-proxy exchanges code for tokens, stores session in Redis
+7. oauth2-proxy forwards request to app with user headers:
+   - `X-Auth-Request-User`: User ID (OIDC subject)
+   - `X-Auth-Request-Email`: User's email address
+   - `X-Auth-Request-Preferred-Username`: Username
+   - `X-Auth-Request-Groups`: Comma-separated list of groups
+
+**Security:**
+- Network isolation: App not exposed externally
+- PKCE with S256 for OAuth2 authorization code flow
+- Redis-backed sessions for horizontal scalability
+- All routes require authentication (no anonymous access)
+
 ### Module Organization
 The codebase is organized into clear architectural layers:
+
+#### Authentication (`src/auth/`)
+User authentication and authorization:
+- **mod.rs**: `AuthenticatedUser` extractor for Axum handlers, extracts user from oauth2-proxy headers
 
 #### Core (`src/core/`)
 Pure business logic with no I/O dependencies:
@@ -150,10 +185,15 @@ Command-line interface:
   - Counter shows initial count at game start and updates after each guess
 
 ### Security Considerations
-- Input validation prevents integer overflow
-- Range limits prevent DoS via large ranges
-- No persistent storage (stateless between restarts)
-- HTMX from CDN (consider bundling for production)
+- **Authentication**: All web routes require OAuth2/OIDC authentication
+- **Authorization**: User groups available via `AuthenticatedUser::is_in_group()`
+- **Network Isolation**: Application runs on port 4080 (internal only, not exposed)
+- **Session Security**: Redis-backed sessions with secure cookies (httponly, samesite=lax)
+- **OAuth2 Security**: PKCE with S256 challenge method
+- **Input Validation**: Prevents integer overflow
+- **Range Limits**: Prevent DoS via large ranges
+- **Database**: PostgreSQL with connection pooling and SQL injection protection
+- **HTMX**: Loaded from CDN (consider bundling for production)
 
 ## Testing Strategy
 ```bash
@@ -220,6 +260,8 @@ make test
 ├── .claude/
 │   └── claude.md    # This file
 ├── src/
+│   ├── auth/        # Authentication
+│   │   └── mod.rs       # AuthenticatedUser extractor
 │   ├── core/        # Core business logic (no I/O)
 │   │   ├── mod.rs
 │   │   ├── game.rs      # Game logic (GuessingGame, GuessResult)
@@ -272,6 +314,8 @@ make test
 ├── migrations/      # SQLx database migrations
 │   ├── 20250930000001_create_games_table.sql
 │   └── 20250930000002_add_cleanup_function.sql
+├── keycloak/        # Keycloak configuration
+│   └── realm-export.json # Realm configuration with users and groups
 ├── tests/           # Integration tests with test containers
 │   ├── common/      # Shared test infrastructure
 │   │   ├── mod.rs   # Module declarations
@@ -482,3 +526,5 @@ cargo build --release
 ```
 - NEVER change an external API such as a REST endpoint without explicit approval to make the change
 - ALWAYS document external API so the document becomes a reference for behavior
+- For all new features, determine the dependencies and plan to implement the dependencies one at a time with testing to prove each dependency is working before moving on to the next step.
+- When transitioning from planning to implementation, ALWAYS write the plan to a document in the plans directory. Once all work is done on the feature then clean up the plan document.
