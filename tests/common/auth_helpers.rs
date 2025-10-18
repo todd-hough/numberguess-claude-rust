@@ -1,109 +1,22 @@
 //! Authentication helpers for integration tests.
 //!
-//! Provides two authentication strategies:
-//! 1. Selenium-based OAuth2 flow (for Web UI tests)
-//! 2. Programmatic Direct Access Grants (for API tests)
+//! Provides Selenium-based OAuth2 authentication for all tests (Web UI and API).
 
 use reqwest::blocking::Client;
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
-use serde::Deserialize;
+use reqwest::header::{HeaderMap, HeaderValue};
 use std::error::Error;
 use std::time::Duration;
 use thirtyfour::prelude::*;
 
 // Constants for authentication
-const KEYCLOAK_TOKEN_URL: &str =
-    "http://localhost:8090/realms/numberguess/protocol/openid-connect/token";
-const TEST_CLIENT_ID: &str = "test-client";
-const TEST_CLIENT_SECRET: &str = "test-secret-do-not-use-in-production";
 const TEST_USERNAME: &str = "admin@local.test";
 const TEST_PASSWORD: &str = "password";
 const OAUTH2_PROXY_URL: &str = "http://localhost:8080";
 const SELENIUM_URL: &str = "http://localhost:4444";
 
-/// Response from Keycloak token endpoint
-#[derive(Debug, Deserialize)]
-struct TokenResponse {
-    access_token: String,
-    #[allow(dead_code)]
-    token_type: String,
-    #[allow(dead_code)]
-    expires_in: u64,
-    #[allow(dead_code)]
-    refresh_token: Option<String>,
-}
-
-// =============================================================================
-// Programmatic Authentication (Direct Access Grants)
-// Used for fast API tests that bypass oauth2-proxy
-// =============================================================================
-
-/// Get an access token from Keycloak using Direct Access Grants (ROPC flow).
-///
-/// This bypasses oauth2-proxy and gets a JWT token directly from Keycloak.
-/// The token can be used with Bearer authentication against the app on port 4080.
-///
-/// # Example
-/// ```no_run
-/// let token = get_access_token("admin@local.test", "password").unwrap();
-/// // Use token in Authorization: Bearer header
-/// ```
-pub fn get_access_token(username: &str, password: &str) -> Result<String, Box<dyn Error>> {
-    let client = Client::builder()
-        .timeout(Duration::from_secs(10))
-        .build()?;
-
-    let params = [
-        ("grant_type", "password"),
-        ("client_id", TEST_CLIENT_ID),
-        ("client_secret", TEST_CLIENT_SECRET),
-        ("username", username),
-        ("password", password),
-    ];
-
-    let response = client
-        .post(KEYCLOAK_TOKEN_URL)
-        .form(&params)
-        .send()?
-        .error_for_status()?;
-
-    let token_response: TokenResponse = response.json()?;
-    Ok(token_response.access_token)
-}
-
-/// Create a reqwest client with programmatic authentication (Bearer token).
-///
-/// This client adds an Authorization: Bearer header to all requests.
-/// Use this for API tests that access the app directly on port 4080.
-///
-/// # Example
-/// ```no_run
-/// let client = create_authenticated_client_programmatic().unwrap();
-/// let resp = client.post("http://localhost:4080/api/games")
-///     .json(&body)
-///     .send()
-///     .unwrap();
-/// ```
-pub fn create_authenticated_client_programmatic() -> Result<Client, Box<dyn Error>> {
-    let token = get_access_token(TEST_USERNAME, TEST_PASSWORD)?;
-
-    let mut headers = HeaderMap::new();
-    headers.insert(
-        AUTHORIZATION,
-        HeaderValue::from_str(&format!("Bearer {}", token))?,
-    );
-
-    let client = Client::builder()
-        .timeout(Duration::from_secs(30))
-        .default_headers(headers)
-        .build()?;
-
-    Ok(client)
-}
-
 // =============================================================================
 // Selenium-Based OAuth2 Authentication
-// Used for Web UI tests that test the full OAuth2 flow through oauth2-proxy
+// Used for all tests that require authentication
 // =============================================================================
 
 /// Perform OAuth2 login via Selenium and return session cookie.
@@ -284,27 +197,3 @@ pub fn create_unauthenticated_client() -> Client {
         .expect("Failed to create unauthenticated client")
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    #[ignore] // Requires Keycloak to be running
-    fn test_get_access_token() {
-        let token = get_access_token(TEST_USERNAME, TEST_PASSWORD)
-            .expect("Should get access token");
-        assert!(!token.is_empty());
-        // JWT tokens have 3 parts separated by dots
-        assert_eq!(token.split('.').count(), 3);
-    }
-
-    #[test]
-    #[ignore] // Requires Keycloak to be running
-    fn test_create_authenticated_client_programmatic() {
-        let client = create_authenticated_client_programmatic()
-            .expect("Should create authenticated client");
-
-        // Verify client was created successfully
-        assert!(client.get("http://localhost").build().is_ok());
-    }
-}

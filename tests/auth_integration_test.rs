@@ -1,7 +1,7 @@
 //! Authentication integration tests.
 //!
-//! Tests the authentication mechanisms using both Selenium OAuth2 flow
-//! and programmatic Direct Access Grants.
+//! Tests the authentication mechanisms using Selenium OAuth2 flow
+//! for both web UI and API endpoints.
 
 mod common;
 
@@ -122,49 +122,6 @@ fn test_oauth2_login_flow() {
 
     assert!(result, "OAuth2 login flow should complete successfully");
     println!("✅ OAuth2 login flow test passed");
-}
-
-// =============================================================================
-// Programmatic Authentication Tests
-// =============================================================================
-
-#[test]
-fn test_programmatic_authentication_works() {
-    environment::ensure_server_ready();
-
-    // Get access token
-    let token = auth_helpers::get_access_token(TEST_USERNAME, TEST_PASSWORD)
-        .expect("Should get access token");
-
-    println!("✓ Got access token from Keycloak");
-
-    // Verify token is a JWT (3 parts separated by dots)
-    assert_eq!(token.split('.').count(), 3, "Token should be valid JWT");
-
-    // Verify we can use the token to make authenticated requests
-    let client = auth_helpers::create_authenticated_client_programmatic()
-        .expect("Should create authenticated client");
-
-    println!("✓ Created authenticated client with bearer token");
-
-    // Try to create a game via API (directly to app on port 4080)
-    let response = client
-        .post("http://localhost:4080/api/games")
-        .json(&serde_json::json!({
-            "min": 1,
-            "max": 100,
-            "max_guesses": null
-        }))
-        .send()
-        .expect("Should send request");
-
-    assert!(
-        response.status().is_success(),
-        "API request with bearer token should succeed"
-    );
-
-    println!("✓ Successfully made authenticated API request");
-    println!("✅ Programmatic authentication test passed");
 }
 
 // =============================================================================
@@ -317,59 +274,93 @@ fn test_web_ui_endpoints_work_when_authenticated() {
 }
 
 // =============================================================================
-// Authenticated Endpoint Tests (API via Programmatic)
+// Authenticated Endpoint Tests (API via Selenium OAuth2)
 // =============================================================================
 
 #[test]
 fn test_api_endpoints_work_when_authenticated() {
     environment::ensure_server_ready();
+    environment::ensure_selenium_ready().expect("Selenium required for authentication");
 
-    let client = auth_helpers::create_authenticated_client_programmatic()
-        .expect("Should create authenticated client");
+    let result = tokio_test::block_on(async move {
+        let client = match auth_helpers::create_authenticated_client_selenium().await {
+            Ok(client) => client,
+            Err(e) => {
+                eprintln!("Failed to create authenticated client: {}", e);
+                return false;
+            }
+        };
 
-    println!("✓ Created authenticated API client");
+        println!("✓ Created authenticated API client");
 
-    // Test POST /api/games
-    let create_response = client
-        .post("http://localhost:4080/api/games")
-        .json(&serde_json::json!({
-            "min": 1,
-            "max": 100,
-            "max_guesses": 10
-        }))
-        .send()
-        .expect("Should send create game request");
+        // Test POST /api/games
+        let create_response = match client
+            .post("http://localhost:8080/api/games")
+            .json(&serde_json::json!({
+                "min": 1,
+                "max": 100,
+                "max_guesses": 10
+            }))
+            .send()
+        {
+            Ok(resp) => resp,
+            Err(e) => {
+                eprintln!("Failed to send create game request: {}", e);
+                return false;
+            }
+        };
 
-    assert!(
-        create_response.status().is_success(),
-        "Create game should succeed with authentication"
-    );
+        if !create_response.status().is_success() {
+            eprintln!(
+                "Create game failed with status: {}",
+                create_response.status()
+            );
+            return false;
+        }
 
-    let game: serde_json::Value = create_response
-        .json()
-        .expect("Should parse game response");
+        let game: serde_json::Value = match create_response.json() {
+            Ok(game) => game,
+            Err(e) => {
+                eprintln!("Failed to parse game response: {}", e);
+                return false;
+            }
+        };
 
-    let game_id = game["game_id"]
-        .as_u64()
-        .expect("Game should have game_id");
+        let game_id = match game["game_id"].as_u64() {
+            Some(id) => id,
+            None => {
+                eprintln!("Game response missing game_id");
+                return false;
+            }
+        };
 
-    println!("✓ Created game with ID: {}", game_id);
+        println!("✓ Created game with ID: {}", game_id);
 
-    // Test POST /api/games/{id}/guess
-    let guess_response = client
-        .post(format!("http://localhost:4080/api/games/{}/guess", game_id))
-        .json(&serde_json::json!({
-            "guess": 50
-        }))
-        .send()
-        .expect("Should send guess request");
+        // Test POST /api/games/{id}/guess
+        let guess_response = match client
+            .post(format!("http://localhost:8080/api/games/{}/guess", game_id))
+            .json(&serde_json::json!({
+                "guess": 50
+            }))
+            .send()
+        {
+            Ok(resp) => resp,
+            Err(e) => {
+                eprintln!("Failed to send guess request: {}", e);
+                return false;
+            }
+        };
 
-    assert!(
-        guess_response.status().is_success(),
-        "Guess should succeed with authentication"
-    );
+        if !guess_response.status().is_success() {
+            eprintln!("Guess failed with status: {}", guess_response.status());
+            return false;
+        }
 
-    println!("✓ Made guess successfully");
+        println!("✓ Made guess successfully");
 
+        true
+    });
+
+    assert!(result, "Authenticated API endpoints should work correctly");
     println!("✅ Authenticated API endpoints test passed");
 }

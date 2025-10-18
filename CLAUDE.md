@@ -199,17 +199,18 @@ Command-line interface:
 
 ### Authentication in Tests
 
-**All integration tests require full authentication stack** (Keycloak + oauth2-proxy + Redis). Tests use a hybrid authentication strategy optimized for different test types:
+**All integration tests require full authentication stack** (Keycloak + oauth2-proxy + Redis). Tests use Selenium OAuth2 authentication for all endpoints (Web UI and API).
 
-**Hybrid Authentication Approach:**
-- **Web UI Tests**: Selenium OAuth2 flow (realistic, tests full user experience)
-- **API Tests**: Programmatic Direct Access Grants (fast, tests API functionality)
+**Authentication Approach:**
+- **All Tests**: Selenium OAuth2 flow (realistic, tests full user experience)
+- **Method**: Full browser-based OAuth2 authorization code flow with PKCE
+- **Target**: http://localhost:8080 (oauth2-proxy)
+- **Speed**: ~2-3s per login
+- **Coverage**: Tests oauth2-proxy integration, session cookies, redirects
 
 **Test Credentials:**
 - Username: `admin@local.test`
 - Password: `password`
-- Test Client ID: `test-client`
-- Test Client Secret: `test-secret-do-not-use-in-production`
 
 **Service URLs:**
 - Keycloak: http://localhost:8090 (OIDC provider)
@@ -217,21 +218,12 @@ Command-line interface:
 - Application: http://localhost:4080 (internal only, accessed via oauth2-proxy)
 - Health Check: http://localhost:8081 (internal only)
 
-**Authentication Strategies:**
-
-1. **Selenium OAuth2 Flow** (Web UI Tests):
-   - Used by: `web_ui_test.rs`, `web_endpoints_test.rs`
-   - Method: Full browser-based OAuth2 authorization code flow with PKCE
-   - Target: http://localhost:8080 (oauth2-proxy)
-   - Speed: ~2-3s per login
-   - Coverage: Tests oauth2-proxy integration, session cookies, redirects
-
-2. **Programmatic Authentication** (API Tests):
-   - Used by: `api_edge_cases_test.rs`, programmatic tests in `auth_integration_test.rs`
-   - Method: Direct Access Grants (Resource Owner Password Credentials)
-   - Target: http://localhost:4080 (app directly with Bearer token)
-   - Speed: <100ms per token
-   - Coverage: Fast API endpoint validation
+**Selenium OAuth2 Flow:**
+- Used by: All integration tests (`web_ui_test.rs`, `web_endpoints_test.rs`, `api_edge_cases_test.rs`, `auth_integration_test.rs`)
+- Method: Full browser-based OAuth2 authorization code flow with PKCE
+- Target: http://localhost:8080 (oauth2-proxy)
+- Speed: ~2-3s per login
+- Coverage: Tests oauth2-proxy integration, session cookies, redirects for both web and API endpoints
 
 **Running Tests:**
 ```bash
@@ -278,8 +270,7 @@ Common Issues:
 
 **Performance Notes:**
 - **Full stack startup**: ~90 seconds (Keycloak is slowest component)
-- **Selenium tests**: 2-3s overhead per test for OAuth2 login
-- **Programmatic tests**: <100ms overhead per test for token acquisition
+- **All tests**: 2-3s overhead per test for OAuth2 login (Selenium-based)
 - **Total test suite**: ~3-5 minutes with full auth stack
 
 ```bash

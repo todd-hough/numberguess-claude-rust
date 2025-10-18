@@ -7,16 +7,18 @@ use common::assertions::{
 use common::{auth_helpers, environment};
 use serde_json::json;
 
-// API tests use programmatic authentication (Bearer tokens) via oauth2-proxy (port 8080)
-// oauth2-proxy validates the token and adds X-Forwarded-* headers before proxying to the app
+// API tests use Selenium OAuth2 authentication via oauth2-proxy (port 8080)
+// oauth2-proxy validates the session cookie and adds X-Forwarded-* headers before proxying to the app
 const API_BASE_URL: &str = "http://localhost:8080";
 
-#[test]
-fn test_guess_nonexistent_game() {
+#[tokio::test]
+async fn test_guess_nonexistent_game() {
     environment::ensure_server_ready();
+    environment::ensure_selenium_ready().expect("Selenium required for authentication");
 
-    // Use programmatic authentication for API tests
-    let client = auth_helpers::create_authenticated_client_programmatic()
+    // Use Selenium OAuth2 authentication for API tests
+    let client = auth_helpers::create_authenticated_client_selenium()
+        .await
         .expect("Failed to create authenticated client");
 
     let response = client
@@ -33,12 +35,14 @@ fn test_guess_nonexistent_game() {
     println!("✅ Nonexistent game test passed");
 }
 
-#[test]
-fn test_concurrent_games() {
+#[tokio::test]
+async fn test_concurrent_games() {
     environment::ensure_server_ready();
+    environment::ensure_selenium_ready().expect("Selenium required for authentication");
 
-    // Use programmatic authentication for API tests
-    let client = auth_helpers::create_authenticated_client_programmatic()
+    // Use Selenium OAuth2 authentication for API tests
+    let client = auth_helpers::create_authenticated_client_selenium()
+        .await
         .expect("Failed to create authenticated client");
 
     // Create 3 games
@@ -85,10 +89,13 @@ fn test_concurrent_games() {
     println!("✅ Concurrent games test passed");
 }
 
-#[test]
-fn test_guess_after_limit_reached() {
+#[tokio::test]
+async fn test_guess_after_limit_reached() {
     environment::ensure_server_ready();
-    let client = auth_helpers::create_authenticated_client_programmatic()
+    environment::ensure_selenium_ready().expect("Selenium required for authentication");
+
+    let client = auth_helpers::create_authenticated_client_selenium()
+        .await
         .expect("Failed to create authenticated client");
 
     // Create game with limit=1 and min=max so we know the exact answer
@@ -153,10 +160,13 @@ fn test_guess_after_limit_reached() {
     println!("✅ Limit enforcement test passed");
 }
 
-#[test]
-fn test_zero_limit_means_unlimited() {
+#[tokio::test]
+async fn test_zero_limit_means_unlimited() {
     environment::ensure_server_ready();
-    let client = auth_helpers::create_authenticated_client_programmatic()
+    environment::ensure_selenium_ready().expect("Selenium required for authentication");
+
+    let client = auth_helpers::create_authenticated_client_selenium()
+        .await
         .expect("Failed to create authenticated client");
 
     // Create game WITHOUT max_guesses field (omitted = unlimited)
@@ -219,10 +229,13 @@ fn test_zero_limit_means_unlimited() {
     println!("✅ Unlimited (omitted max_guesses) test passed");
 }
 
-#[test]
-fn test_web_rejects_excessive_guess_limit() {
+#[tokio::test]
+async fn test_web_rejects_excessive_guess_limit() {
     environment::ensure_server_ready();
-    let client = auth_helpers::create_authenticated_client_programmatic()
+    environment::ensure_selenium_ready().expect("Selenium required for authentication");
+
+    let client = auth_helpers::create_authenticated_client_selenium()
+        .await
         .expect("Failed to create authenticated client");
 
     // Web API should reject max_guesses > 100 (send as strings for API compatibility)
