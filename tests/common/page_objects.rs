@@ -198,4 +198,91 @@ impl<'a> GamePage<'a> {
     pub async fn quit(&self) -> WebDriverResult<()> {
         self.driver.clone().quit().await
     }
+
+    // =========================================================================
+    // Authentication Methods (Keycloak OAuth2 Login)
+    // =========================================================================
+
+    /// Perform Keycloak login if on login page.
+    ///
+    /// This handles the OAuth2 login flow:
+    /// 1. Waits for Keycloak login page to load
+    /// 2. Fills in username and password
+    /// 3. Submits the login form
+    /// 4. Waits for OAuth2 redirect back to application
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use tests::common::page_objects::GamePage;
+    /// # async fn example(page: &GamePage<'_>) -> Result<(), Box<dyn std::error::Error>> {
+    /// page.goto("http://localhost:8080").await?;
+    /// page.login("admin@local.test", "password").await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn login(&self, username: &str, password: &str) -> WebDriverResult<()> {
+        // Wait for login page to load
+        self.wait_for_login_page().await?;
+
+        // Find and fill username field
+        let username_field = self.driver.find(By::Id("username")).await?;
+        username_field.send_keys(username).await?;
+
+        // Find and fill password field
+        let password_field = self.driver.find(By::Id("password")).await?;
+        password_field.send_keys(password).await?;
+
+        // Submit login form
+        let submit_button = self.driver.find(By::Id("kc-login")).await?;
+        submit_button.click().await?;
+
+        // Wait for redirect back to application
+        self.wait_for_app_redirect().await?;
+
+        Ok(())
+    }
+
+    /// Check if currently on Keycloak login page.
+    pub async fn is_on_login_page(&self) -> WebDriverResult<bool> {
+        self.driver
+            .query(By::Id("kc-login"))
+            .nowait()
+            .exists()
+            .await
+    }
+
+    /// Wait for redirect to Keycloak login page.
+    pub async fn wait_for_login_page(&self) -> WebDriverResult<()> {
+        let timeout = Duration::from_secs(10);
+        let start = std::time::Instant::now();
+
+        while start.elapsed() < timeout {
+            if self.is_on_login_page().await? {
+                return Ok(());
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+
+        Err(WebDriverError::Timeout(
+            "Timeout waiting for Keycloak login page".to_string(),
+        ))
+    }
+
+    /// Wait for OAuth2 redirect back to application.
+    pub async fn wait_for_app_redirect(&self) -> WebDriverResult<()> {
+        let timeout = Duration::from_secs(10);
+        let start = std::time::Instant::now();
+
+        while start.elapsed() < timeout {
+            let url = self.driver.current_url().await?;
+            let url_str = url.as_str();
+            // We're back at the app when URL doesn't contain keycloak or oauth2/callback
+            if !url_str.contains("keycloak") && !url_str.contains("oauth2/callback") {
+                return Ok(());
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+
+        Ok(())
+    }
 }

@@ -196,6 +196,92 @@ Command-line interface:
 - **HTMX**: Loaded from CDN (consider bundling for production)
 
 ## Testing Strategy
+
+### Authentication in Tests
+
+**All integration tests require full authentication stack** (Keycloak + oauth2-proxy + Redis). Tests use a hybrid authentication strategy optimized for different test types:
+
+**Hybrid Authentication Approach:**
+- **Web UI Tests**: Selenium OAuth2 flow (realistic, tests full user experience)
+- **API Tests**: Programmatic Direct Access Grants (fast, tests API functionality)
+
+**Test Credentials:**
+- Username: `admin@local.test`
+- Password: `password`
+- Test Client ID: `test-client`
+- Test Client Secret: `test-secret-do-not-use-in-production`
+
+**Service URLs:**
+- Keycloak: http://localhost:8090 (OIDC provider)
+- oauth2-proxy: http://localhost:8080 (auth gateway, external access)
+- Application: http://localhost:4080 (internal only, accessed via oauth2-proxy)
+- Health Check: http://localhost:8081 (internal only)
+
+**Authentication Strategies:**
+
+1. **Selenium OAuth2 Flow** (Web UI Tests):
+   - Used by: `web_ui_test.rs`, `web_endpoints_test.rs`
+   - Method: Full browser-based OAuth2 authorization code flow with PKCE
+   - Target: http://localhost:8080 (oauth2-proxy)
+   - Speed: ~2-3s per login
+   - Coverage: Tests oauth2-proxy integration, session cookies, redirects
+
+2. **Programmatic Authentication** (API Tests):
+   - Used by: `api_edge_cases_test.rs`, programmatic tests in `auth_integration_test.rs`
+   - Method: Direct Access Grants (Resource Owner Password Credentials)
+   - Target: http://localhost:4080 (app directly with Bearer token)
+   - Speed: <100ms per token
+   - Coverage: Fast API endpoint validation
+
+**Running Tests:**
+```bash
+# Unit tests (no authentication needed)
+cargo test --lib
+
+# API integration tests (includes auth stack)
+make test-compose
+
+# Web UI tests (includes auth stack + Selenium)
+make test-compose-ui
+
+# Full suite (unit + API + UI)
+make test
+```
+
+**Test Startup Sequence:**
+1. postgres, redis, keycloak (parallel start)
+2. Wait for Keycloak (30-60s - imports realm configuration)
+3. app, oauth2-proxy (after Keycloak ready)
+4. selenium (for UI tests only)
+5. Wait for all services healthy
+6. Run tests with `--test-threads=1` (prevents session conflicts)
+
+**Troubleshooting Tests:**
+
+Authentication Issues:
+- **Keycloak not ready**: Increase timeout, check `docker compose logs keycloak`
+- **Login fails**: Verify realm import succeeded, check user exists
+- **Session issues**: Check Redis is running: `docker compose exec redis redis-cli ping`
+- **401 errors**: Verify auth headers are being sent (check auth_helpers)
+
+Service Health Checks:
+- Keycloak: http://localhost:8090/health/ready
+- oauth2-proxy: http://localhost:8080 (should redirect to Keycloak)
+- App: http://localhost:8081/health
+- Redis: TCP connection to localhost:6379
+
+Common Issues:
+- **"Keycloak not responding"**: Keycloak can take 30-60s to start
+- **"Session cookie not found"**: OAuth2 flow may have failed, check Keycloak logs
+- **Test timeouts**: Use `--test-threads=1` to avoid parallel execution conflicts
+- **Port conflicts**: Ensure ports 4080, 5432, 6379, 8080, 8081, 8090 are available
+
+**Performance Notes:**
+- **Full stack startup**: ~90 seconds (Keycloak is slowest component)
+- **Selenium tests**: 2-3s overhead per test for OAuth2 login
+- **Programmatic tests**: <100ms overhead per test for token acquisition
+- **Total test suite**: ~3-5 minutes with full auth stack
+
 ```bash
 # Unit tests in src/game.rs
 cargo test --lib

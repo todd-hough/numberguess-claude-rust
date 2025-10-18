@@ -4,17 +4,23 @@ use common::assertions::{
     GameResponse, GuessResponse, assert_game_in_range, assert_limit_reached,
     assert_valid_game_response,
 };
-use common::environment;
-use reqwest::blocking::Client;
+use common::{auth_helpers, environment};
 use serde_json::json;
+
+// API tests use programmatic authentication (Bearer tokens) via oauth2-proxy (port 8080)
+// oauth2-proxy validates the token and adds X-Forwarded-* headers before proxying to the app
+const API_BASE_URL: &str = "http://localhost:8080";
 
 #[test]
 fn test_guess_nonexistent_game() {
-    let base_url = environment::ensure_server_ready();
-    let client = Client::new();
+    environment::ensure_server_ready();
+
+    // Use programmatic authentication for API tests
+    let client = auth_helpers::create_authenticated_client_programmatic()
+        .expect("Failed to create authenticated client");
 
     let response = client
-        .post(format!("{}/api/games/99999999/guess", base_url))
+        .post(format!("{}/api/games/99999999/guess", API_BASE_URL))
         .json(&json!({"guess": 50}))
         .send()
         .expect("Should send POST request to guess on nonexistent game");
@@ -29,14 +35,17 @@ fn test_guess_nonexistent_game() {
 
 #[test]
 fn test_concurrent_games() {
-    let base_url = environment::ensure_server_ready();
-    let client = Client::new();
+    environment::ensure_server_ready();
+
+    // Use programmatic authentication for API tests
+    let client = auth_helpers::create_authenticated_client_programmatic()
+        .expect("Failed to create authenticated client");
 
     // Create 3 games
     let game_ids: Vec<i64> = (0..3)
         .map(|_| {
             let resp = client
-                .post(format!("{}/api/games", base_url))
+                .post(format!("{}/api/games", API_BASE_URL))
                 .json(&json!({"min": 1, "max": 10}))
                 .send()
                 .expect("Should send POST request to create game");
@@ -58,7 +67,7 @@ fn test_concurrent_games() {
     // Make guess to each game
     for game_id in &game_ids {
         let resp = client
-            .post(format!("{}/api/games/{}/guess", base_url, game_id))
+            .post(format!("{}/api/games/{}/guess", API_BASE_URL, game_id))
             .json(&json!({"guess": 5}))
             .send()
             .expect("Should send POST request to make guess");
@@ -78,12 +87,13 @@ fn test_concurrent_games() {
 
 #[test]
 fn test_guess_after_limit_reached() {
-    let base_url = environment::ensure_server_ready();
-    let client = Client::new();
+    environment::ensure_server_ready();
+    let client = auth_helpers::create_authenticated_client_programmatic()
+        .expect("Failed to create authenticated client");
 
     // Create game with limit=1 and min=max so we know the exact answer
     let resp = client
-        .post(format!("{}/api/games", base_url))
+        .post(format!("{}/api/games", API_BASE_URL))
         .json(&json!({"min": 50, "max": 50, "max_guesses": "1"}))
         .send()
         .expect("Should send POST request to create game");
@@ -106,7 +116,7 @@ fn test_guess_after_limit_reached() {
     // Make a wrong guess - since we have limit=1, this should return limit_reached
     // We know the answer is 50, so guessing 49 will definitely be wrong
     let first_guess_resp = client
-        .post(format!("{}/api/games/{}/guess", base_url, game.game_id))
+        .post(format!("{}/api/games/{}/guess", API_BASE_URL, game.game_id))
         .json(&json!({"guess": 49}))
         .send()
         .expect("Should send POST request for first guess");
@@ -128,7 +138,7 @@ fn test_guess_after_limit_reached() {
 
     // Try another guess - should get 404 since game is removed after limit reached
     let second_guess_resp = client
-        .post(format!("{}/api/games/{}/guess", base_url, game.game_id))
+        .post(format!("{}/api/games/{}/guess", API_BASE_URL, game.game_id))
         .json(&json!({"guess": 50}))
         .send()
         .expect("Should send POST request for second guess");
@@ -145,12 +155,13 @@ fn test_guess_after_limit_reached() {
 
 #[test]
 fn test_zero_limit_means_unlimited() {
-    let base_url = environment::ensure_server_ready();
-    let client = Client::new();
+    environment::ensure_server_ready();
+    let client = auth_helpers::create_authenticated_client_programmatic()
+        .expect("Failed to create authenticated client");
 
     // Create game WITHOUT max_guesses field (omitted = unlimited)
     let resp = client
-        .post(format!("{}/api/games", base_url))
+        .post(format!("{}/api/games", API_BASE_URL))
         .json(&json!({
             "min": 1,
             "max": 100
@@ -177,7 +188,7 @@ fn test_zero_limit_means_unlimited() {
     // Make many guesses to verify it's truly unlimited
     for i in 1..=15 {
         let guess_resp = client
-            .post(format!("{}/api/games/{}/guess", base_url, game.game_id))
+            .post(format!("{}/api/games/{}/guess", API_BASE_URL, game.game_id))
             .json(&json!({"guess": i}))
             .send()
             .expect("Should send guess");
@@ -210,8 +221,9 @@ fn test_zero_limit_means_unlimited() {
 
 #[test]
 fn test_web_rejects_excessive_guess_limit() {
-    let base_url = environment::ensure_server_ready();
-    let client = Client::new();
+    environment::ensure_server_ready();
+    let client = auth_helpers::create_authenticated_client_programmatic()
+        .expect("Failed to create authenticated client");
 
     // Web API should reject max_guesses > 100 (send as strings for API compatibility)
     let excessive_limits = vec!["101", "150", "1000"];
@@ -220,7 +232,7 @@ fn test_web_rejects_excessive_guess_limit() {
         println!("Testing excessive limit: {}", limit);
 
         let resp = client
-            .post(format!("{}/api/games", base_url))
+            .post(format!("{}/api/games", API_BASE_URL))
             .json(&json!({
                 "min": 1,
                 "max": 10,
@@ -248,7 +260,7 @@ fn test_web_rejects_excessive_guess_limit() {
 
     // Verify exactly 100 is accepted (boundary)
     let resp = client
-        .post(format!("{}/api/games", base_url))
+        .post(format!("{}/api/games", API_BASE_URL))
         .json(&json!({
             "min": 1,
             "max": 10,

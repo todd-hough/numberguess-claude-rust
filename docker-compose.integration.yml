@@ -2,10 +2,15 @@ services:
   postgres:
     environment:
       POSTGRES_DB: ${TEST_DB_NAME:-numberguess_test}
+  redis:
+    ports:
+      - "6379:6379"  # Expose Redis port for test scripts
   app:
     profiles:
       - integration
       - integration-ui
+    ports:
+      - "8081:8081"  # Expose health check port for test scripts
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-numberguess}:${POSTGRES_PASSWORD:-password}@postgres:5432/${TEST_DB_NAME:-numberguess_test}
       RUST_LOG: info

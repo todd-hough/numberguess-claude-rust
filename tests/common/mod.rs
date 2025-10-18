@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 pub mod assertions;
+pub mod auth_helpers;
 pub mod environment;
 pub mod page_objects;
 pub mod test_helpers;

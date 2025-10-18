@@ -1,12 +1,14 @@
 mod common;
 
-use common::environment;
-use reqwest::blocking::Client;
+use common::{auth_helpers, environment};
 
 #[test]
 fn test_static_file_serving() {
     let base_url = environment::ensure_server_ready();
-    let client = Client::new();
+
+    // Create authenticated client using Selenium OAuth2 flow
+    let client = tokio_test::block_on(auth_helpers::create_authenticated_client_selenium())
+        .expect("Failed to create authenticated client");
 
     // Test root serves index.html
     let resp = client
@@ -31,7 +33,10 @@ fn test_static_file_serving() {
 #[test]
 fn test_web_form_endpoints() {
     let base_url = environment::ensure_server_ready();
-    let client = Client::new();
+
+    // Create authenticated client using Selenium OAuth2 flow
+    let client = tokio_test::block_on(auth_helpers::create_authenticated_client_selenium())
+        .expect("Failed to create authenticated client");
 
     // Test form submission to /game/new
     let resp = client
@@ -59,7 +64,10 @@ fn test_web_form_endpoints() {
 #[test]
 fn test_remaining_guesses_display() {
     let base_url = environment::ensure_server_ready();
-    let client = Client::new();
+
+    // Create authenticated client using Selenium OAuth2 flow
+    let client = tokio_test::block_on(auth_helpers::create_authenticated_client_selenium())
+        .expect("Failed to create authenticated client");
 
     // Create a game with a guess limit of 5
     let resp = client
@@ -146,7 +154,10 @@ fn test_remaining_guesses_display() {
 #[test]
 fn test_no_remaining_guesses_display_without_limit() {
     let base_url = environment::ensure_server_ready();
-    let client = Client::new();
+
+    // Create authenticated client using Selenium OAuth2 flow
+    let client = tokio_test::block_on(auth_helpers::create_authenticated_client_selenium())
+        .expect("Failed to create authenticated client");
 
     // Create a game WITHOUT a guess limit
     let resp = client

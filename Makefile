@@ -245,15 +245,18 @@ test-compose: docker-check
 		$$COMPOSE_CMD --profile $$PROFILE down -v >/dev/null 2>&1 || true; \
 	}; \
 	trap cleanup EXIT; \
-	echo "Starting postgres..."; \
-	$$COMPOSE_CMD --profile $$PROFILE up -d postgres >/dev/null; \
-	$$COMPOSE_CMD --profile $$PROFILE up --wait postgres >/dev/null; \
+	echo "Starting postgres, redis, keycloak..."; \
+	$$COMPOSE_CMD --profile $$PROFILE up -d postgres redis keycloak >/dev/null; \
+	echo "Waiting for services to be healthy (Keycloak may take 30-90s)..."; \
+	$$COMPOSE_CMD --profile $$PROFILE up --wait postgres redis keycloak >/dev/null; \
 	echo "Setting up test database..."; \
 	POSTGRES_HOST=localhost TEST_DB_NAME=$(TEST_DB) ./scripts/reset-db.sh; \
-	echo "Starting app..."; \
-	$$COMPOSE_CMD --profile $$PROFILE up -d app >/dev/null; \
+	echo "Starting app and oauth2-proxy..."; \
+	$$COMPOSE_CMD --profile $$PROFILE up -d app oauth2-proxy >/dev/null; \
 	echo "Waiting for app to be healthy..."; \
 	./scripts/wait-for-http.sh http://localhost:8081/health $(HEALTH_TIMEOUT); \
+	echo "Waiting for oauth2-proxy to be ready..."; \
+	./scripts/wait-for-http.sh http://localhost:8080 30; \
 	echo "Running integration tests..."; \
 	GAME_SERVER_BASE_URL=http://localhost:8080 cargo test --tests -- --test-threads=1; \
 	'
@@ -269,22 +272,25 @@ test-compose-ui: docker-check
 		$$COMPOSE_CMD --profile $$PROFILE down -v >/dev/null 2>&1 || true; \
 	}; \
 	trap cleanup EXIT; \
-	echo "Starting postgres..."; \
-	$$COMPOSE_CMD --profile $$PROFILE up -d postgres >/dev/null; \
-	$$COMPOSE_CMD --profile $$PROFILE up --wait postgres >/dev/null; \
+	echo "Starting postgres, redis, keycloak..."; \
+	$$COMPOSE_CMD --profile $$PROFILE up -d postgres redis keycloak >/dev/null; \
+	echo "Waiting for services to be healthy (Keycloak may take 30-90s)..."; \
+	$$COMPOSE_CMD --profile $$PROFILE up --wait postgres redis keycloak >/dev/null; \
 	echo "Setting up test database..."; \
 	POSTGRES_HOST=localhost TEST_DB_NAME=$(TEST_DB) ./scripts/reset-db.sh; \
-	echo "Starting app and selenium..."; \
-	$$COMPOSE_CMD --profile $$PROFILE up -d app selenium >/dev/null; \
+	echo "Starting app, oauth2-proxy, and selenium..."; \
+	$$COMPOSE_CMD --profile $$PROFILE up -d app oauth2-proxy selenium >/dev/null; \
 	echo "Waiting for app to be healthy..."; \
 	./scripts/wait-for-http.sh http://localhost:8081/health $(HEALTH_TIMEOUT); \
+	echo "Waiting for oauth2-proxy to be ready..."; \
+	./scripts/wait-for-http.sh http://localhost:8080 30; \
 	echo "Waiting for selenium to be healthy..."; \
 	./scripts/wait-for-http.sh http://localhost:4444/status $(HEALTH_TIMEOUT); \
 	echo "Running UI tests..."; \
 	GAME_SERVER_BASE_URL=http://localhost:8080 \
-	GAME_SERVER_BROWSER_URL=http://app:8080 \
+	GAME_SERVER_BROWSER_URL=http://oauth2-proxy:8080 \
 	SELENIUM_REMOTE_URL=http://localhost:4444 \
-	cargo test --test web_ui_test -- --test-threads=1; \
+	cargo test --test web_ui_test --test auth_integration_test -- --test-threads=1; \
 	'
 
 ## test-compose-down: Stop and remove integration test services

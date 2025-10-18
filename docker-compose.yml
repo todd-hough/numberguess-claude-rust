@@ -5,6 +5,8 @@ services:
     profiles:
       - dev
       - full-stack
+      - integration
+      - integration-ui
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
@@ -42,6 +44,8 @@ services:
     profiles:
       - dev
       - full-stack
+      - integration
+      - integration-ui
     environment:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
@@ -74,6 +78,8 @@ services:
     profiles:
       - dev
       - full-stack
+      - integration
+      - integration-ui
     restart: on-failure
     extra_hosts:
       - "localhost:host-gateway"
@@ -87,6 +93,7 @@ services:
       - --redirect-url=http://localhost:8080/oauth2/callback
       - --code-challenge-method=S256
       - --insecure-oidc-skip-issuer-verification=true
+      - --oidc-extra-audience=test-client
 
       # Upstream Configuration
       - --upstream=http://app:4080
@@ -107,11 +114,15 @@ services:
       # Authentication Configuration
       - --email-domain=*
       - --skip-provider-button=true
+      - --skip-jwt-bearer-tokens=true
 
       # Header Configuration
       - --set-xauthrequest=true
       - --pass-user-headers=true
-      - --pass-access-token=false
+      - --pass-access-token=true
+
+      # API Routes - Accept Bearer tokens for programmatic access
+      - --api-route=^/api/.*
 
       # All routes require authentication (no skip-auth-route flags)
 

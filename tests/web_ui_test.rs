@@ -42,6 +42,15 @@ fn test_web_ui_game_flow() {
 
         println!("Successfully navigated to game URL {}", browser_url);
 
+        // Perform OAuth2 login via Keycloak
+        if let Err(e) = page.login("admin@local.test", "password").await {
+            println!("Failed to login: {}", e);
+            let _ = page.quit().await;
+            return false;
+        }
+
+        println!("Successfully logged in via Keycloak");
+
         if let Err(e) = page.start_game(5, 5, Some(10)).await {
             println!("Failed to start game: {}", e);
             let _ = page.quit().await;
@@ -119,6 +128,15 @@ fn test_web_ui_invalid_inputs() {
         }
 
         println!("Successfully navigated to game URL {}", browser_url);
+
+        // Perform OAuth2 login via Keycloak
+        if let Err(e) = page.login("admin@local.test", "password").await {
+            println!("Failed to login: {}", e);
+            let _ = page.quit().await;
+            return false;
+        }
+
+        println!("Successfully logged in via Keycloak");
 
         if let Err(e) = page.fill_game_setup(100, 10, None).await {
             println!("Failed to fill game setup: {}", e);

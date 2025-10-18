@@ -38,7 +38,8 @@
       "Bash(git rev-parse:*)",
       "Bash(git config --get:*)",
       "Bash(cargo fmt:*)",
-      "Bash(cargo clippy:*)"
+      "Bash(cargo clippy:*)",
+      "Bash(curl:*)"
     ],
     "deny": [
       "Bash(git push:*)",
