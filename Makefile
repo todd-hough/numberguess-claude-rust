@@ -251,14 +251,19 @@ test-compose: docker-check
 	$$COMPOSE_CMD --profile $$PROFILE up --wait postgres redis keycloak >/dev/null; \
 	echo "Setting up test database..."; \
 	POSTGRES_HOST=localhost TEST_DB_NAME=$(TEST_DB) ./scripts/reset-db.sh; \
-	echo "Starting app and oauth2-proxy..."; \
-	$$COMPOSE_CMD --profile $$PROFILE up -d app oauth2-proxy >/dev/null; \
+	echo "Starting app, oauth2-proxy, and selenium..."; \
+	$$COMPOSE_CMD --profile $$PROFILE up -d app oauth2-proxy selenium >/dev/null; \
 	echo "Waiting for app to be healthy..."; \
 	./scripts/wait-for-http.sh http://localhost:8081/health $(HEALTH_TIMEOUT); \
 	echo "Waiting for oauth2-proxy to be ready..."; \
 	./scripts/wait-for-http.sh http://localhost:8080 30; \
+	echo "Waiting for selenium to be healthy..."; \
+	./scripts/wait-for-http.sh http://localhost:4444/status $(HEALTH_TIMEOUT); \
 	echo "Running integration tests..."; \
-	GAME_SERVER_BASE_URL=http://localhost:8080 cargo test --tests -- --test-threads=1; \
+	GAME_SERVER_BASE_URL=http://localhost:8080 \
+	GAME_SERVER_BROWSER_URL=http://oauth2-proxy:4180 \
+	SELENIUM_REMOTE_URL=http://localhost:4444 \
+	cargo test --tests -- --test-threads=1; \
 	'
 
 ## test-compose-ui: Run web UI integration tests via docker compose (app + selenium)
@@ -288,7 +293,7 @@ test-compose-ui: docker-check
 	./scripts/wait-for-http.sh http://localhost:4444/status $(HEALTH_TIMEOUT); \
 	echo "Running UI tests..."; \
 	GAME_SERVER_BASE_URL=http://localhost:8080 \
-	GAME_SERVER_BROWSER_URL=http://oauth2-proxy:8080 \
+	GAME_SERVER_BROWSER_URL=http://oauth2-proxy:4180 \
 	SELENIUM_REMOTE_URL=http://localhost:4444 \
 	cargo test --test web_ui_test --test auth_integration_test -- --test-threads=1; \
 	'

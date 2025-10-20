@@ -45,10 +45,12 @@
       "clientAuthenticatorType": "client-secret",
       "secret": "95hMa5T1hokrdStmaSWwrSCa1nHJxxCTifJzEqoeY9Y",
       "redirectUris": [
-        "http://localhost:8080/oauth2/callback"
+        "http://localhost:8080/oauth2/callback",
+        "http://oauth2-proxy:4180/oauth2/callback"
       ],
       "webOrigins": [
-        "http://localhost:8080"
+        "http://localhost:8080",
+        "http://oauth2-proxy:4180"
       ],
       "protocol": "openid-connect",
       "publicClient": false,

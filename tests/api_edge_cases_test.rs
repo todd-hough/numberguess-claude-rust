@@ -11,284 +11,294 @@ use serde_json::json;
 // oauth2-proxy validates the session cookie and adds X-Forwarded-* headers before proxying to the app
 const API_BASE_URL: &str = "http://localhost:8080";
 
-#[tokio::test]
-async fn test_guess_nonexistent_game() {
+#[test]
+fn test_guess_nonexistent_game() {
     environment::ensure_server_ready();
     environment::ensure_selenium_ready().expect("Selenium required for authentication");
 
-    // Use Selenium OAuth2 authentication for API tests
-    let client = auth_helpers::create_authenticated_client_selenium()
-        .await
-        .expect("Failed to create authenticated client");
+    tokio_test::block_on(async {
+        // Use Selenium OAuth2 authentication for API tests
+        let client = auth_helpers::create_authenticated_client_selenium()
+            .await
+            .expect("Failed to create authenticated client");
 
-    let response = client
-        .post(format!("{}/api/games/99999999/guess", API_BASE_URL))
-        .json(&json!({"guess": 50}))
-        .send()
-        .expect("Should send POST request to guess on nonexistent game");
+        let response = client
+            .post(format!("{}/api/games/99999999/guess", API_BASE_URL))
+            .json(&json!({"guess": 50}))
+            .send()
+            .expect("Should send POST request to guess on nonexistent game");
 
-    assert_eq!(
-        response.status().as_u16(),
-        404,
-        "Should return 404 for nonexistent game"
-    );
-    println!("✅ Nonexistent game test passed");
+        assert_eq!(
+            response.status().as_u16(),
+            404,
+            "Should return 404 for nonexistent game"
+        );
+        println!("✅ Nonexistent game test passed");
+    });
 }
 
-#[tokio::test]
-async fn test_concurrent_games() {
+#[test]
+fn test_concurrent_games() {
     environment::ensure_server_ready();
     environment::ensure_selenium_ready().expect("Selenium required for authentication");
 
-    // Use Selenium OAuth2 authentication for API tests
-    let client = auth_helpers::create_authenticated_client_selenium()
-        .await
-        .expect("Failed to create authenticated client");
+    tokio_test::block_on(async {
+        // Use Selenium OAuth2 authentication for API tests
+        let client = auth_helpers::create_authenticated_client_selenium()
+            .await
+            .expect("Failed to create authenticated client");
 
-    // Create 3 games
-    let game_ids: Vec<i64> = (0..3)
-        .map(|_| {
+        // Create 3 games
+        let game_ids: Vec<i64> = (0..3)
+            .map(|_| {
+                let resp = client
+                    .post(format!("{}/api/games", API_BASE_URL))
+                    .json(&json!({"min": 1, "max": 10}))
+                    .send()
+                    .expect("Should send POST request to create game");
+
+                if !resp.status().is_success() {
+                    let status = resp.status();
+                    let body = resp
+                        .text()
+                        .unwrap_or_else(|_| "Could not read body".to_string());
+                    panic!("Game creation failed with status {}: {}", status, body);
+                }
+                let game: GameResponse = resp.json().expect("Should parse JSON game response");
+                game.game_id
+            })
+            .collect();
+
+        println!("✅ Created {} concurrent games", game_ids.len());
+
+        // Make guess to each game
+        for game_id in &game_ids {
             let resp = client
-                .post(format!("{}/api/games", API_BASE_URL))
-                .json(&json!({"min": 1, "max": 10}))
+                .post(format!("{}/api/games/{}/guess", API_BASE_URL, game_id))
+                .json(&json!({"guess": 5}))
                 .send()
-                .expect("Should send POST request to create game");
+                .expect("Should send POST request to make guess");
 
-            if !resp.status().is_success() {
-                let status = resp.status();
-                let body = resp
-                    .text()
-                    .unwrap_or_else(|_| "Could not read body".to_string());
-                panic!("Game creation failed with status {}: {}", status, body);
-            }
-            let game: GameResponse = resp.json().expect("Should parse JSON game response");
-            game.game_id
-        })
-        .collect();
+            assert!(
+                resp.status().is_success(),
+                "Guess should succeed for game {}",
+                game_id
+            );
 
-    println!("✅ Created {} concurrent games", game_ids.len());
+            let guess_result: GuessResponse = resp.json().expect("Should parse JSON guess response");
+            println!("Game {} result: {}", game_id, guess_result.result);
+        }
 
-    // Make guess to each game
-    for game_id in &game_ids {
+        println!("✅ Concurrent games test passed");
+    });
+}
+
+#[test]
+fn test_guess_after_limit_reached() {
+    environment::ensure_server_ready();
+    environment::ensure_selenium_ready().expect("Selenium required for authentication");
+
+    tokio_test::block_on(async {
+        let client = auth_helpers::create_authenticated_client_selenium()
+            .await
+            .expect("Failed to create authenticated client");
+
+        // Create game with limit=1 and min=max so we know the exact answer
         let resp = client
-            .post(format!("{}/api/games/{}/guess", API_BASE_URL, game_id))
-            .json(&json!({"guess": 5}))
+            .post(format!("{}/api/games", API_BASE_URL))
+            .json(&json!({"min": 50, "max": 50, "max_guesses": "1"}))
             .send()
-            .expect("Should send POST request to make guess");
+            .expect("Should send POST request to create game");
 
         assert!(
             resp.status().is_success(),
-            "Guess should succeed for game {}",
-            game_id
+            "Game creation should succeed with status 200, got {}",
+            resp.status()
+        );
+        let game: GameResponse = resp.json().expect("Should parse JSON game response");
+        println!(
+            "✅ Created game with ID {} and limit {:?} (answer is 50)",
+            game.game_id, game.max_guesses
         );
 
-        let guess_result: GuessResponse = resp.json().expect("Should parse JSON guess response");
-        println!("Game {} result: {}", game_id, guess_result.result);
-    }
+        // Validate game structure
+        assert_valid_game_response(&game);
+        assert_game_in_range(&game, 50, 50);
 
-    println!("✅ Concurrent games test passed");
-}
-
-#[tokio::test]
-async fn test_guess_after_limit_reached() {
-    environment::ensure_server_ready();
-    environment::ensure_selenium_ready().expect("Selenium required for authentication");
-
-    let client = auth_helpers::create_authenticated_client_selenium()
-        .await
-        .expect("Failed to create authenticated client");
-
-    // Create game with limit=1 and min=max so we know the exact answer
-    let resp = client
-        .post(format!("{}/api/games", API_BASE_URL))
-        .json(&json!({"min": 50, "max": 50, "max_guesses": "1"}))
-        .send()
-        .expect("Should send POST request to create game");
-
-    assert!(
-        resp.status().is_success(),
-        "Game creation should succeed with status 200, got {}",
-        resp.status()
-    );
-    let game: GameResponse = resp.json().expect("Should parse JSON game response");
-    println!(
-        "✅ Created game with ID {} and limit {:?} (answer is 50)",
-        game.game_id, game.max_guesses
-    );
-
-    // Validate game structure
-    assert_valid_game_response(&game);
-    assert_game_in_range(&game, 50, 50);
-
-    // Make a wrong guess - since we have limit=1, this should return limit_reached
-    // We know the answer is 50, so guessing 49 will definitely be wrong
-    let first_guess_resp = client
-        .post(format!("{}/api/games/{}/guess", API_BASE_URL, game.game_id))
-        .json(&json!({"guess": 49}))
-        .send()
-        .expect("Should send POST request for first guess");
-
-    assert!(
-        first_guess_resp.status().is_success(),
-        "First guess should be accepted"
-    );
-    let first_guess: GuessResponse = first_guess_resp
-        .json()
-        .expect("Should parse JSON response for first guess");
-    println!(
-        "First guess result: {}, message: {}",
-        first_guess.result, first_guess.message
-    );
-
-    // With limit=1, the first wrong guess should exhaust the limit and return limit_reached
-    assert_limit_reached(&first_guess);
-
-    // Try another guess - should get 404 since game is removed after limit reached
-    let second_guess_resp = client
-        .post(format!("{}/api/games/{}/guess", API_BASE_URL, game.game_id))
-        .json(&json!({"guess": 50}))
-        .send()
-        .expect("Should send POST request for second guess");
-
-    assert_eq!(
-        second_guess_resp.status().as_u16(),
-        404,
-        "Second guess should return 404 not found (game removed), got {}",
-        second_guess_resp.status()
-    );
-
-    println!("✅ Limit enforcement test passed");
-}
-
-#[tokio::test]
-async fn test_zero_limit_means_unlimited() {
-    environment::ensure_server_ready();
-    environment::ensure_selenium_ready().expect("Selenium required for authentication");
-
-    let client = auth_helpers::create_authenticated_client_selenium()
-        .await
-        .expect("Failed to create authenticated client");
-
-    // Create game WITHOUT max_guesses field (omitted = unlimited)
-    let resp = client
-        .post(format!("{}/api/games", API_BASE_URL))
-        .json(&json!({
-            "min": 1,
-            "max": 100
-            // max_guesses omitted = unlimited
-        }))
-        .send()
-        .expect("Should send POST request to create game");
-
-    if !resp.status().is_success() {
-        let status = resp.status();
-        let body = resp.text().unwrap_or_default();
-        panic!("Game creation failed with {}: {}", status, body);
-    }
-
-    let game: GameResponse = resp.json().expect("Should parse JSON game response");
-
-    // Verify max_guesses is None (unlimited)
-    assert_eq!(
-        game.max_guesses, None,
-        "max_guesses should be None when omitted"
-    );
-    println!("✅ Created game {} with unlimited guesses", game.game_id);
-
-    // Make many guesses to verify it's truly unlimited
-    for i in 1..=15 {
-        let guess_resp = client
+        // Make a wrong guess - since we have limit=1, this should return limit_reached
+        // We know the answer is 50, so guessing 49 will definitely be wrong
+        let first_guess_resp = client
             .post(format!("{}/api/games/{}/guess", API_BASE_URL, game.game_id))
-            .json(&json!({"guess": i}))
+            .json(&json!({"guess": 49}))
             .send()
-            .expect("Should send guess");
+            .expect("Should send POST request for first guess");
 
         assert!(
-            guess_resp.status().is_success(),
-            "Guess {} should succeed with unlimited limit",
-            i
+            first_guess_resp.status().is_success(),
+            "First guess should be accepted"
+        );
+        let first_guess: GuessResponse = first_guess_resp
+            .json()
+            .expect("Should parse JSON response for first guess");
+        println!(
+            "First guess result: {}, message: {}",
+            first_guess.result, first_guess.message
         );
 
-        let guess_result: GuessResponse = guess_resp.json().expect("Should parse guess response");
+        // With limit=1, the first wrong guess should exhaust the limit and return limit_reached
+        assert_limit_reached(&first_guess);
 
-        // Should never get limit_reached with unlimited
-        assert_ne!(
-            guess_result.result, "limit_reached",
-            "Should not reach limit with unlimited guesses"
+        // Try another guess - should get 404 since game is removed after limit reached
+        let second_guess_resp = client
+            .post(format!("{}/api/games/{}/guess", API_BASE_URL, game.game_id))
+            .json(&json!({"guess": 50}))
+            .send()
+            .expect("Should send POST request for second guess");
+
+        assert_eq!(
+            second_guess_resp.status().as_u16(),
+            404,
+            "Second guess should return 404 not found (game removed), got {}",
+            second_guess_resp.status()
         );
 
-        if guess_result.result == "correct" {
-            println!(
-                "✅ Found correct answer after {} guesses (unlimited worked)",
-                i
-            );
-            break;
-        }
-    }
-
-    println!("✅ Unlimited (omitted max_guesses) test passed");
+        println!("✅ Limit enforcement test passed");
+    });
 }
 
-#[tokio::test]
-async fn test_web_rejects_excessive_guess_limit() {
+#[test]
+fn test_zero_limit_means_unlimited() {
     environment::ensure_server_ready();
     environment::ensure_selenium_ready().expect("Selenium required for authentication");
 
-    let client = auth_helpers::create_authenticated_client_selenium()
-        .await
-        .expect("Failed to create authenticated client");
+    tokio_test::block_on(async {
+        let client = auth_helpers::create_authenticated_client_selenium()
+            .await
+            .expect("Failed to create authenticated client");
 
-    // Web API should reject max_guesses > 100 (send as strings for API compatibility)
-    let excessive_limits = vec!["101", "150", "1000"];
+        // Create game WITHOUT max_guesses field (omitted = unlimited)
+        let resp = client
+            .post(format!("{}/api/games", API_BASE_URL))
+            .json(&json!({
+                "min": 1,
+                "max": 100
+                // max_guesses omitted = unlimited
+            }))
+            .send()
+            .expect("Should send POST request to create game");
 
-    for limit in excessive_limits {
-        println!("Testing excessive limit: {}", limit);
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().unwrap_or_default();
+            panic!("Game creation failed with {}: {}", status, body);
+        }
 
+        let game: GameResponse = resp.json().expect("Should parse JSON game response");
+
+        // Verify max_guesses is None (unlimited)
+        assert_eq!(
+            game.max_guesses, None,
+            "max_guesses should be None when omitted"
+        );
+        println!("✅ Created game {} with unlimited guesses", game.game_id);
+
+        // Make many guesses to verify it's truly unlimited
+        for i in 1..=15 {
+            let guess_resp = client
+                .post(format!("{}/api/games/{}/guess", API_BASE_URL, game.game_id))
+                .json(&json!({"guess": i}))
+                .send()
+                .expect("Should send guess");
+
+            assert!(
+                guess_resp.status().is_success(),
+                "Guess {} should succeed with unlimited limit",
+                i
+            );
+
+            let guess_result: GuessResponse = guess_resp.json().expect("Should parse guess response");
+
+            // Should never get limit_reached with unlimited
+            assert_ne!(
+                guess_result.result, "limit_reached",
+                "Should not reach limit with unlimited guesses"
+            );
+
+            if guess_result.result == "correct" {
+                println!(
+                    "✅ Found correct answer after {} guesses (unlimited worked)",
+                    i
+                );
+                break;
+            }
+        }
+
+        println!("✅ Unlimited (omitted max_guesses) test passed");
+    });
+}
+
+#[test]
+fn test_web_rejects_excessive_guess_limit() {
+    environment::ensure_server_ready();
+    environment::ensure_selenium_ready().expect("Selenium required for authentication");
+
+    tokio_test::block_on(async {
+        let client = auth_helpers::create_authenticated_client_selenium()
+            .await
+            .expect("Failed to create authenticated client");
+
+        // Web API should reject max_guesses > 100 (send as strings for API compatibility)
+        let excessive_limits = vec!["101", "150", "1000"];
+
+        for limit in excessive_limits {
+            println!("Testing excessive limit: {}", limit);
+
+            let resp = client
+                .post(format!("{}/api/games", API_BASE_URL))
+                .json(&json!({
+                    "min": 1,
+                    "max": 10,
+                    "max_guesses": limit
+                }))
+                .send()
+                .expect("Should send POST request");
+
+            let status = resp.status();
+            assert!(
+                status.as_u16() >= 400 && status.as_u16() < 500,
+                "Should reject max_guesses={} with 4xx error (got {})",
+                limit,
+                status
+            );
+
+            // Log error message
+            if let Ok(body) = resp.text() {
+                println!(
+                    "  Correctly rejected with status {} and message: {}",
+                    status, body
+                );
+            }
+        }
+
+        // Verify exactly 100 is accepted (boundary)
         let resp = client
             .post(format!("{}/api/games", API_BASE_URL))
             .json(&json!({
                 "min": 1,
                 "max": 10,
-                "max_guesses": limit
+                "max_guesses": "100"
             }))
             .send()
             .expect("Should send POST request");
 
-        let status = resp.status();
         assert!(
-            status.as_u16() >= 400 && status.as_u16() < 500,
-            "Should reject max_guesses={} with 4xx error (got {})",
-            limit,
-            status
+            resp.status().is_success(),
+            "Should accept max_guesses=100 (exactly at limit)"
         );
+        let game: GameResponse = resp.json().expect("Should parse game response");
+        assert_eq!(game.max_guesses, Some(100));
+        println!("✅ Accepted max_guesses=100 (at boundary)");
 
-        // Log error message
-        if let Ok(body) = resp.text() {
-            println!(
-                "  Correctly rejected with status {} and message: {}",
-                status, body
-            );
-        }
-    }
-
-    // Verify exactly 100 is accepted (boundary)
-    let resp = client
-        .post(format!("{}/api/games", API_BASE_URL))
-        .json(&json!({
-            "min": 1,
-            "max": 10,
-            "max_guesses": "100"
-        }))
-        .send()
-        .expect("Should send POST request");
-
-    assert!(
-        resp.status().is_success(),
-        "Should accept max_guesses=100 (exactly at limit)"
-    );
-    let game: GameResponse = resp.json().expect("Should parse game response");
-    assert_eq!(game.max_guesses, Some(100));
-    println!("✅ Accepted max_guesses=100 (at boundary)");
-
-    println!("✅ Excessive limit rejection test passed");
+        println!("✅ Excessive limit rejection test passed");
+    });
 }
