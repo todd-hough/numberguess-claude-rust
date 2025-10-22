@@ -2,25 +2,33 @@ mod common;
 
 use common::{auth_helpers, environment};
 
-#[test]
-fn test_static_file_serving() {
-    let base_url = environment::ensure_server_ready();
+#[tokio::test]
+async fn test_static_file_serving() {
+    // Run environment checks in blocking context
+    tokio::task::spawn_blocking(|| {
+        environment::ensure_server_ready();
+        environment::ensure_selenium_ready().expect("Selenium required for authentication");
+    })
+    .await
+    .expect("Environment checks failed");
 
     // Create authenticated client using Selenium OAuth2 flow
-    let client = tokio_test::block_on(auth_helpers::create_authenticated_client_selenium())
+    let client = auth_helpers::create_authenticated_client_selenium()
+        .await
         .expect("Failed to create authenticated client");
 
     // Test root serves index.html
     let resp = client
-        .get(&base_url)
+        .get("http://localhost:8080")
         .send()
+        .await
         .expect("Should send GET request to root URL");
 
     assert!(
         resp.status().is_success(),
         "Root URL should return successful response"
     );
-    let body = resp.text().expect("Should get response body as text");
+    let body = resp.text().await.expect("Should get response body as text");
     assert!(
         body.contains("Number Guessing Game"),
         "Response should contain game title"
@@ -30,23 +38,31 @@ fn test_static_file_serving() {
     println!("✅ Static file serving test passed");
 }
 
-#[test]
-fn test_web_form_endpoints() {
-    let base_url = environment::ensure_server_ready();
+#[tokio::test]
+async fn test_web_form_endpoints() {
+    // Run environment checks in blocking context
+    tokio::task::spawn_blocking(|| {
+        environment::ensure_server_ready();
+        environment::ensure_selenium_ready().expect("Selenium required for authentication");
+    })
+    .await
+    .expect("Environment checks failed");
 
     // Create authenticated client using Selenium OAuth2 flow
-    let client = tokio_test::block_on(auth_helpers::create_authenticated_client_selenium())
+    let client = auth_helpers::create_authenticated_client_selenium()
+        .await
         .expect("Failed to create authenticated client");
 
     // Test form submission to /game/new
     let resp = client
-        .post(format!("{}/game/new", base_url))
+        .post("http://localhost:8080/game/new")
         .form(&[("min", "1"), ("max", "10"), ("max_guesses", "5")])
         .send()
+        .await
         .expect("Should send POST request with form data");
 
     assert!(resp.status().is_success(), "Form submission should succeed");
-    let body = resp.text().expect("Should get response body as text");
+    let body = resp.text().await.expect("Should get response body as text");
 
     // Should return HTML with game interface
     assert!(
@@ -61,23 +77,31 @@ fn test_web_form_endpoints() {
     println!("✅ Web form endpoints test passed");
 }
 
-#[test]
-fn test_remaining_guesses_display() {
-    let base_url = environment::ensure_server_ready();
+#[tokio::test]
+async fn test_remaining_guesses_display() {
+    // Run environment checks in blocking context
+    tokio::task::spawn_blocking(|| {
+        environment::ensure_server_ready();
+        environment::ensure_selenium_ready().expect("Selenium required for authentication");
+    })
+    .await
+    .expect("Environment checks failed");
 
     // Create authenticated client using Selenium OAuth2 flow
-    let client = tokio_test::block_on(auth_helpers::create_authenticated_client_selenium())
+    let client = auth_helpers::create_authenticated_client_selenium()
+        .await
         .expect("Failed to create authenticated client");
 
     // Create a game with a guess limit of 5
     let resp = client
-        .post(format!("{}/game/new", base_url))
+        .post("http://localhost:8080/game/new")
         .form(&[("min", "1"), ("max", "100"), ("max_guesses", "5")])
         .send()
+        .await
         .expect("Should create game with guess limit");
 
     assert!(resp.status().is_success(), "Game creation should succeed");
-    let body = resp.text().expect("Should get response body");
+    let body = resp.text().await.expect("Should get response body");
 
     // Verify initial "Guesses remaining: 5" is displayed
     assert!(
@@ -98,13 +122,14 @@ fn test_remaining_guesses_display() {
 
     // Make first guess
     let resp = client
-        .post(format!("{}/game/{}/guess", base_url, game_id))
+        .post(format!("http://localhost:8080/game/{}/guess", game_id))
         .form(&[("guess", "50")])
         .send()
+        .await
         .expect("Should make first guess");
 
     assert!(resp.status().is_success(), "First guess should succeed");
-    let body = resp.text().expect("Should get response body");
+    let body = resp.text().await.expect("Should get response body");
 
     // Verify remaining count decreased to 4
     assert!(
@@ -118,13 +143,14 @@ fn test_remaining_guesses_display() {
 
     // Make second guess
     let resp = client
-        .post(format!("{}/game/{}/guess", base_url, game_id))
+        .post(format!("http://localhost:8080/game/{}/guess", game_id))
         .form(&[("guess", "75")])
         .send()
+        .await
         .expect("Should make second guess");
 
     assert!(resp.status().is_success(), "Second guess should succeed");
-    let body = resp.text().expect("Should get response body");
+    let body = resp.text().await.expect("Should get response body");
 
     // Verify remaining count decreased to 3
     assert!(
@@ -134,13 +160,14 @@ fn test_remaining_guesses_display() {
 
     // Make third guess
     let resp = client
-        .post(format!("{}/game/{}/guess", base_url, game_id))
+        .post(format!("http://localhost:8080/game/{}/guess", game_id))
         .form(&[("guess", "25")])
         .send()
+        .await
         .expect("Should make third guess");
 
     assert!(resp.status().is_success(), "Third guess should succeed");
-    let body = resp.text().expect("Should get response body");
+    let body = resp.text().await.expect("Should get response body");
 
     // Verify remaining count decreased to 2
     assert!(
@@ -151,23 +178,31 @@ fn test_remaining_guesses_display() {
     println!("✅ Remaining guesses display test passed");
 }
 
-#[test]
-fn test_no_remaining_guesses_display_without_limit() {
-    let base_url = environment::ensure_server_ready();
+#[tokio::test]
+async fn test_no_remaining_guesses_display_without_limit() {
+    // Run environment checks in blocking context
+    tokio::task::spawn_blocking(|| {
+        environment::ensure_server_ready();
+        environment::ensure_selenium_ready().expect("Selenium required for authentication");
+    })
+    .await
+    .expect("Environment checks failed");
 
     // Create authenticated client using Selenium OAuth2 flow
-    let client = tokio_test::block_on(auth_helpers::create_authenticated_client_selenium())
+    let client = auth_helpers::create_authenticated_client_selenium()
+        .await
         .expect("Failed to create authenticated client");
 
     // Create a game WITHOUT a guess limit
     let resp = client
-        .post(format!("{}/game/new", base_url))
+        .post("http://localhost:8080/game/new")
         .form(&[("min", "1"), ("max", "100")])
         .send()
+        .await
         .expect("Should create game without guess limit");
 
     assert!(resp.status().is_success(), "Game creation should succeed");
-    let body = resp.text().expect("Should get response body");
+    let body = resp.text().await.expect("Should get response body");
 
     // Verify "Guesses remaining" is NOT displayed when there's no limit
     assert!(
@@ -184,13 +219,14 @@ fn test_no_remaining_guesses_display_without_limit() {
 
     // Make a guess
     let resp = client
-        .post(format!("{}/game/{}/guess", base_url, game_id))
+        .post(format!("http://localhost:8080/game/{}/guess", game_id))
         .form(&[("guess", "50")])
         .send()
+        .await
         .expect("Should make guess");
 
     assert!(resp.status().is_success(), "Guess should succeed");
-    let body = resp.text().expect("Should get response body");
+    let body = resp.text().await.expect("Should get response body");
 
     // Verify "Guesses remaining" is still NOT displayed after a guess
     assert!(

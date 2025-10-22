@@ -290,6 +290,115 @@ Web UI:   Input Error → HTTP 200 → Error HTML Fragment
 Game:     Logic Error → Result<T, String> → Handler Decision
 ```
 
+## Authentication & Network Architecture
+
+### Service Topology
+
+The application uses an authentication proxy pattern with OAuth2/OIDC:
+
+```
+                          ┌────────────────────┐
+                          │   User/Browser     │
+                          └─────────┬──────────┘
+                                    │ HTTP
+                                    ▼
+                          ┌────────────────────┐
+                          │  oauth2-proxy      │
+                          │  Port: 4180        │
+                          │  (External: 8080)  │
+                          └─────────┬──────────┘
+                                    │
+                    ┌───────────────┼───────────────┐
+                    │               │               │
+                    ▼               ▼               ▼
+          ┌─────────────┐  ┌────────────┐  ┌─────────────┐
+          │  Keycloak   │  │    App     │  │   Redis     │
+          │  Port: 8090 │  │  Port 4080 │  │  Port: 6379 │
+          │   (OIDC)    │  │ (internal) │  │  (sessions) │
+          └─────────────┘  └────────────┘  └─────────────┘
+                                 │
+                                 ▼
+                          ┌──────────────┐
+                          │  PostgreSQL  │
+                          │  Port: 5432  │
+                          └──────────────┘
+```
+
+### Network Boundaries
+
+**Docker Network (Internal Communication)**:
+- Services communicate using Docker hostnames
+- Examples: `oauth2-proxy:4180`, `keycloak:8090`, `redis:6379`, `app:4080`
+- Docker's internal DNS resolves service names to container IPs
+- Network name: `numberguess_default` (created by Docker Compose)
+
+**Host Network (External Access)**:
+- External access via `localhost` + exposed port
+- Port mapping defined in `docker-compose.yml`
+- Only specific ports are exposed to the host
+
+### Port Mapping
+
+| Service | Internal Port | Internal Hostname | External Port | External Access | Purpose |
+|---------|--------------|------------------|---------------|-----------------|---------|
+| oauth2-proxy | 4180 | oauth2-proxy:4180 | 8080 | localhost:8080 | Auth gateway (main entry) |
+| keycloak | 8090 | keycloak:8090 | 8090 | localhost:8090 | OIDC provider |
+| app (main) | 4080 | app:4080 | (not exposed) | (internal only) | Application server |
+| app (health) | 8081 | app:8081 | 8081 | localhost:8081 | Health check |
+| redis | 6379 | redis:6379 | 6379 | localhost:6379 | Session storage |
+| postgres | 5432 | postgres:5432 | 5432 | localhost:5432 | Database |
+
+**Critical Network Isolation**:
+- Application (port 4080) is **never exposed** to host
+- All external access goes through oauth2-proxy (port 8080)
+- This prevents unauthorized direct access to the application
+
+### Authentication Flow
+
+```
+1. User → localhost:8080/
+   ├─ oauth2-proxy checks session
+   └─ No session → Redirect to Keycloak
+
+2. User → Keycloak login (localhost:8090)
+   ├─ Enter credentials
+   └─ OAuth2 authorization code flow (PKCE)
+
+3. Keycloak → oauth2-proxy/callback?code=xxx
+   ├─ oauth2-proxy exchanges code for tokens
+   ├─ Creates session in Redis
+   └─ Sets cookie (_oauth2_proxy)
+
+4. oauth2-proxy → app:4080
+   ├─ Adds headers:
+   │  ├─ X-Auth-Request-User
+   │  ├─ X-Auth-Request-Email
+   │  ├─ X-Auth-Request-Preferred-Username
+   │  └─ X-Auth-Request-Groups
+   └─ Proxies request to application
+```
+
+### Testing Network Topology
+
+Integration tests run on the host but use Selenium in Docker:
+
+```
+Host Machine (Tests)
+├─ Accesses localhost:8080 (oauth2-proxy)
+├─ Accesses localhost:4444 (Selenium)
+└─ Sets environment variables
+
+Docker Network (Services + Selenium)
+├─ Selenium navigates to oauth2-proxy:4180
+└─ (NOT localhost - inside Docker!)
+```
+
+**Why This Configuration**:
+- Tests run on **host** → use `localhost:8080`
+- Selenium runs in **Docker** → must use `oauth2-proxy:4180`
+- Environment variable `GAME_SERVER_BROWSER_URL` controls this
+- Without it, Selenium would try `localhost` which doesn't work in Docker
+
 ## Security Architecture
 
 ### Input Validation

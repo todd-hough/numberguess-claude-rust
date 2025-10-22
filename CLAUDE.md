@@ -225,6 +225,140 @@ Command-line interface:
 - Speed: ~2-3s per login
 - Coverage: Tests oauth2-proxy integration, session cookies, redirects for both web and API endpoints
 
+### Integration Test Architecture & Networking
+
+**CRITICAL**: Integration tests MUST use async patterns. Do NOT use `tokio_test::block_on()` or `reqwest::blocking::Client` as they cause tokio runtime conflicts.
+
+**Docker Compose Service Topology:**
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Host Machine (Test Runner)                                   │
+│                                                               │
+│  Integration Tests (Rust)                                    │
+│    ├─ Use `#[tokio::test]` + async/await                    │
+│    ├─ Access via localhost:8080, localhost:4444, etc.       │
+│    └─ Selenium OAuth2 authentication flow                   │
+│                                                               │
+│        │ HTTP requests                                       │
+│        ▼                                                      │
+└─────────────────────────────────────────────────────────────┘
+         │
+         │ Port mapping (localhost:8080 → oauth2-proxy:4180)
+         ▼
+┌─────────────────────────────────────────────────────────────┐
+│ Docker Bridge Network (numberguess_default)                  │
+│                                                               │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐  │
+│  │  Selenium    │    │ oauth2-proxy │◄───│  Keycloak    │  │
+│  │  :4444       │───▶│  :4180       │    │  :8090       │  │
+│  │ (Chrome)     │    │ (Auth Proxy) │    │  (OIDC)      │  │
+│  └──────────────┘    └──────────────┘    └──────────────┘  │
+│         │                    │                   │          │
+│         │                    ▼                   ▼          │
+│         │             ┌──────────────┐    ┌──────────────┐ │
+│         └────────────▶│     App      │    │    Redis     │ │
+│                       │   :4080      │    │   :6379      │ │
+│                       └──────────────┘    └──────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Network Addressing - CRITICAL DIFFERENCE:**
+
+**Inside Docker Compose (service-to-service)**:
+- Services use Docker hostnames: `oauth2-proxy:4180`, `keycloak:8090`, `redis:6379`, `app:4080`
+- Selenium (running in Docker) MUST use these hostnames to reach other services
+- Example: Selenium navigates to `http://oauth2-proxy:4180` for OAuth2 flow
+
+**Outside Docker Compose (tests on host)**:
+- Use `localhost` + exposed port: `localhost:8080`, `localhost:4444`, `localhost:6379`
+- Port mapping: `localhost:8080` → `oauth2-proxy:4180` (internal)
+- Tests access services via exposed ports on localhost
+
+**Port Mapping Table:**
+| Service | Internal (Docker) | External (localhost) | Purpose |
+|---------|------------------|---------------------|---------|
+| oauth2-proxy | oauth2-proxy:4180 | localhost:8080 | Auth gateway (external access) |
+| keycloak | keycloak:8090 | localhost:8090 | OIDC provider |
+| app | app:4080 | (not exposed) | Application (internal only) |
+| app health | app:8081 | localhost:8081 | Health check endpoint |
+| redis | redis:6379 | localhost:6379 | Session storage |
+| selenium | selenium:4444 | localhost:4444 | Browser automation |
+
+**Environment Variables:**
+```bash
+# Where tests (on host) connect to Selenium
+SELENIUM_REMOTE_URL=http://localhost:4444
+
+# Where tests (on host) access the application (via oauth2-proxy)
+GAME_SERVER_BASE_URL=http://localhost:8080
+
+# Where Selenium (in Docker) accesses oauth2-proxy (Docker hostname!)
+GAME_SERVER_BROWSER_URL=http://oauth2-proxy:4180
+```
+
+**Why These Variables Exist:**
+- Tests run on **host** → use `localhost:8080`, `localhost:4444`
+- Selenium runs in **Docker** → must use `oauth2-proxy:4180` (Docker hostname)
+- Without `GAME_SERVER_BROWSER_URL`, Selenium would try `localhost:4180` which doesn't exist in Docker
+
+**Async Requirement - DO NOT USE BLOCKING PATTERNS:**
+
+**❌ WRONG - Causes Runtime Conflicts:**
+```rust
+#[test]  // Wrong! Not async
+fn test_something() {
+    let client = tokio_test::block_on(  // Wrong! Nested runtime
+        create_authenticated_client_selenium()
+    ).unwrap();
+
+    let response = tokio_test::block_on(async {  // Wrong! Multiple block_on
+        client.get(url).send().await
+    }).unwrap();
+}
+```
+
+**✅ CORRECT - Proper Async Pattern:**
+```rust
+#[tokio::test]  // Correct! Tokio test
+async fn test_something() {  // Correct! Async function
+    // Environment checks in blocking context (they use blocking client)
+    tokio::task::spawn_blocking(|| {
+        environment::ensure_server_ready();
+        environment::ensure_selenium_ready().expect("Selenium required");
+    })
+    .await
+    .expect("Environment checks failed");
+
+    // Create async authenticated client
+    let client = auth_helpers::create_authenticated_client_selenium()
+        .await  // Correct! Direct await
+        .expect("Failed to create client");
+
+    // Make requests with await
+    let response = client
+        .get("http://localhost:8080")
+        .send()
+        .await  // Correct! Direct await
+        .expect("Request failed");
+}
+```
+
+**Why Blocking Fails:**
+1. `#[tokio::test]` initializes a tokio runtime
+2. `tokio_test::block_on()` tries to create a nested runtime → **panic or deadlock**
+3. `reqwest::blocking::Client` has DNS resolution issues in tokio context
+4. Application uses tokio → all tests must be tokio-compatible
+
+**Test Pattern Summary:**
+- ✅ Use `#[tokio::test]` for all integration tests
+- ✅ Use `async fn` for test functions
+- ✅ Use `reqwest::Client` (async, not blocking)
+- ✅ Use `.await` for all async operations
+- ✅ Wrap blocking environment checks in `tokio::task::spawn_blocking`
+- ❌ Never use `tokio_test::block_on()`
+- ❌ Never use `reqwest::blocking::Client`
+- ❌ Never use `#[test]` with async code
+
 **Running Tests:**
 ```bash
 # Unit tests (no authentication needed)
@@ -604,4 +738,4 @@ cargo build --release
 - NEVER change an external API such as a REST endpoint without explicit approval to make the change
 - ALWAYS document external API so the document becomes a reference for behavior
 - For all new features, determine the dependencies and plan to implement the dependencies one at a time with testing to prove each dependency is working before moving on to the next step.
-- When transitioning from planning to implementation, ALWAYS write the plan to a document in the plans directory. Once all work is done on the feature then clean up the plan document.
+- When transitioning from planning to implementation, ALWAYS write the plan to a document in the plans directory. Once all work is done on the feature then ask the user if you should clean up the plan document.

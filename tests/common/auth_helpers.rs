@@ -2,7 +2,6 @@
 //!
 //! Provides Selenium-based OAuth2 authentication for all tests (Web UI and API).
 
-use reqwest::blocking::Client;
 use reqwest::header::{HeaderMap, HeaderValue};
 use std::error::Error;
 use std::time::Duration;
@@ -142,7 +141,7 @@ async fn extract_session_cookie(driver: &WebDriver) -> WebDriverResult<Cookie> {
 /// # Ok(())
 /// # }
 /// ```
-pub async fn create_authenticated_client_selenium() -> Result<Client, Box<dyn Error>> {
+pub async fn create_authenticated_client_selenium() -> Result<reqwest::Client, Box<dyn Error>> {
     // Create temporary WebDriver
     let caps = DesiredCapabilities::chrome();
     let selenium_url = environment::selenium_url()
@@ -152,20 +151,20 @@ pub async fn create_authenticated_client_selenium() -> Result<Client, Box<dyn Er
     // Perform OAuth2 login
     let session_cookie = login_with_keycloak_selenium(&driver).await?;
 
-    // Close WebDriver
+    // Close WebDriver (quit() consumes the driver and handles cleanup)
     driver.quit().await?;
 
     // Convert Selenium cookie to reqwest header
     let cookie_str = format!("_oauth2_proxy={}", session_cookie.value);
 
-    // Create reqwest blocking client with cookie header
+    // Create async reqwest client (no runtime conflicts!)
     let mut headers = HeaderMap::new();
     headers.insert(
         reqwest::header::COOKIE,
         HeaderValue::from_str(&cookie_str)?,
     );
 
-    let client = reqwest::blocking::Client::builder()
+    let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(30))
         .default_headers(headers)
         .build()?;
@@ -191,11 +190,11 @@ pub async fn create_webdriver(selenium_url: &str) -> WebDriverResult<WebDriver> 
 /// # Example
 /// ```no_run
 /// let client = create_unauthenticated_client();
-/// let resp = client.get("http://localhost:8080").send().unwrap();
+/// let resp = client.get("http://localhost:8080").send().await.unwrap();
 /// assert!(resp.status().is_redirection() || resp.status() == 401);
 /// ```
-pub fn create_unauthenticated_client() -> Client {
-    Client::builder()
+pub fn create_unauthenticated_client() -> reqwest::Client {
+    reqwest::Client::builder()
         .timeout(Duration::from_secs(10))
         .redirect(reqwest::redirect::Policy::none()) // Don't follow redirects
         .build()

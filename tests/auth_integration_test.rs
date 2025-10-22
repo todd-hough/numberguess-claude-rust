@@ -135,10 +135,13 @@ fn test_unauthenticated_web_ui_redirects_to_login() {
     let client = auth_helpers::create_unauthenticated_client();
 
     // Try to access protected page without authentication
-    let response = client
-        .get("http://localhost:8080")
-        .send()
-        .expect("Should send request");
+    let response = tokio_test::block_on(async {
+        client
+            .get("http://localhost:8080")
+            .send()
+            .await
+            .expect("Should send request")
+    });
 
     // oauth2-proxy should redirect to Keycloak (302) or return 401
     assert!(
@@ -170,14 +173,17 @@ fn test_unauthenticated_api_returns_401() {
     let client = auth_helpers::create_unauthenticated_client();
 
     // Try to create a game via oauth2-proxy without authentication
-    let response = client
-        .post("http://localhost:8080/api/games")
-        .json(&serde_json::json!({
-            "min": 1,
-            "max": 100
-        }))
-        .send()
-        .expect("Should send request");
+    let response = tokio_test::block_on(async {
+        client
+            .post("http://localhost:8080/api/games")
+            .json(&serde_json::json!({
+                "min": 1,
+                "max": 100
+            }))
+            .send()
+            .await
+            .expect("Should send request")
+    });
 
     // oauth2-proxy should redirect or return 401
     assert!(
@@ -299,9 +305,10 @@ fn test_api_endpoints_work_when_authenticated() {
             .json(&serde_json::json!({
                 "min": 1,
                 "max": 100,
-                "max_guesses": 10
+                "max_guesses": "10"
             }))
             .send()
+            .await
         {
             Ok(resp) => resp,
             Err(e) => {
@@ -318,7 +325,7 @@ fn test_api_endpoints_work_when_authenticated() {
             return false;
         }
 
-        let game: serde_json::Value = match create_response.json() {
+        let game: serde_json::Value = match create_response.json().await {
             Ok(game) => game,
             Err(e) => {
                 eprintln!("Failed to parse game response: {}", e);
@@ -343,6 +350,7 @@ fn test_api_endpoints_work_when_authenticated() {
                 "guess": 50
             }))
             .send()
+            .await
         {
             Ok(resp) => resp,
             Err(e) => {

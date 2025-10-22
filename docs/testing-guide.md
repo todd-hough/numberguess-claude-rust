@@ -190,6 +190,247 @@ mod tests {
 }
 ```
 
+## Integration Testing with Docker Compose & Authentication
+
+### Overview
+
+All integration tests in this project run against a full Docker Compose stack with authentication. This section explains the architecture, networking, and **critical async patterns** that must be followed.
+
+### Docker Compose Test Architecture
+
+```
+┌──────────────────────────────────────────┐
+│ Host Machine                              │
+│                                           │
+│  Rust Test Process                       │
+│    • Runs on host (not in Docker)        │
+│    • Uses `#[tokio::test]` + async/await │
+│    • Accesses services via localhost     │
+│                                           │
+│    Tests connect to:                     │
+│    • localhost:8080 (oauth2-proxy)       │
+│    • localhost:4444 (Selenium)           │
+│    • localhost:6379 (Redis)              │
+└──────────────────────────────────────────┘
+           │ Port Forwarding
+           ▼
+┌──────────────────────────────────────────┐
+│ Docker Network (numberguess_default)     │
+│                                           │
+│  Services use hostnames:                 │
+│    • oauth2-proxy:4180                   │
+│    • keycloak:8090                       │
+│    • app:4080                            │
+│    • redis:6379                          │
+│    • selenium:4444                       │
+│                                           │
+│  Selenium (in Docker) accesses:          │
+│    • oauth2-proxy:4180 (not localhost!)  │
+└──────────────────────────────────────────┘
+```
+
+### Network Topology - Critical Understanding
+
+**Inside Docker Compose**:
+- Services communicate using Docker hostnames
+- Example: `oauth2-proxy:4180`, `keycloak:8090`, `redis:6379`
+- Docker's internal DNS resolves these hostnames
+- **Selenium runs in Docker**, so it must use these hostnames
+
+**Outside Docker Compose**:
+- Tests run on the host machine
+- Access services via `localhost` + exposed port
+- Example: `localhost:8080` → `oauth2-proxy:4180` (mapped)
+- Port mapping configured in `docker-compose.integration.yml`
+
+**Why This Matters**:
+- Tests use `localhost:8080` to access oauth2-proxy
+- Selenium uses `oauth2-proxy:4180` to access the same service
+- If Selenium tried `localhost:4180`, it would fail (not accessible in Docker)
+- This dual addressing is controlled by environment variables
+
+### Environment Variables Explained
+
+```bash
+# Tests (on host) connect to Selenium via localhost
+SELENIUM_REMOTE_URL=http://localhost:4444
+
+# Tests (on host) access application via localhost
+GAME_SERVER_BASE_URL=http://localhost:8080
+
+# Selenium (in Docker) accesses oauth2-proxy via Docker hostname
+GAME_SERVER_BROWSER_URL=http://oauth2-proxy:4180
+```
+
+**Without `GAME_SERVER_BROWSER_URL`**:
+- Selenium would try `http://localhost:4180`
+- This fails because Selenium is in Docker (localhost != host machine)
+- Must use `oauth2-proxy:4180` (Docker hostname) instead
+
+### Async Pattern - MANDATORY
+
+**❌ WRONG - Using Blocking Patterns**:
+```rust
+// This will cause runtime conflicts and test failures!
+#[test]
+fn test_with_blocking() {
+    let client = tokio_test::block_on(async {
+        auth_helpers::create_authenticated_client_selenium().await
+    }).unwrap();
+
+    let response = tokio_test::block_on(async {
+        client.get("http://localhost:8080").send().await
+    }).unwrap();
+}
+```
+
+**Problems**:
+1. `#[test]` doesn't initialize a tokio runtime
+2. `tokio_test::block_on()` creates nested runtimes → conflicts
+3. DNS resolution fails with blocking client in tokio context
+
+**✅ CORRECT - Using Async Patterns**:
+```rust
+#[tokio::test]
+async fn test_with_async() {
+    // Environment checks use blocking client, so wrap in spawn_blocking
+    tokio::task::spawn_blocking(|| {
+        environment::ensure_server_ready();
+        environment::ensure_selenium_ready().expect("Selenium required");
+    })
+    .await
+    .expect("Environment checks failed");
+
+    // Create async authenticated client
+    let client = auth_helpers::create_authenticated_client_selenium()
+        .await
+        .expect("Failed to create client");
+
+    // Make request with direct await
+    let response = client
+        .get("http://localhost:8080")
+        .send()
+        .await
+        .expect("Request failed");
+
+    assert!(response.status().is_success());
+}
+```
+
+### Why Async is Required
+
+1. **Tokio Runtime**: Application uses `tokio` for async operations
+2. **Test Runtime**: `#[tokio::test]` creates a tokio runtime for the test
+3. **Nested Runtimes**: `tokio_test::block_on()` tries to create another runtime → panic/deadlock
+4. **Client Compatibility**: `reqwest::Client` (async) works with tokio, `reqwest::blocking::Client` does not
+5. **DNS Issues**: Blocking client has DNS resolution failures in tokio context
+
+### Authentication Test Pattern
+
+All integration tests must authenticate via Selenium OAuth2 flow:
+
+```rust
+use common::{auth_helpers, environment};
+
+#[tokio::test]
+async fn test_authenticated_endpoint() {
+    // 1. Check environment (blocking operations)
+    tokio::task::spawn_blocking(|| {
+        environment::ensure_server_ready();
+        environment::ensure_selenium_ready().expect("Selenium required");
+    })
+    .await
+    .expect("Environment checks failed");
+
+    // 2. Create authenticated client (async)
+    let client = auth_helpers::create_authenticated_client_selenium()
+        .await
+        .expect("Failed to create authenticated client");
+
+    // 3. Make authenticated requests (async)
+    let response = client
+        .post("http://localhost:8080/api/games")
+        .json(&serde_json::json!({
+            "min": 1,
+            "max": 100,
+            "max_guesses": "10"  // Note: string, not integer
+        }))
+        .send()
+        .await
+        .expect("Failed to create game");
+
+    assert!(response.status().is_success());
+}
+```
+
+### Common Pitfalls & Solutions
+
+| Problem | Symptom | Solution |
+|---------|---------|----------|
+| Using `#[test]` | Runtime not initialized | Use `#[tokio::test]` |
+| Using `tokio_test::block_on()` | Nested runtime panic | Remove it, use `.await` directly |
+| Using `reqwest::blocking::Client` | DNS errors, timeouts | Use `reqwest::Client` (async) |
+| Selenium uses localhost | Connection refused | Use `GAME_SERVER_BROWSER_URL=http://oauth2-proxy:4180` |
+| Tests use Docker hostname | Connection refused | Use `GAME_SERVER_BASE_URL=http://localhost:8080` |
+| Missing environment variables | Various connection errors | Set all three env vars in Makefile |
+
+### Running Integration Tests
+
+```bash
+# Run all integration tests (sets environment variables automatically)
+make test-compose
+
+# Run specific test file with proper environment
+GAME_SERVER_BASE_URL=http://localhost:8080 \
+GAME_SERVER_BROWSER_URL=http://oauth2-proxy:4180 \
+SELENIUM_REMOTE_URL=http://localhost:4444 \
+cargo test --test auth_integration_test -- --test-threads=1
+
+# Run all tests (unit + integration)
+make test
+```
+
+### Service Startup Sequence
+
+1. **Base Services** (parallel): postgres, redis, keycloak
+2. **Wait for Keycloak** (30-90s for realm import)
+3. **App Layer**: app, oauth2-proxy (after Keycloak ready)
+4. **Test Layer**: selenium (after oauth2-proxy ready)
+5. **Health Checks**: All services must be healthy
+6. **Run Tests**: Single-threaded to avoid session conflicts
+
+### Troubleshooting Integration Tests
+
+**Redis not responding**:
+```bash
+docker compose -f docker-compose.yml \
+               -f docker-compose.integration.yml logs redis
+```
+
+**Keycloak not ready**:
+```bash
+# Check Keycloak logs for realm import
+docker compose logs keycloak | grep -i "realm"
+```
+
+**Selenium connection refused**:
+```bash
+# Verify Selenium is running
+curl http://localhost:4444/status
+
+# Check if SELENIUM_REMOTE_URL is set
+echo $SELENIUM_REMOTE_URL
+```
+
+**OAuth2 flow fails**:
+```bash
+# Check oauth2-proxy logs
+docker compose logs oauth2-proxy
+
+# Verify session cookie creation
+# Look for "_oauth2_proxy" cookie in test output
+```
+
 ### Testing CLI Interaction
 ```rust
 #[test]
