@@ -1,8 +1,8 @@
-.PHONY: help build test test-unit test-integration test-fast test-api test-ui dev dev-db dev-down dev-restart dev-logs dev-status \
+.PHONY: help build test test-unit test-integration test-down dev dev-db dev-down dev-restart dev-logs dev-status \
         docker-rebuild docker-check docker-clean clean logs db-shell fmt lint run-cli run-server \
         devcontainer-up devcontainer-down devcontainer-attach devcontainer-restart devcontainer-status \
         dc-up dc-down dc-attach dc-shell dc-restart dc-status \
-        compose-up compose-down test-compose test-compose-ui test-compose-down \
+        compose-up compose-down \
         release status info quick check reset
 
 # Load environment variables from .env file if it exists
@@ -46,14 +46,15 @@ help:
 	@echo "  make docker-clean  - Clean Docker images and containers"
 	@echo ""
 	@echo "════════════════════════════════════════════════════════════════"
-	@echo "TESTING (Full Suite)"
+	@echo "TESTING"
 	@echo "════════════════════════════════════════════════════════════════"
-	@echo "  make test          - Run complete test suite (unit + API + UI)"
-	@echo "                       Automatically builds Docker image if needed"
-	@echo "  make test-fast     - Quick unit tests only (~10 seconds)"
-	@echo "  make test-api      - API integration tests (auto-builds if needed)"
-	@echo "  make test-ui       - UI integration tests (auto-builds if needed)"
-	@echo "  make test-unit     - Unit tests only (alias for test-fast)"
+	@echo "  make test          - Run all tests (unit + integration)"
+	@echo "  make test-unit     - Unit tests only (fast, no Docker)"
+	@echo "  make test-integration - Integration tests (starts Docker Compose)"
+	@echo "  make test-down     - Stop integration test environment"
+	@echo ""
+	@echo "  Note: test-integration keeps environment running for debugging"
+	@echo "        Use test-down when finished to clean up resources"
 	@echo ""
 	@echo "════════════════════════════════════════════════════════════════"
 	@echo "DEVELOPMENT (App + Database)"
@@ -178,19 +179,6 @@ dc-status: devcontainer-status
 
 COMPOSE_STACK = docker compose -f docker-compose.yml -f docker-compose.integration.yml
 TEST_DB ?= numberguess_test
-HEALTH_TIMEOUT ?= 90
-
-# Internal function: Setup test database
-define setup_test_db
-	@echo "Setting up test database..."
-	@DB_HOST=localhost TEST_DB_NAME=$(TEST_DB) POSTGRES_HOST=localhost ./scripts/reset-db.sh
-endef
-
-# Internal function: Wait for service health
-define wait_for_health
-	@echo "Waiting for $(1) to be healthy..."
-	@./scripts/wait-for-http.sh $(1) $(HEALTH_TIMEOUT)
-endef
 
 ## compose-up: Start integration stack with postgres + app
 compose-up:
@@ -208,101 +196,35 @@ logs:
 db-shell:
 	docker compose exec postgres psql -U $(POSTGRES_USER) -d $(POSTGRES_DB)
 
-## test: Run complete test suite (unit + API + UI integration tests)
-test: test-unit test-api test-ui
+## test: Run complete test suite (unit + integration tests)
+test: test-unit test-integration
 	@echo ""
 	@echo "✓ All tests completed successfully!"
-
-## test-fast: Run unit tests only (fast feedback)
-test-fast:
-	@echo "Running unit tests (fast feedback)..."
-	cargo test --lib
 
 ## test-unit: Run unit tests only (no Docker needed)
 test-unit:
 	@echo "Running unit tests (no Docker required)..."
 	cargo test --lib
 
-## test-api: Run API integration tests via docker compose
-test-api: test-compose
-
-## test-ui: Run UI integration tests via docker compose
-test-ui: test-compose-ui
-
-## test-integration: Run legacy integration tests (uses testcontainers)
+## test-integration: Run integration tests via docker compose
 test-integration: docker-check
-	@echo "Running legacy integration tests (testcontainers will manage containers)..."
-	cargo test --test '*'
-
-## test-compose: Run integration tests via docker compose (postgres + app)
-test-compose: docker-check
-	@echo "Running API integration tests..."
-	@bash -c 'set -euo pipefail; \
-	COMPOSE_CMD="$(COMPOSE_STACK)"; \
-	PROFILE="integration"; \
-	cleanup() { \
-		echo "Cleaning up test environment..."; \
-		$$COMPOSE_CMD --profile $$PROFILE down -v >/dev/null 2>&1 || true; \
-	}; \
-	trap cleanup EXIT; \
-	echo "Starting postgres, redis, keycloak..."; \
-	$$COMPOSE_CMD --profile $$PROFILE up -d postgres redis keycloak >/dev/null; \
-	echo "Waiting for services to be healthy (Keycloak may take 30-90s)..."; \
-	$$COMPOSE_CMD --profile $$PROFILE up --wait postgres redis keycloak >/dev/null; \
-	echo "Setting up test database..."; \
-	POSTGRES_HOST=localhost TEST_DB_NAME=$(TEST_DB) ./scripts/reset-db.sh; \
-	echo "Starting app, oauth2-proxy, and selenium..."; \
-	$$COMPOSE_CMD --profile $$PROFILE up -d app oauth2-proxy selenium >/dev/null; \
-	echo "Waiting for app to be healthy..."; \
-	./scripts/wait-for-http.sh http://localhost:8081/health $(HEALTH_TIMEOUT); \
-	echo "Waiting for oauth2-proxy to be ready..."; \
-	./scripts/wait-for-http.sh http://localhost:8080 30; \
-	echo "Waiting for selenium to be healthy..."; \
-	./scripts/wait-for-http.sh http://localhost:4444/status $(HEALTH_TIMEOUT); \
-	echo "Running integration tests..."; \
+	@echo "Starting integration test environment..."
+	@echo "Note: Environment will remain running after tests for debugging"
+	@echo "Use 'make test-down' to stop when done"
+	@echo ""
+	$(COMPOSE_STACK) --profile integration up -d --wait
+	@echo ""
+	@echo "Running integration tests..."
 	GAME_SERVER_BASE_URL=http://localhost:8080 \
 	GAME_SERVER_BROWSER_URL=http://oauth2-proxy:4180 \
 	SELENIUM_REMOTE_URL=http://localhost:4444 \
-	cargo test --tests -- --test-threads=1; \
-	'
+	TEST_DB_NAME=$(TEST_DB) \
+	cargo test --tests -- --test-threads=1
 
-## test-compose-ui: Run web UI integration tests via docker compose (app + selenium)
-test-compose-ui: docker-check
-	@echo "Running UI integration tests..."
-	@bash -c 'set -euo pipefail; \
-	COMPOSE_CMD="$(COMPOSE_STACK)"; \
-	PROFILE="integration-ui"; \
-	cleanup() { \
-		echo "Cleaning up test environment..."; \
-		$$COMPOSE_CMD --profile $$PROFILE down -v >/dev/null 2>&1 || true; \
-	}; \
-	trap cleanup EXIT; \
-	echo "Starting postgres, redis, keycloak..."; \
-	$$COMPOSE_CMD --profile $$PROFILE up -d postgres redis keycloak >/dev/null; \
-	echo "Waiting for services to be healthy (Keycloak may take 30-90s)..."; \
-	$$COMPOSE_CMD --profile $$PROFILE up --wait postgres redis keycloak >/dev/null; \
-	echo "Setting up test database..."; \
-	POSTGRES_HOST=localhost TEST_DB_NAME=$(TEST_DB) ./scripts/reset-db.sh; \
-	echo "Starting app, oauth2-proxy, and selenium..."; \
-	$$COMPOSE_CMD --profile $$PROFILE up -d app oauth2-proxy selenium >/dev/null; \
-	echo "Waiting for app to be healthy..."; \
-	./scripts/wait-for-http.sh http://localhost:8081/health $(HEALTH_TIMEOUT); \
-	echo "Waiting for oauth2-proxy to be ready..."; \
-	./scripts/wait-for-http.sh http://localhost:8080 30; \
-	echo "Waiting for selenium to be healthy..."; \
-	./scripts/wait-for-http.sh http://localhost:4444/status $(HEALTH_TIMEOUT); \
-	echo "Running UI tests..."; \
-	GAME_SERVER_BASE_URL=http://localhost:8080 \
-	GAME_SERVER_BROWSER_URL=http://oauth2-proxy:4180 \
-	SELENIUM_REMOTE_URL=http://localhost:4444 \
-	cargo test --test web_ui_test --test auth_integration_test -- --test-threads=1; \
-	'
-
-## test-compose-down: Stop and remove integration test services
-test-compose-down:
+## test-down: Stop and remove integration test services
+test-down:
 	@echo "Stopping integration test services..."
-	@docker compose -f docker-compose.yml -f docker-compose.integration.yml --profile integration down -v 2>/dev/null || true
-	@docker compose -f docker-compose.yml -f docker-compose.integration.yml --profile integration-ui down -v 2>/dev/null || true
+	$(COMPOSE_STACK) --profile integration down -v
 	@echo "✓ Integration test services stopped"
 
 ## run-cli: Run CLI game
@@ -354,8 +276,7 @@ docker-clean:
 	@echo "Cleaning Docker resources..."
 	@echo "Stopping all compose services..."
 	-docker compose --profile full-stack down -v 2>/dev/null
-	-docker compose -f docker-compose.yml -f docker-compose.integration.yml --profile integration down -v 2>/dev/null
-	-docker compose -f docker-compose.yml -f docker-compose.integration.yml --profile integration-ui down -v 2>/dev/null
+	-$(COMPOSE_STACK) --profile integration down -v 2>/dev/null
 	@echo "Removing numberguess images..."
 	-docker rmi numberguess-claude-rust:latest numberguess-claude-rust:release 2>/dev/null
 	@echo "Pruning unused Docker resources..."
@@ -441,7 +362,7 @@ reset:
 	@echo "1/4 Stopping all services..."
 	@$(MAKE) dev-down 2>/dev/null || true
 	@$(MAKE) dc-down 2>/dev/null || true
-	@$(MAKE) test-compose-down 2>/dev/null || true
+	@$(MAKE) test-down 2>/dev/null || true
 	@echo "2/4 Cleaning Docker resources..."
 	@$(MAKE) docker-clean 2>/dev/null || true
 	@echo "3/4 Cleaning build artifacts..."

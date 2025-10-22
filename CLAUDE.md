@@ -45,11 +45,14 @@ make dc-attach     # Attach terminal to running devcontainer
 make dc-down       # Stop devcontainer
 
 # Testing
-make test              # All tests (builds Docker if needed)
+make test              # All tests (unit + integration)
 make test-unit         # Unit tests only (fast, no Docker)
-make test-compose      # Integration tests via docker compose
-make test-compose-ui   # Selenium UI tests via docker compose
-make test-compose-down # Stop integration test services (auto-cleanup on exit, rarely needed)
+make test-integration  # Integration tests (starts Docker Compose, keeps running)
+make test-down         # Stop integration test environment
+
+# Debugging failed tests: Environment stays running after test-integration
+docker compose logs keycloak  # Check service logs
+make test-down                # Clean up when done
 
 # Running
 make run-cli       # CLI game with defaults
@@ -75,10 +78,11 @@ make clean             # Clean everything
 - **Build**: No database needed (SQLx uses runtime checking, not compile-time)
 - **CLI mode**: No database needed at all
 - **Web mode**: Requires PostgreSQL and authentication stack (Keycloak + oauth2-proxy + Redis)
-- **Tests**: Unit tests are fast (no Docker); integration and UI suites run via `make test-compose*` against Docker Compose
+- **Tests**: Unit tests are fast (no Docker); integration tests use `make test-integration` with Docker Compose (includes Selenium for all tests)
 - **Docker**: Only needed for integration tests and optional full-stack development
 - **Docker Builds**: Development/test workflows use debug builds (fast); production uses release builds (optimized). Configure via `BUILD_TYPE` env var or make targets.
 - **Authentication**: All web routes require authentication via oauth2-proxy + Keycloak (OIDC)
+- **Test Environment**: `make test-integration` keeps services running for debugging; use `make test-down` to clean up
 
 ## Architecture
 
@@ -363,29 +367,44 @@ async fn test_something() {  // Correct! Async function
 ```bash
 # Unit tests (no authentication needed)
 cargo test --lib
+# or
+make test-unit
 
-# API integration tests (includes auth stack)
-make test-compose
+# Integration tests (includes auth stack + Selenium)
+make test-integration
+# Environment stays running for debugging - use 'make test-down' to stop
 
-# Web UI tests (includes auth stack + Selenium)
-make test-compose-ui
-
-# Full suite (unit + API + UI)
+# Full suite (unit + integration)
 make test
+# Note: Runs unit tests first, then integration tests
+
+# Stop integration test environment
+make test-down
 ```
 
 **Test Startup Sequence:**
-1. postgres, redis, keycloak (parallel start)
-2. Wait for Keycloak (30-60s - imports realm configuration)
-3. app, oauth2-proxy (after Keycloak ready)
-4. selenium (for UI tests only)
-5. Wait for all services healthy
-6. Run tests with `--test-threads=1` (prevents session conflicts)
+Docker Compose now handles service orchestration automatically via health checks and dependencies:
+1. postgres, redis start first (parallel)
+2. keycloak starts after postgres is healthy (30-60s - imports realm configuration)
+3. app starts after postgres is healthy
+4. oauth2-proxy starts after keycloak, redis, and app are all healthy
+5. selenium starts after oauth2-proxy and app are healthy
+6. `docker compose up --wait` ensures all services are healthy before tests run
+7. Tests run with `--test-threads=1` (prevents session conflicts)
+8. Environment stays running after tests complete (for debugging)
 
 **Troubleshooting Tests:**
 
+**Debugging Failed Tests:**
+Since `make test-integration` keeps the environment running after tests:
+1. Run `make test-integration` - tests run, environment stays up
+2. Check service logs: `docker compose logs keycloak`, `docker compose logs app`, etc.
+3. Inspect running containers: `docker compose ps`
+4. Re-run specific tests: `cargo test --test auth_integration_test`
+5. Clean up when done: `make test-down`
+
 Authentication Issues:
-- **Keycloak not ready**: Increase timeout, check `docker compose logs keycloak`
+- **Keycloak not ready**: Check `docker compose logs keycloak` (imports realm on startup)
 - **Login fails**: Verify realm import succeeded, check user exists
 - **Session issues**: Check Redis is running: `docker compose exec redis redis-cli ping`
 - **401 errors**: Verify auth headers are being sent (check auth_helpers)
@@ -397,29 +416,17 @@ Service Health Checks:
 - Redis: TCP connection to localhost:6379
 
 Common Issues:
-- **"Keycloak not responding"**: Keycloak can take 30-60s to start
+- **"Keycloak not responding"**: Keycloak can take 30-60s to start (Docker Compose waits automatically)
 - **"Session cookie not found"**: OAuth2 flow may have failed, check Keycloak logs
 - **Test timeouts**: Use `--test-threads=1` to avoid parallel execution conflicts
 - **Port conflicts**: Ensure ports 4080, 5432, 6379, 8080, 8081, 8090 are available
+- **Services not starting**: Check `docker compose -f docker-compose.yml -f docker-compose.integration.yml --profile integration ps`
 
 **Performance Notes:**
-- **Full stack startup**: ~90 seconds (Keycloak is slowest component)
+- **Full stack startup**: ~90 seconds (Keycloak is slowest component, health checks handle timing)
+- **Subsequent runs**: Instant if services already running (idempotent `docker compose up`)
 - **All tests**: 2-3s overhead per test for OAuth2 login (Selenium-based)
 - **Total test suite**: ~3-5 minutes with full auth stack
-
-```bash
-# Unit tests in src/game.rs
-cargo test --lib
-
-# Integration tests via docker compose (API)
-make test-compose
-
-# Web UI tests via docker compose (Selenium)
-make test-compose-ui
-
-# Full suite via make
-make test
-```
 
 ## Common Tasks
 

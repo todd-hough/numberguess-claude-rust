@@ -7,12 +7,26 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    profiles:
+      - integration
+
+  redis:
+    profiles:
+      - integration
+    ports:
+      - "6379:6379"  # Expose Redis port for test scripts
+
   keycloak:
     environment:
       # Override hostname to use Docker internal network name instead of localhost
       # This allows Selenium (running in Docker) to access Keycloak
       KC_HOSTNAME: keycloak
       KC_HOSTNAME_PORT: 8090
+    profiles:
+      - integration
+    depends_on:
+      postgres:
+        condition: service_healthy
   oauth2-proxy:
     command:
       # Override redirect URL for integration tests to use internal Docker hostname
@@ -43,18 +57,38 @@ services:
       - --standard-logging=true
       - --auth-logging=true
       - --request-logging=true
-  redis:
-    ports:
-      - "6379:6379"  # Expose Redis port for test scripts
+
+      # Health check endpoints
+      - --ping-path=/ping
+      - --ready-path=/ready
+      - --silence-ping-logging
+    profiles:
+      - integration
+    depends_on:
+      redis:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+      app:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:4180/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   app:
     profiles:
       - integration
-      - integration-ui
     ports:
       - "8081:8081"  # Expose health check port for test scripts
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-numberguess}:${POSTGRES_PASSWORD:-password}@postgres:5432/${TEST_DB_NAME:-numberguess_test}
       RUST_LOG: info
+    depends_on:
+      postgres:
+        condition: service_healthy
   selenium:
     image: seleniarm/standalone-chromium:latest
     shm_size: 2gb
@@ -68,14 +102,14 @@ services:
       SE_SCREEN_HEIGHT: "1080"
     profiles:
       - integration
-      - integration-ui
     depends_on:
       oauth2-proxy:
-        condition: service_started
+        condition: service_healthy
       app:
         condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:4444/status || exit 1"]
       interval: 10s
       timeout: 10s
-      retries: 6
+      retries: 10
+      start_period: 20s
