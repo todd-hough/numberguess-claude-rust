@@ -45,9 +45,6 @@ cargo test -- --test-threads=1
 
 # Run only library tests
 cargo test --lib
-
-# Run ignored tests
-cargo test -- --ignored
 ```
 
 ### Test Coverage
@@ -593,18 +590,6 @@ fn test_with_builder() {
 fn test_panic_condition() {
     // Code that should panic
     assert!(false, "assertion failed");
-}
-```
-
-### 4. Ignoring Expensive Tests
-```rust
-#[test]
-#[ignore]
-fn expensive_test() {
-    // Run only with: cargo test -- --ignored
-    for i in 0..1_000_000 {
-        // Expensive operation
-    }
 }
 ```
 

@@ -394,33 +394,3 @@ pub async fn make_guess_transactional(
 
     Ok(result)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    // Note: These tests require a running PostgreSQL database
-    // They are exercised by integration tests that expect DATABASE_URL to be configured
-
-    #[tokio::test]
-    #[ignore] // Only run when DATABASE_URL is available
-    async fn test_create_and_get_game() {
-        let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-        let pool = PgPool::connect(&database_url).await.unwrap();
-
-        // Run migrations
-        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
-
-        // Create game
-        let game_id = create_game(&pool, 1, 100, Some(10)).await.unwrap();
-
-        // Get game
-        let game = get_game(&pool, game_id).await.unwrap();
-        assert_eq!(game.get_range(), (1, 100));
-        assert_eq!(game.get_max_guesses(), Some(10));
-        assert_eq!(game.get_guess_count(), 0);
-
-        // Cleanup
-        delete_game(&pool, game_id).await.unwrap();
-    }
-}
