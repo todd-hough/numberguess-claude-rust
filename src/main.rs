@@ -1,5 +1,3 @@
-#![allow(warnings)]
-
 use clap::Parser;
 use number_guessing_game::cli::run_cli_game;
 use number_guessing_game::{Cli, run_server};
