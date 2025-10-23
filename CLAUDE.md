@@ -382,6 +382,28 @@ make test
 make test-down
 ```
 
+**IMPORTANT - Integration Test Startup Time:**
+Integration tests take ~5 minutes to start all services (postgres, redis, keycloak, oauth2-proxy, selenium, app). The `make test-integration` command uses `docker compose up --wait` which automatically waits for all health checks to pass before running tests.
+
+**To monitor service startup progress:**
+```bash
+# In one terminal: Start integration tests
+make test-integration
+
+# In another terminal: Monitor service health in real-time
+watch -n 2 'docker compose ps'
+
+# Or check specific service logs
+docker compose logs -f keycloak    # Slowest service (~30-60s)
+docker compose logs -f app
+docker compose logs -f oauth2-proxy
+
+# Check all services are healthy
+docker compose ps --format "table {{.Service}}\t{{.Status}}\t{{.Health}}"
+```
+
+The startup sequence completes when all services show "healthy" status. The `make test-integration` command will automatically wait for this before running tests.
+
 **Test Startup Sequence:**
 Docker Compose now handles service orchestration automatically via health checks and dependencies:
 1. postgres, redis start first (parallel)

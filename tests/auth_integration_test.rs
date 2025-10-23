@@ -15,112 +15,81 @@ const TEST_PASSWORD: &str = "password";
 // OAuth2 Login Flow Tests (Selenium)
 // =============================================================================
 
-#[test]
-fn test_oauth2_login_flow() {
-    let browser_url = environment::browser_base_url();
-    let selenium_url = match environment::ensure_selenium_ready() {
-        Some(url) => url,
-        None => {
-            println!("Skipping OAuth2 login test - Selenium not available");
-            return;
-        }
-    };
+#[tokio::test]
+async fn test_oauth2_login_flow() {
+    use auth_helpers::create_webdriver;
 
-    let result = tokio_test::block_on(async move {
-        use auth_helpers::create_webdriver;
+    // Environment checks in blocking context
+    let (browser_url, selenium_url) = tokio::task::spawn_blocking(|| {
+        environment::ensure_server_ready();
+        let browser_url = environment::browser_base_url();
+        let selenium_url = environment::ensure_selenium_ready()
+            .expect("Selenium required for this test. Run via 'make test-integration'");
+        (browser_url, selenium_url)
+    })
+    .await
+    .expect("Environment checks failed");
 
-        let driver = match create_webdriver(&selenium_url).await {
-            Ok(driver) => driver,
-            Err(e) => {
-                eprintln!("Failed to create WebDriver: {}", e);
-                return false;
-            }
-        };
+    // Create WebDriver with direct await
+    let driver = create_webdriver(&selenium_url)
+        .await
+        .expect("Failed to create WebDriver");
 
-        let page = GamePage::new(&driver);
+    let page = GamePage::new(&driver);
 
-        // Navigate to protected page - should redirect to Keycloak
-        if let Err(e) = page.goto(browser_url.as_str()).await {
-            eprintln!("Failed to navigate to app: {}", e);
-            let _ = page.quit().await;
-            return false;
-        }
+    // Navigate to protected page - should redirect to Keycloak
+    page.goto(browser_url.as_str())
+        .await
+        .expect("Failed to navigate to app");
 
-        println!("✓ Navigated to app, checking for Keycloak redirect");
+    println!("✓ Navigated to app, checking for Keycloak redirect");
 
-        // Verify we're on Keycloak login page
-        let on_login_page = match page.is_on_login_page().await {
-            Ok(result) => result,
-            Err(e) => {
-                eprintln!("Failed to check login page: {}", e);
-                let _ = page.quit().await;
-                return false;
-            }
-        };
+    // Verify we're on Keycloak login page
+    let on_login_page = page
+        .is_on_login_page()
+        .await
+        .expect("Failed to check login page");
 
-        if !on_login_page {
-            eprintln!("Not redirected to Keycloak login page");
-            let _ = page.quit().await;
-            return false;
-        }
+    assert!(on_login_page, "Not redirected to Keycloak login page");
 
-        println!("✓ Redirected to Keycloak login page");
+    println!("✓ Redirected to Keycloak login page");
 
-        // Perform login
-        if let Err(e) = page.login(TEST_USERNAME, TEST_PASSWORD).await {
-            eprintln!("Failed to login: {}", e);
-            let _ = page.quit().await;
-            return false;
-        }
+    // Perform login
+    page.login(TEST_USERNAME, TEST_PASSWORD)
+        .await
+        .expect("Failed to login");
 
-        println!("✓ Successfully logged in");
+    println!("✓ Successfully logged in");
 
-        // Verify we're back at the app (not on Keycloak)
-        let current_url = match driver.current_url().await {
-            Ok(url) => url,
-            Err(e) => {
-                eprintln!("Failed to get current URL: {}", e);
-                let _ = page.quit().await;
-                return false;
-            }
-        };
+    // Verify we're back at the app (not on Keycloak)
+    let current_url = driver
+        .current_url()
+        .await
+        .expect("Failed to get current URL");
 
-        if current_url.as_str().contains("keycloak") {
-            eprintln!("Still on Keycloak after login: {}", current_url);
-            let _ = page.quit().await;
-            return false;
-        }
+    assert!(
+        !current_url.as_str().contains("keycloak"),
+        "Still on Keycloak after login: {}",
+        current_url
+    );
 
-        println!("✓ Redirected back to application");
+    println!("✓ Redirected back to application");
 
-        // Verify session cookie is set
-        let cookies = match driver.get_all_cookies().await {
-            Ok(cookies) => cookies,
-            Err(e) => {
-                eprintln!("Failed to get cookies: {}", e);
-                let _ = page.quit().await;
-                return false;
-            }
-        };
+    // Verify session cookie is set
+    let cookies = driver
+        .get_all_cookies()
+        .await
+        .expect("Failed to get cookies");
 
-        let has_session_cookie = cookies.iter().any(|c| c.name == "_oauth2_proxy");
+    let has_session_cookie = cookies.iter().any(|c| c.name == "_oauth2_proxy");
 
-        if !has_session_cookie {
-            eprintln!("Session cookie not set");
-            let _ = page.quit().await;
-            return false;
-        }
+    assert!(has_session_cookie, "Session cookie not set");
 
-        println!("✓ Session cookie set");
+    println!("✓ Session cookie set");
 
-        if let Err(e) = page.quit().await {
-            eprintln!("Failed to quit WebDriver: {}", e);
-        }
+    // Cleanup
+    page.quit().await.ok();
 
-        true
-    });
-
-    assert!(result, "OAuth2 login flow should complete successfully");
     println!("✅ OAuth2 login flow test passed");
 }
 
@@ -128,20 +97,23 @@ fn test_oauth2_login_flow() {
 // Unauthenticated Request Tests
 // =============================================================================
 
-#[test]
-fn test_unauthenticated_web_ui_redirects_to_login() {
-    environment::ensure_server_ready();
+#[tokio::test]
+async fn test_unauthenticated_web_ui_redirects_to_login() {
+    // Environment checks in blocking context
+    tokio::task::spawn_blocking(|| {
+        environment::ensure_server_ready();
+    })
+    .await
+    .expect("Environment checks failed");
 
     let client = auth_helpers::create_unauthenticated_client();
 
     // Try to access protected page without authentication
-    let response = tokio_test::block_on(async {
-        client
-            .get("http://localhost:8080")
-            .send()
-            .await
-            .expect("Should send request")
-    });
+    let response = client
+        .get("http://localhost:8080")
+        .send()
+        .await
+        .expect("Should send request");
 
     // oauth2-proxy should redirect to Keycloak (302) or return 401
     assert!(
@@ -166,24 +138,27 @@ fn test_unauthenticated_web_ui_redirects_to_login() {
     println!("✅ Unauthenticated web UI redirect test passed");
 }
 
-#[test]
-fn test_unauthenticated_api_returns_401() {
-    environment::ensure_server_ready();
+#[tokio::test]
+async fn test_unauthenticated_api_returns_401() {
+    // Environment checks in blocking context
+    tokio::task::spawn_blocking(|| {
+        environment::ensure_server_ready();
+    })
+    .await
+    .expect("Environment checks failed");
 
     let client = auth_helpers::create_unauthenticated_client();
 
     // Try to create a game via oauth2-proxy without authentication
-    let response = tokio_test::block_on(async {
-        client
-            .post("http://localhost:8080/api/games")
-            .json(&serde_json::json!({
-                "min": 1,
-                "max": 100
-            }))
-            .send()
-            .await
-            .expect("Should send request")
-    });
+    let response = client
+        .post("http://localhost:8080/api/games")
+        .json(&serde_json::json!({
+            "min": 1,
+            "max": 100
+        }))
+        .send()
+        .await
+        .expect("Should send request");
 
     // oauth2-proxy should redirect or return 401
     assert!(
@@ -199,83 +174,62 @@ fn test_unauthenticated_api_returns_401() {
 // Authenticated Endpoint Tests (Web UI via Selenium)
 // =============================================================================
 
-#[test]
-fn test_web_ui_endpoints_work_when_authenticated() {
-    let browser_url = environment::browser_base_url();
-    let selenium_url = match environment::ensure_selenium_ready() {
-        Some(url) => url,
-        None => {
-            println!("Skipping web UI authenticated test - Selenium not available");
-            return;
-        }
-    };
+#[tokio::test]
+async fn test_web_ui_endpoints_work_when_authenticated() {
+    use auth_helpers::create_webdriver;
 
-    let result = tokio_test::block_on(async move {
-        use auth_helpers::create_webdriver;
+    // Environment checks in blocking context
+    let (browser_url, selenium_url) = tokio::task::spawn_blocking(|| {
+        environment::ensure_server_ready();
+        let browser_url = environment::browser_base_url();
+        let selenium_url = environment::ensure_selenium_ready()
+            .expect("Selenium required for this test. Run via 'make test-integration'");
+        (browser_url, selenium_url)
+    })
+    .await
+    .expect("Environment checks failed");
 
-        let driver = match create_webdriver(&selenium_url).await {
-            Ok(driver) => driver,
-            Err(e) => {
-                eprintln!("Failed to create WebDriver: {}", e);
-                return false;
-            }
-        };
+    // Create WebDriver with direct await
+    let driver = create_webdriver(&selenium_url)
+        .await
+        .expect("Failed to create WebDriver");
 
-        let page = GamePage::new(&driver);
+    let page = GamePage::new(&driver);
 
-        // Navigate and login
-        if let Err(e) = page.goto(browser_url.as_str()).await {
-            eprintln!("Failed to navigate: {}", e);
-            let _ = page.quit().await;
-            return false;
-        }
+    // Navigate and login
+    page.goto(browser_url.as_str())
+        .await
+        .expect("Failed to navigate");
 
-        if let Err(e) = page.login(TEST_USERNAME, TEST_PASSWORD).await {
-            eprintln!("Failed to login: {}", e);
-            let _ = page.quit().await;
-            return false;
-        }
+    page.login(TEST_USERNAME, TEST_PASSWORD)
+        .await
+        .expect("Failed to login");
 
-        println!("✓ Logged in successfully");
+    println!("✓ Logged in successfully");
 
-        // Try to start a game (tests POST /game/new)
-        if let Err(e) = page.start_game(1, 100, Some(10)).await {
-            eprintln!("Failed to start game: {}", e);
-            let _ = page.quit().await;
-            return false;
-        }
+    // Try to start a game (tests POST /game/new)
+    page.start_game(1, 100, Some(10))
+        .await
+        .expect("Failed to start game");
 
-        println!("✓ Started game successfully");
+    println!("✓ Started game successfully");
 
-        // Verify game interface is visible
-        let game_started = match page.is_game_started().await {
-            Ok(result) => result,
-            Err(e) => {
-                eprintln!("Failed to check if game started: {}", e);
-                let _ = page.quit().await;
-                return false;
-            }
-        };
-
-        if !game_started {
-            eprintln!("Game interface not visible after starting game");
-            let _ = page.quit().await;
-            return false;
-        }
-
-        println!("✓ Game interface visible");
-
-        if let Err(e) = page.quit().await {
-            eprintln!("Failed to quit WebDriver: {}", e);
-        }
-
-        true
-    });
+    // Verify game interface is visible
+    let game_started = page
+        .is_game_started()
+        .await
+        .expect("Failed to check if game started");
 
     assert!(
-        result,
-        "Authenticated web UI endpoints should work correctly"
+        game_started,
+        "Game interface not visible after starting game"
     );
+
+    println!("✓ Game interface visible");
+
+    // Cleanup
+    page.quit().await.ok();
+
     println!("✅ Authenticated web UI endpoints test passed");
 }
 
@@ -283,92 +237,69 @@ fn test_web_ui_endpoints_work_when_authenticated() {
 // Authenticated Endpoint Tests (API via Selenium OAuth2)
 // =============================================================================
 
-#[test]
-fn test_api_endpoints_work_when_authenticated() {
-    environment::ensure_server_ready();
-    environment::ensure_selenium_ready().expect("Selenium required for authentication");
+#[tokio::test]
+async fn test_api_endpoints_work_when_authenticated() {
+    // Environment checks in blocking context
+    tokio::task::spawn_blocking(|| {
+        environment::ensure_server_ready();
+        environment::ensure_selenium_ready().expect("Selenium required for authentication");
+    })
+    .await
+    .expect("Environment checks failed");
 
-    let result = tokio_test::block_on(async move {
-        let client = match auth_helpers::create_authenticated_client_selenium().await {
-            Ok(client) => client,
-            Err(e) => {
-                eprintln!("Failed to create authenticated client: {}", e);
-                return false;
-            }
-        };
+    // Create authenticated client
+    let client = auth_helpers::create_authenticated_client_selenium()
+        .await
+        .expect("Failed to create authenticated client");
 
-        println!("✓ Created authenticated API client");
+    println!("✓ Created authenticated API client");
 
-        // Test POST /api/games
-        let create_response = match client
-            .post("http://localhost:8080/api/games")
-            .json(&serde_json::json!({
-                "min": 1,
-                "max": 100,
-                "max_guesses": "10"
-            }))
-            .send()
-            .await
-        {
-            Ok(resp) => resp,
-            Err(e) => {
-                eprintln!("Failed to send create game request: {}", e);
-                return false;
-            }
-        };
+    // Test POST /api/games
+    let create_response = client
+        .post("http://localhost:8080/api/games")
+        .json(&serde_json::json!({
+            "min": 1,
+            "max": 100,
+            "max_guesses": "10"
+        }))
+        .send()
+        .await
+        .expect("Failed to send create game request");
 
-        if !create_response.status().is_success() {
-            eprintln!(
-                "Create game failed with status: {}",
-                create_response.status()
-            );
-            return false;
-        }
+    assert!(
+        create_response.status().is_success(),
+        "Create game failed with status: {}",
+        create_response.status()
+    );
 
-        let game: serde_json::Value = match create_response.json().await {
-            Ok(game) => game,
-            Err(e) => {
-                eprintln!("Failed to parse game response: {}", e);
-                return false;
-            }
-        };
+    let game: serde_json::Value = create_response
+        .json()
+        .await
+        .expect("Failed to parse game response");
 
-        let game_id = match game["game_id"].as_u64() {
-            Some(id) => id,
-            None => {
-                eprintln!("Game response missing game_id");
-                return false;
-            }
-        };
+    let game_id = game["game_id"]
+        .as_u64()
+        .expect("Game response missing game_id");
 
-        println!("✓ Created game with ID: {}", game_id);
+    println!("✓ Created game with ID: {}", game_id);
 
-        // Test POST /api/games/{id}/guess
-        let guess_response = match client
-            .post(format!("http://localhost:8080/api/games/{}/guess", game_id))
-            .json(&serde_json::json!({
-                "guess": 50
-            }))
-            .send()
-            .await
-        {
-            Ok(resp) => resp,
-            Err(e) => {
-                eprintln!("Failed to send guess request: {}", e);
-                return false;
-            }
-        };
+    // Test POST /api/games/{id}/guess
+    let guess_response = client
+        .post(format!("http://localhost:8080/api/games/{}/guess", game_id))
+        .json(&serde_json::json!({
+            "guess": 50
+        }))
+        .send()
+        .await
+        .expect("Failed to send guess request");
 
-        if !guess_response.status().is_success() {
-            eprintln!("Guess failed with status: {}", guess_response.status());
-            return false;
-        }
+    assert!(
+        guess_response.status().is_success(),
+        "Guess failed with status: {}",
+        guess_response.status()
+    );
 
-        println!("✓ Made guess successfully");
+    println!("✓ Made guess successfully");
 
-        true
-    });
-
-    assert!(result, "Authenticated API endpoints should work correctly");
     println!("✅ Authenticated API endpoints test passed");
 }
