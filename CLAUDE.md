@@ -147,10 +147,21 @@ Command-line interface:
 - **runner.rs**: CLI game loop
 
 #### Database (`src/db/`)
-- **mod.rs**: PostgreSQL layer with runtime-checked SQLx queries
+Database persistence layer using repository pattern:
+- **repository.rs**: `GameRepository` trait defining storage operations (native async traits)
+- **postgres_repository.rs**: PostgreSQL implementation of `GameRepository`
+- **mod.rs**: `DbError` type, module declarations, and deprecated standalone functions
+
+**Repository Pattern:**
+- Abstract interface for game storage operations
+- Native async traits (Rust 1.75+) for zero-cost abstraction
+- Static dispatch via generics for compile-time optimization
+- Clean separation between business logic and database implementation
 
 #### Server (`src/server/`)
+Server initialization and routing:
 - **mod.rs**: Server initialization, routing configuration, and startup
+- **state.rs**: `AppState<R>` struct holding repository implementation
 
 #### Other
 - **src/main.rs**: Entry point, mode selection (CLI vs Server), database initialization
@@ -161,14 +172,19 @@ Command-line interface:
 ### Key Design Patterns
 1. **Layered Architecture**: Clear separation between Core, API, Web UI, CLI, Database, and Server layers
 2. **Separation of Concerns**: Game logic isolated from I/O, validation separate from presentation, database layer separate from web layer
-3. **Shared Validation**: Single source of truth for validation logic in `core/validators` module
-4. **API vs Web UI Separation**: JSON API handlers in `src/api/`, HTML handlers in `src/web/`
-5. **Type Safety**: Newtype pattern for `GameId`, compile-time template checking with Askama
-6. **Result Types**: Extensive use of `Result<T, String>` for error handling with safe type conversions
-7. **State Management**: Web server uses PostgreSQL with SQLx connection pooling (`PgPool`)
-8. **Module Organization**: Clear boundaries between core logic, API, web UI, CLI, database, and server
-9. **Template-Based HTML**: Askama templates provide compile-time checked, type-safe HTML rendering
-10. **Structured Logging**: Uses `tracing` framework for async-aware, structured system logs while preserving user-facing CLI output
+3. **Repository Pattern**: Trait-based abstraction for database operations with static dispatch
+   - `GameRepository` trait defines storage interface
+   - `PostgresGameRepository` implements PostgreSQL storage
+   - Native async traits (Rust 1.75+) for zero-cost abstraction
+   - Handlers are generic over repository type for compile-time optimization
+4. **Shared Validation**: Single source of truth for validation logic in `core/validators` module
+5. **API vs Web UI Separation**: JSON API handlers in `src/api/`, HTML handlers in `src/web/`
+6. **Type Safety**: Newtype pattern for `GameId`, compile-time template checking with Askama
+7. **Result Types**: Extensive use of `Result<T, String>` for error handling with safe type conversions
+8. **State Management**: `AppState<R: GameRepository>` holds repository instance, shared across handlers via Axum state
+9. **Module Organization**: Clear boundaries between core logic, API, web UI, CLI, database, and server
+10. **Template-Based HTML**: Askama templates provide compile-time checked, type-safe HTML rendering
+11. **Structured Logging**: Uses `tracing` framework for async-aware, structured system logs while preserving user-facing CLI output
 
 ## Important Constraints
 

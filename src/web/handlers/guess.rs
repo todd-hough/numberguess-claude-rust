@@ -4,7 +4,8 @@
 
 use crate::auth::AuthenticatedUser;
 use crate::core::{GameId, GuessResult};
-use crate::db;
+use crate::db::{DbError, GameRepository};
+use crate::server::state::AppState;
 use crate::web::templates::{
     GameCompleteTemplate, GameNotFoundTemplate, GuessFormTemplate, UpdateErrorTemplate,
 };
@@ -14,17 +15,17 @@ use axum::{
     extract::{Form, Path, State},
     response::IntoResponse,
 };
-use sqlx::PgPool;
 use tracing::{debug, error, info, warn};
-
-type SharedState = PgPool;
 
 /// Web UI handler for making a guess (HTML).
 ///
 /// Processes a guess and returns HTML response for HTMX.
 /// Requires authentication via oauth2-proxy.
-pub async fn make_guess_web(
-    State(pool): State<SharedState>,
+///
+/// # Type Parameters
+/// * `R` - The repository implementation (static dispatch for zero overhead)
+pub async fn make_guess_web<R: GameRepository>(
+    State(state): State<AppState<R>>,
     user: AuthenticatedUser,
     Path(game_id): Path<GameId>,
     Form(payload): Form<MakeGuessRequest>,
@@ -38,9 +39,9 @@ pub async fn make_guess_web(
     );
 
     // Make guess using transactional approach (concurrency-safe)
-    let result = match db::make_guess_transactional(&pool, game_id, payload.guess).await {
+    let result = match state.repo.make_guess(game_id, payload.guess).await {
         Ok(r) => r,
-        Err(db::DbError::NotFound) => {
+        Err(DbError::NotFound) => {
             warn!(
                 game_id = %game_id,
                 "Web: Guess failed - game not found"
@@ -73,7 +74,7 @@ pub async fn make_guess_web(
             );
 
             // For ongoing games, fetch current state for display
-            let game = match db::get_game(&pool, game_id).await {
+            let game = match state.repo.get(game_id).await {
                 Ok(g) => g,
                 Err(e) => {
                     error!(

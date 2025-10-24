@@ -26,7 +26,7 @@
 
 use axum::{
     extract::FromRequestParts,
-    http::{request::Parts, StatusCode},
+    http::{StatusCode, request::Parts},
 };
 use serde::{Deserialize, Serialize};
 use tracing::{debug, warn};

@@ -38,9 +38,7 @@ const TEST_PASSWORD: &str = "password";
 /// # Ok(())
 /// # }
 /// ```
-pub async fn login_with_keycloak_selenium(
-    driver: &WebDriver,
-) -> WebDriverResult<Cookie> {
+pub async fn login_with_keycloak_selenium(driver: &WebDriver) -> WebDriverResult<Cookie> {
     // Navigate to protected page - will redirect to Keycloak
     // Use browser_base_url which respects GAME_SERVER_BROWSER_URL environment variable
     // (Selenium running in Docker needs http://oauth2-proxy:8080, not localhost)
@@ -75,12 +73,7 @@ async fn wait_for_keycloak_login_page(driver: &WebDriver) -> WebDriverResult<()>
     let start = std::time::Instant::now();
 
     while start.elapsed() < timeout {
-        if driver
-            .query(By::Id("kc-login"))
-            .nowait()
-            .exists()
-            .await?
-        {
+        if driver.query(By::Id("kc-login")).nowait().exists().await? {
             return Ok(());
         }
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -144,8 +137,8 @@ async fn extract_session_cookie(driver: &WebDriver) -> WebDriverResult<Cookie> {
 pub async fn create_authenticated_client_selenium() -> Result<reqwest::Client, Box<dyn Error>> {
     // Create temporary WebDriver
     let caps = DesiredCapabilities::chrome();
-    let selenium_url = environment::selenium_url()
-        .ok_or_else(|| "SELENIUM_REMOTE_URL not set".to_string())?;
+    let selenium_url =
+        environment::selenium_url().ok_or_else(|| "SELENIUM_REMOTE_URL not set".to_string())?;
     let driver = WebDriver::new(&selenium_url, caps).await?;
 
     // Perform OAuth2 login
@@ -159,10 +152,7 @@ pub async fn create_authenticated_client_selenium() -> Result<reqwest::Client, B
 
     // Create async reqwest client (no runtime conflicts!)
     let mut headers = HeaderMap::new();
-    headers.insert(
-        reqwest::header::COOKIE,
-        HeaderValue::from_str(&cookie_str)?,
-    );
+    headers.insert(reqwest::header::COOKIE, HeaderValue::from_str(&cookie_str)?);
 
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(30))
@@ -200,4 +190,3 @@ pub fn create_unauthenticated_client() -> reqwest::Client {
         .build()
         .expect("Failed to create unauthenticated client")
 }
-

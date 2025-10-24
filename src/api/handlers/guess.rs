@@ -5,23 +5,24 @@
 use crate::api::types::{ErrorResponse, MakeGuessRequest, MakeGuessResponse};
 use crate::auth::AuthenticatedUser;
 use crate::core::{GameId, GuessResult};
-use crate::db;
+use crate::db::{DbError, GameRepository};
+use crate::server::state::AppState;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::Json,
 };
-use sqlx::PgPool;
 use tracing::{debug, error, info, warn};
-
-type SharedState = PgPool;
 
 /// API handler for making a guess (JSON).
 ///
 /// Processes a guess and returns the result as JSON.
 /// Requires authentication via oauth2-proxy.
-pub async fn make_guess_api(
-    State(pool): State<SharedState>,
+///
+/// # Type Parameters
+/// * `R` - The repository implementation (static dispatch for zero overhead)
+pub async fn make_guess_api<R: GameRepository>(
+    State(state): State<AppState<R>>,
     user: AuthenticatedUser,
     Path(game_id): Path<GameId>,
     Json(payload): Json<MakeGuessRequest>,
@@ -35,10 +36,12 @@ pub async fn make_guess_api(
     );
 
     // Make guess using transactional approach (concurrency-safe)
-    let result = db::make_guess_transactional(&pool, game_id, payload.guess)
+    let result = state
+        .repo
+        .make_guess(game_id, payload.guess)
         .await
         .map_err(|e| match e {
-            db::DbError::NotFound => {
+            DbError::NotFound => {
                 warn!(
                     game_id = %game_id,
                     "API: Guess failed - game not found"

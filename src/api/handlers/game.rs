@@ -5,19 +5,20 @@
 use crate::api::types::{CreateGameRequest, CreateGameResponse, ErrorResponse};
 use crate::auth::AuthenticatedUser;
 use crate::core::validators;
-use crate::db;
+use crate::db::GameRepository;
+use crate::server::state::AppState;
 use axum::{extract::State, http::StatusCode, response::Json};
-use sqlx::PgPool;
 use tracing::{debug, error, info, warn};
-
-type SharedState = PgPool;
 
 /// API handler for game creation (JSON).
 ///
 /// Creates a new game with the specified parameters and returns JSON response.
 /// Requires authentication via oauth2-proxy.
-pub async fn create_game_api(
-    State(pool): State<SharedState>,
+///
+/// # Type Parameters
+/// * `R` - The repository implementation (static dispatch for zero overhead)
+pub async fn create_game_api<R: GameRepository>(
+    State(state): State<AppState<R>>,
     user: AuthenticatedUser,
     Json(payload): Json<CreateGameRequest>,
 ) -> Result<Json<CreateGameResponse>, (StatusCode, Json<ErrorResponse>)> {
@@ -59,7 +60,9 @@ pub async fn create_game_api(
     };
 
     // Create game in database
-    let game_id = db::create_game(&pool, payload.min, payload.max, guess_limit)
+    let game_id = state
+        .repo
+        .create(payload.min, payload.max, guess_limit)
         .await
         .map_err(|e| {
             error!(

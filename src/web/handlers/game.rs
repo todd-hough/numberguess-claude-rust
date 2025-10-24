@@ -4,7 +4,8 @@
 
 use crate::auth::AuthenticatedUser;
 use crate::core::validators;
-use crate::db;
+use crate::db::GameRepository;
+use crate::server::state::AppState;
 use crate::web::templates::{ErrorTemplate, GameStartedTemplate};
 use crate::web::types::CreateGameRequest;
 use askama_axum::IntoResponse as AskamaIntoResponse;
@@ -12,17 +13,17 @@ use axum::{
     extract::{Form, State},
     response::IntoResponse,
 };
-use sqlx::PgPool;
 use tracing::{debug, error, info, warn};
-
-type SharedState = PgPool;
 
 /// Web UI handler for game creation (HTML).
 ///
 /// Creates a new game and returns HTML response for HTMX.
 /// Requires authentication via oauth2-proxy.
-pub async fn create_game_web(
-    State(pool): State<SharedState>,
+///
+/// # Type Parameters
+/// * `R` - The repository implementation (static dispatch for zero overhead)
+pub async fn create_game_web<R: GameRepository>(
+    State(state): State<AppState<R>>,
     user: AuthenticatedUser,
     Form(payload): Form<CreateGameRequest>,
 ) -> impl IntoResponse {
@@ -66,7 +67,11 @@ pub async fn create_game_web(
     };
 
     // Create game in database
-    let game_id = match db::create_game(&pool, payload.min, payload.max, guess_limit).await {
+    let game_id = match state
+        .repo
+        .create(payload.min, payload.max, guess_limit)
+        .await
+    {
         Ok(id) => {
             info!(
                 user_id = %user.user_id,

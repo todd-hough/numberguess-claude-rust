@@ -121,7 +121,10 @@ pub fn ensure_keycloak_ready() -> String {
 
     let mut attempts = 0;
     let max_attempts = 60; // Keycloak can take up to 60s to start
-    let health_endpoint = format!("{}/realms/numberguess/.well-known/openid-configuration", url);
+    let health_endpoint = format!(
+        "{}/realms/numberguess/.well-known/openid-configuration",
+        url
+    );
 
     eprintln!("Waiting for Keycloak to be ready at {}...", url);
 

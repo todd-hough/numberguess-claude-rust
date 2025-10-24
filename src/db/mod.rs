@@ -1,3 +1,11 @@
+// Module declarations
+pub mod postgres_repository;
+pub mod repository;
+
+// Re-exports
+pub use postgres_repository::PostgresGameRepository;
+pub use repository::GameRepository;
+
 use crate::core::{GameError, GameId, GuessResult, GuessingGame};
 use sqlx::{PgPool, Row};
 use thiserror::Error;
@@ -29,6 +37,7 @@ impl From<sqlx::Error> for DbError {
 }
 
 /// Create a new game and store it in the database
+#[deprecated(since = "0.2.0", note = "Use GameRepository::create instead")]
 pub async fn create_game(
     pool: &PgPool,
     min: i32,
@@ -98,6 +107,7 @@ pub async fn create_game(
 }
 
 /// Get a game from the database
+#[deprecated(since = "0.2.0", note = "Use GameRepository::get instead")]
 pub async fn get_game(pool: &PgPool, game_id: GameId) -> Result<GuessingGame, DbError> {
     debug!(game_id = %game_id, "DB: Fetching game");
 
@@ -155,6 +165,7 @@ pub async fn get_game(pool: &PgPool, game_id: GameId) -> Result<GuessingGame, Db
 }
 
 /// Update game state after a guess
+#[deprecated(since = "0.2.0", note = "Use GameRepository::update instead")]
 pub async fn update_game(
     pool: &PgPool,
     game_id: GameId,
@@ -197,6 +208,7 @@ pub async fn update_game(
 }
 
 /// Delete a game from the database
+#[deprecated(since = "0.2.0", note = "Use GameRepository::delete instead")]
 pub async fn delete_game(pool: &PgPool, game_id: GameId) -> Result<(), DbError> {
     debug!(game_id = %game_id, "DB: Deleting game");
 
@@ -227,6 +239,7 @@ pub async fn delete_game(pool: &PgPool, game_id: GameId) -> Result<(), DbError> 
 ///
 /// This function combines get_game, make_guess, and update/delete operations
 /// in a single database transaction with row-level locking to prevent race conditions.
+#[deprecated(since = "0.2.0", note = "Use GameRepository::make_guess instead")]
 pub async fn make_guess_transactional(
     pool: &PgPool,
     game_id: GameId,

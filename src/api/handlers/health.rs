@@ -2,17 +2,19 @@
 //!
 //! Provides a health endpoint that verifies database connectivity.
 
+use crate::db::GameRepository;
+use crate::server::state::AppState;
 use axum::{extract::State, http::StatusCode};
-use sqlx::PgPool;
 use tracing::{debug, error};
-
-type SharedState = PgPool;
 
 /// Health check endpoint that verifies database connectivity.
 ///
 /// Returns 200 OK if the database is accessible, 503 Service Unavailable otherwise.
-pub async fn health_check(State(pool): State<SharedState>) -> StatusCode {
-    match sqlx::query("SELECT 1").fetch_one(&pool).await {
+///
+/// # Type Parameters
+/// * `R` - The repository implementation (static dispatch for zero overhead)
+pub async fn health_check<R: GameRepository>(State(state): State<AppState<R>>) -> StatusCode {
+    match state.repo.health_check().await {
         Ok(_) => {
             debug!("Health check passed");
             StatusCode::OK

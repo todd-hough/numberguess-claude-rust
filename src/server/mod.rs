@@ -2,13 +2,17 @@
 //!
 //! Handles server initialization, routing configuration, and startup.
 
+pub mod state;
+
 use crate::api::handlers::{create_game_api, health_check, make_guess_api};
+use crate::db::PostgresGameRepository;
 use crate::web::handlers::{create_game_web, difficulty_preview, make_guess_web};
 use axum::{
     Router,
     routing::{get, post},
 };
 use sqlx::PgPool;
+use state::AppState;
 use tower_http::LatencyUnit;
 use tower_http::services::ServeDir;
 use tower_http::trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer};
@@ -35,18 +39,28 @@ pub async fn run_server(pool: PgPool, port: u16) {
         "Configuring web server"
     );
 
+    // Create repository and application state
+    let repo = PostgresGameRepository::new(pool.clone());
+    let state = AppState::new(repo);
+
     // API routes
     let api_routes = Router::new()
-        .route("/games", post(create_game_api))
-        .route("/games/{game_id}/guess", post(make_guess_api))
-        .with_state(pool.clone());
+        .route("/games", post(create_game_api::<PostgresGameRepository>))
+        .route(
+            "/games/{game_id}/guess",
+            post(make_guess_api::<PostgresGameRepository>),
+        )
+        .with_state(state.clone());
 
     // Web UI routes
     let web_routes = Router::new()
-        .route("/game/new", post(create_game_web))
-        .route("/game/{game_id}/guess", post(make_guess_web))
+        .route("/game/new", post(create_game_web::<PostgresGameRepository>))
+        .route(
+            "/game/{game_id}/guess",
+            post(make_guess_web::<PostgresGameRepository>),
+        )
         .route("/difficulty-preview", get(difficulty_preview))
-        .with_state(pool.clone());
+        .with_state(state.clone());
 
     // Main application routes with tracing middleware
     let app = Router::new()
@@ -65,8 +79,8 @@ pub async fn run_server(pool: PgPool, port: u16) {
 
     // Health check server (separate port)
     let health_app = Router::new()
-        .route("/health", get(health_check))
-        .with_state(pool.clone());
+        .route("/health", get(health_check::<PostgresGameRepository>))
+        .with_state(state.clone());
 
     let main_addr = format!("0.0.0.0:{}", port);
     let health_addr = format!("0.0.0.0:{}", health_port);

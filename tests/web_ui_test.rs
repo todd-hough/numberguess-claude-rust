@@ -51,10 +51,7 @@ async fn test_web_ui_game_flow() {
     println!("Game started with min=5, max=5, limit=10");
 
     // Make guess
-    let feedback = page
-        .make_guess(5)
-        .await
-        .expect("Failed to make guess");
+    let feedback = page.make_guess(5).await.expect("Failed to make guess");
 
     println!("Made guess: 5");
 
@@ -131,10 +128,7 @@ async fn test_web_ui_invalid_inputs() {
     println!("Game form filled with min=100, max=10");
 
     // Check for error
-    let has_error = page
-        .has_error()
-        .await
-        .expect("Failed to check for error");
+    let has_error = page.has_error().await.expect("Failed to check for error");
 
     println!("Error displayed? {}", has_error);
 

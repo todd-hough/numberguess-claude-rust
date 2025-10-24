@@ -70,7 +70,10 @@ async fn test_concurrent_guesses_on_same_game() {
         let body = create_response.text().await.unwrap_or_default();
         panic!("Game creation failed with {}: {}", status, body);
     }
-    let game: GameResponse = create_response.json().await.expect("Should parse game response");
+    let game: GameResponse = create_response
+        .json()
+        .await
+        .expect("Should parse game response");
     let game_id = game.game_id;
 
     println!("✅ Created game {}", game_id);
@@ -157,7 +160,10 @@ async fn test_race_condition_guess_during_deletion() {
         let body = create_response.text().await.unwrap_or_default();
         panic!("Game creation failed with {}: {}", status, body);
     }
-    let game: GameResponse = create_response.json().await.expect("Should parse game response");
+    let game: GameResponse = create_response
+        .json()
+        .await
+        .expect("Should parse game response");
     let game_id = game.game_id;
 
     println!("✅ Created game {} (answer is 42)", game_id);
@@ -271,7 +277,10 @@ async fn test_game_persistence_across_restart() {
         let body = create_response.text().await.unwrap_or_default();
         panic!("Game creation failed with {}: {}", status, body);
     }
-    let game: GameResponse = create_response.json().await.expect("Should parse game response");
+    let game: GameResponse = create_response
+        .json()
+        .await
+        .expect("Should parse game response");
     let game_id = game.game_id;
 
     println!("✅ Created game {}; restarting app container...", game_id);
@@ -301,7 +310,10 @@ async fn test_game_persistence_across_restart() {
         "Game should still exist after server restart"
     );
 
-    let result: GuessResponse = guess_response.json().await.expect("Should parse guess response");
+    let result: GuessResponse = guess_response
+        .json()
+        .await
+        .expect("Should parse guess response");
     println!("  Guess 75 -> {}", result.result);
 
     assert!(matches!(

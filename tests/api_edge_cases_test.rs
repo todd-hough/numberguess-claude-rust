@@ -95,7 +95,8 @@ async fn test_concurrent_games() {
             game_id
         );
 
-        let guess_result: GuessResponse = resp.json().await.expect("Should parse JSON guess response");
+        let guess_result: GuessResponse =
+            resp.json().await.expect("Should parse JSON guess response");
         println!("Game {} result: {}", game_id, guess_result.result);
     }
 
@@ -238,7 +239,10 @@ async fn test_zero_limit_means_unlimited() {
             i
         );
 
-        let guess_result: GuessResponse = guess_resp.json().await.expect("Should parse guess response");
+        let guess_result: GuessResponse = guess_resp
+            .json()
+            .await
+            .expect("Should parse guess response");
 
         // Should never get limit_reached with unlimited
         assert_ne!(
