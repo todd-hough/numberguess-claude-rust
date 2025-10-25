@@ -13,6 +13,13 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Generate OAuth2 secrets
+      run: |
+        COOKIE_SECRET=$(openssl rand -base64 32 | tr -d '\n')
+        CLIENT_SECRET=$(jq -r '.clients[] | select(.clientId=="numberguess-client") | .secret' keycloak/realm-export.json)
+        echo "OAUTH2_COOKIE_SECRET=$COOKIE_SECRET" >> "$GITHUB_ENV"
+        echo "OAUTH2_CLIENT_SECRET=$CLIENT_SECRET" >> "$GITHUB_ENV"
+
     - name: Install Rust
       uses: actions-rs/toolchain@v1
       with:
@@ -77,3 +84,4 @@ jobs:
 
     - name: Run clippy
       run: cargo clippy -- -D warnings
+
