@@ -40,7 +40,7 @@ jobs:
     # Build Docker image for integration tests
     - name: Build Docker image
       run: |
-        docker build -t numberguess-claude-rust:latest .
+        docker build --build-arg BUILD_TYPE=debug -t numberguess-claude-rust:latest .
 
     - name: Verify Docker image
       run: |
@@ -50,16 +50,27 @@ jobs:
     - name: Run unit tests
       run: cargo test --lib
 
+    # Start Docker Compose services for integration tests
+    - name: Start integration test services
+      run: |
+        docker compose -f docker-compose.yml -f docker-compose.integration.yml --profile integration up -d --wait
+        echo "All services are healthy and ready"
+
     # Run integration tests (uses Docker)
     - name: Run integration tests
+      env:
+        GAME_SERVER_BASE_URL: http://localhost:8080
+        GAME_SERVER_BROWSER_URL: http://oauth2-proxy:4180
+        SELENIUM_REMOTE_URL: http://localhost:4444
+        TEST_DB_NAME: numberguess_test
       run: |
-        cargo test --test integration_test
-        cargo test --test web_endpoints_test
-        cargo test --test api_edge_cases_test
+        cargo test --tests -- --test-threads=1
 
-    # Run web UI tests (uses Docker + Selenium)
-    - name: Run web UI tests
-      run: cargo test --test web_ui_test
+    # Cleanup: Stop integration test services
+    - name: Stop integration test services
+      if: always()
+      run: |
+        docker compose -f docker-compose.yml -f docker-compose.integration.yml --profile integration down -v
 
     - name: Check code formatting
       run: cargo fmt --check
