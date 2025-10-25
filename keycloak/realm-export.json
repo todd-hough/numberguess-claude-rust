@@ -43,7 +43,7 @@
       "description": "OAuth2/OIDC client for the number guessing game",
       "enabled": true,
       "clientAuthenticatorType": "client-secret",
-      "secret": "95hMa5T1hokrdStmaSWwrSCa1nHJxxCTifJzEqoeY9Y",
+      "secret": "DEV-CLIENT-NOT-PRODUCTION-00000",
       "redirectUris": [
         "http://localhost:8080/oauth2/callback",
         "http://oauth2-proxy:4180/oauth2/callback"

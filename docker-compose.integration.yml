@@ -35,7 +35,7 @@ services:
       - --provider-display-name=Keycloak
       - --oidc-issuer-url=http://keycloak:8090/realms/numberguess
       - --client-id=numberguess-client
-      - --client-secret=${OAUTH2_CLIENT_SECRET:-your-client-secret-change-me}
+      - --client-secret=${OAUTH2_CLIENT_SECRET:-DEV-CLIENT-NOT-PRODUCTION-00000}
       - --redirect-url=http://oauth2-proxy:4180/oauth2/callback
       - --code-challenge-method=S256
       - --insecure-oidc-skip-issuer-verification=true
@@ -44,7 +44,7 @@ services:
       - --session-store-type=redis
       - --redis-connection-url=redis://redis:6379
       - --cookie-name=_oauth2_proxy
-      - --cookie-secret=${OAUTH2_COOKIE_SECRET:-CHANGE_ME_GENERATE_32_BYTE_SECRET}
+      - --cookie-secret=${OAUTH2_COOKIE_SECRET:-DEV-LOCAL-NOT-PRODUCTION-0000000}
       - --cookie-secure=false
       - --cookie-httponly=true
       - --cookie-samesite=lax

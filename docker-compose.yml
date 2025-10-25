@@ -73,6 +73,9 @@ services:
       start_period: 60s
 
   # oauth2-proxy - Authentication Gateway
+  # IMPORTANT: Development-only secrets hardcoded below (DEV-LOCAL-TESTING-ONLY-*)
+  # These are intentionally committed and clearly marked as non-production.
+  # Production deployments must override with environment-specific secrets.
   oauth2-proxy:
     image: quay.io/oauth2-proxy/oauth2-proxy:v7.7.1-alpine
     profiles:
@@ -89,7 +92,7 @@ services:
       - --provider-display-name=Keycloak
       - --oidc-issuer-url=http://keycloak:8090/realms/numberguess
       - --client-id=numberguess-client
-      - --client-secret=${OAUTH2_CLIENT_SECRET:-your-client-secret-change-me}
+      - --client-secret=${OAUTH2_CLIENT_SECRET:-DEV-CLIENT-NOT-PRODUCTION-00000}
       - --redirect-url=http://localhost:8080/oauth2/callback
       - --code-challenge-method=S256
       - --insecure-oidc-skip-issuer-verification=true
@@ -104,7 +107,7 @@ services:
 
       # Cookie Configuration
       - --cookie-name=_oauth2_proxy
-      - --cookie-secret=${OAUTH2_COOKIE_SECRET:-CHANGE_ME_GENERATE_32_BYTE_SECRET}
+      - --cookie-secret=${OAUTH2_COOKIE_SECRET:-DEV-LOCAL-NOT-PRODUCTION-0000000}
       - --cookie-secure=false
       - --cookie-httponly=true
       - --cookie-samesite=lax

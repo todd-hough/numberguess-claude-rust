@@ -5,11 +5,7 @@
         compose-up compose-down \
         release status info quick check reset
 
-# Load environment variables from .env file if it exists
--include .env
-export
-
-# Database configuration defaults (can be overridden by .env)
+# Database configuration defaults (can be overridden by environment variables)
 POSTGRES_USER ?= numberguess
 POSTGRES_PASSWORD ?= password
 POSTGRES_DB ?= numberguess_dev
@@ -347,11 +343,6 @@ check:
 		echo "✓ Devcontainer CLI found: $(DEVCONTAINER_BIN)"; \
 	else \
 		echo "⚠ Devcontainer CLI not found (optional)"; \
-	fi
-	@if [ -f .env ]; then \
-		echo "✓ .env file exists"; \
-	else \
-		echo "⚠ .env file not found (will use defaults)"; \
 	fi
 	@echo ""
 	@echo "✓ All prerequisites satisfied!"

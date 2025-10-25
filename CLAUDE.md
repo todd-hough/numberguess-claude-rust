@@ -210,6 +210,7 @@ Server initialization and routing:
 - **Network Isolation**: Application runs on port 4080 (internal only, not exposed)
 - **Session Security**: Redis-backed sessions with secure cookies (httponly, samesite=lax)
 - **OAuth2 Security**: PKCE with S256 challenge method
+- **Development Secrets**: Hardcoded in docker-compose (clearly marked `DEV-LOCAL-TESTING-ONLY-*`). Production deployments must override with environment-specific secrets via proper secret management.
 - **Input Validation**: Prevents integer overflow
 - **Range Limits**: Prevent DoS via large ranges
 - **Database**: PostgreSQL with connection pooling and SQL injection protection
@@ -597,8 +598,7 @@ Common Issues:
 ├── Dockerfile       # Container configuration
 ├── docker-compose.yml # Docker Compose for development
 ├── .dockerignore    # Docker build exclusions
-├── .env             # Environment variables (DATABASE_URL)
-├── .env.example     # Example environment configuration
+├── .env             # Optional: Override environment variables (not required, defaults in docker-compose)
 ├── Makefile         # Make command runner with shortcuts (dc-up, dc-down, dc-attach)
 ├── build.rs         # Build script (Docker image for tests)
 ├── run_integration_tests.sh  # Test runner (Linux/macOS)
@@ -653,7 +653,7 @@ ERROR number_guessing_game::web: Failed to make guess game_id=12345 error="Datab
 - Start with `info` level for normal operation
 - Use `debug` when troubleshooting issues
 - Use `trace` for deep debugging (very verbose)
-- In `.env` file: Set `RUST_LOG=number_guessing_game=info` (see `.env.example`)
+- Set via environment: `RUST_LOG=number_guessing_game=info cargo run -- --server`
 
 **Stdout vs Stderr:**
 - **Stderr**: Structured logs via `tracing` (for monitoring, debugging)
@@ -679,9 +679,8 @@ make dev-db
 cargo run -- --server
 
 # Option 3: Use existing PostgreSQL instance
-# Copy .env.example to .env and set your DATABASE_URL
-cp .env.example .env
-# Edit .env with your database credentials
+# Set DATABASE_URL environment variable with your connection string
+DATABASE_URL=postgresql://user:pass@localhost:5432/dbname cargo run -- --server
 ```
 
 **Database Schema:**
@@ -694,16 +693,16 @@ cp .env.example .env
 - **Automatic migrations**: Migrations run on server startup
 - **Persistent storage**: Games persist across server restarts
 - **Auto-cleanup**: Completed games are automatically deleted from database
-- **Environment variables**: DATABASE_URL required for web mode (see `.env.example`)
+- **Environment variables**: DATABASE_URL required for web mode (docker-compose provides defaults)
 
 **Database Configuration:**
-The database name and credentials are centralized via environment variables in `.env` file:
+The database name and credentials have sensible defaults in docker-compose.yml and Makefile:
 - `POSTGRES_USER`: Database username (default: `numberguess`)
 - `POSTGRES_PASSWORD`: Database password (default: `password`)
 - `POSTGRES_DB`: Database name (default: `numberguess_dev`)
 - `DATABASE_URL`: Full connection string (uses the variables above)
 
-All configuration files (docker-compose.yml, Makefile) reference these environment variables, providing a single source of truth. To change the database name, simply update `.env` and all components will use the new value.
+All configuration files reference these environment variables with defaults, providing a single source of truth. To customize, set environment variables before running commands (e.g., `POSTGRES_DB=mydb make dev`).
 
 **Default Credentials:**
 - User: `numberguess`
