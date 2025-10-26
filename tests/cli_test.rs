@@ -5,7 +5,7 @@ use predicates::prelude::*;
 fn test_cli_basic_game_flow() {
     // Test with a fixed number range where min=max to guarantee the answer
     let mut cmd = Command::cargo_bin("number_guessing_game").unwrap();
-    cmd.args(&["--min", "5", "--max", "5", "--limit", "1"])
+    cmd.args(["--min", "5", "--max", "5", "--limit", "1"])
         .write_stdin("5\n")
         .assert()
         .success()
@@ -19,7 +19,7 @@ fn test_cli_basic_game_flow() {
 fn test_cli_with_wrong_guess() {
     // Test with wrong guess and limit reached
     let mut cmd = Command::cargo_bin("number_guessing_game").unwrap();
-    cmd.args(&["--min", "5", "--max", "5", "--limit", "1"])
+    cmd.args(["--min", "5", "--max", "5", "--limit", "1"])
         .write_stdin("3\n")
         .assert()
         .success()
@@ -43,7 +43,7 @@ fn test_cli_help_output() {
 fn test_cli_server_mode() {
     // Test that server mode can be invoked (we'll kill it immediately)
     let mut cmd = Command::cargo_bin("number_guessing_game").unwrap();
-    cmd.args(&["--server", "--port", "0"]) // Port 0 lets OS assign
+    cmd.args(["--server", "--port", "0"]) // Port 0 lets OS assign
         .timeout(std::time::Duration::from_millis(100))
         .assert()
         .failure(); // Will fail due to timeout, which is expected
@@ -53,7 +53,7 @@ fn test_cli_server_mode() {
 fn test_cli_multiple_guesses() {
     // Test multiple guesses with a small range
     let mut cmd = Command::cargo_bin("number_guessing_game").unwrap();
-    cmd.args(&["--min", "1", "--max", "3", "--limit", "3"])
+    cmd.args(["--min", "1", "--max", "3", "--limit", "3"])
         .write_stdin("1\n2\n3\n") // Try all possibilities
         .assert()
         .success()
@@ -64,7 +64,7 @@ fn test_cli_multiple_guesses() {
 fn test_cli_invalid_input_recovery() {
     // Test that invalid input is handled gracefully
     let mut cmd = Command::cargo_bin("number_guessing_game").unwrap();
-    cmd.args(&["--min", "5", "--max", "5"])
+    cmd.args(["--min", "5", "--max", "5"])
         .write_stdin("n\nabc\n5\n") // n for no limit, then invalid guess, then valid guess
         .assert()
         .success()

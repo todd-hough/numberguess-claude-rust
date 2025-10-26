@@ -123,16 +123,15 @@ async fn test_unauthenticated_web_ui_redirects_to_login() {
     );
 
     // If it's a redirect, verify it's to Keycloak
-    if response.status().is_redirection() {
-        if let Some(location) = response.headers().get("location") {
-            let location_str = location.to_str().unwrap_or("");
-            assert!(
-                location_str.contains("keycloak") || location_str.contains("oauth2"),
-                "Redirect should be to Keycloak login, got: {}",
-                location_str
-            );
-            println!("✓ Redirected to Keycloak: {}", location_str);
-        }
+    if response.status().is_redirection()
+        && let Some(location) = response.headers().get("location") {
+        let location_str = location.to_str().unwrap_or("");
+        assert!(
+            location_str.contains("keycloak") || location_str.contains("oauth2"),
+            "Redirect should be to Keycloak login, got: {}",
+            location_str
+        );
+        println!("✓ Redirected to Keycloak: {}", location_str);
     }
 
     println!("✅ Unauthenticated web UI redirect test passed");

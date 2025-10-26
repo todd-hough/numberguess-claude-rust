@@ -99,10 +99,9 @@ pub fn ensure_selenium_ready() -> Option<String> {
     let status_endpoint = format!("{}/status", url.trim_end_matches('/'));
 
     while attempts < max_attempts {
-        if let Ok(resp) = client.get(&status_endpoint).send() {
-            if resp.status().is_success() {
-                return Some(url);
-            }
+        if let Ok(resp) = client.get(&status_endpoint).send()
+            && resp.status().is_success() {
+            return Some(url);
         }
         attempts += 1;
         thread::sleep(Duration::from_secs(1));
@@ -129,11 +128,10 @@ pub fn ensure_keycloak_ready() -> String {
     eprintln!("Waiting for Keycloak to be ready at {}...", url);
 
     while attempts < max_attempts {
-        if let Ok(resp) = client.get(&health_endpoint).send() {
-            if resp.status().is_success() {
-                eprintln!("✓ Keycloak is ready");
-                return url;
-            }
+        if let Ok(resp) = client.get(&health_endpoint).send()
+            && resp.status().is_success() {
+            eprintln!("✓ Keycloak is ready");
+            return url;
         }
         attempts += 1;
         thread::sleep(Duration::from_secs(1));
