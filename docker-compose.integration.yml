@@ -24,9 +24,7 @@ services:
       KC_HOSTNAME_PORT: 8090
     profiles:
       - integration
-    depends_on:
-      postgres:
-        condition: service_healthy
+    # Removed postgres dependency - Keycloak uses H2 in-memory database
   oauth2-proxy:
     command:
       # Override redirect URL for integration tests to use internal Docker hostname

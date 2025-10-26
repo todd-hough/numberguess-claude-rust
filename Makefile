@@ -208,7 +208,7 @@ test-integration: docker-check
 	@echo "Note: Environment will remain running after tests for debugging"
 	@echo "Use 'make test-down' to stop when done"
 	@echo ""
-	$(COMPOSE_STACK) --profile integration up -d --wait
+	$(COMPOSE_STACK) --profile integration up -d --wait --wait-timeout 120
 	@echo ""
 	@echo "Running integration tests..."
 	GAME_SERVER_BASE_URL=http://localhost:8080 \

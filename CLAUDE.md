@@ -400,7 +400,7 @@ make test-down
 ```
 
 **IMPORTANT - Integration Test Startup Time:**
-Integration tests take ~5 minutes to start all services (postgres, redis, keycloak, oauth2-proxy, selenium, app). The `make test-integration` command uses `docker compose up --wait` which automatically waits for all health checks to pass before running tests.
+Integration tests take ~2-3 minutes to start all services (postgres, redis, keycloak, oauth2-proxy, selenium, app). Keycloak uses an H2 in-memory database for faster startup (~60s vs 90+ seconds with PostgreSQL). The `make test-integration` command starts services and waits for health checks before running tests.
 
 **To monitor service startup progress:**
 ```bash
@@ -411,7 +411,7 @@ make test-integration
 watch -n 2 'docker compose ps'
 
 # Or check specific service logs
-docker compose logs -f keycloak    # Slowest service (~30-60s)
+docker compose logs -f keycloak    # Slowest service (~60s with H2 migrations)
 docker compose logs -f app
 docker compose logs -f oauth2-proxy
 
@@ -424,11 +424,11 @@ The startup sequence completes when all services show "healthy" status. The `mak
 **Test Startup Sequence:**
 Docker Compose now handles service orchestration automatically via health checks and dependencies:
 1. postgres, redis start first (parallel)
-2. keycloak starts after postgres is healthy (30-60s - imports realm configuration)
+2. keycloak starts independently using H2 in-memory database (~60s - runs migrations + imports realm)
 3. app starts after postgres is healthy
 4. oauth2-proxy starts after keycloak, redis, and app are all healthy
 5. selenium starts after oauth2-proxy and app are healthy
-6. `docker compose up --wait` ensures all services are healthy before tests run
+6. Makefile waits for services to be healthy before running tests (custom wait logic)
 7. Tests run with `--test-threads=1` (prevents session conflicts)
 8. Environment stays running after tests complete (for debugging)
 
@@ -455,17 +455,18 @@ Service Health Checks:
 - Redis: TCP connection to localhost:6379
 
 Common Issues:
-- **"Keycloak not responding"**: Keycloak can take 30-60s to start (Docker Compose waits automatically)
+- **"Keycloak not responding"**: Keycloak takes ~60s to start (H2 migrations + realm import, health checks wait automatically)
 - **"Session cookie not found"**: OAuth2 flow may have failed, check Keycloak logs
 - **Test timeouts**: Use `--test-threads=1` to avoid parallel execution conflicts
 - **Port conflicts**: Ensure ports 4080, 5432, 6379, 8080, 8081, 8090 are available
 - **Services not starting**: Check `docker compose -f docker-compose.yml -f docker-compose.integration.yml --profile integration ps`
 
 **Performance Notes:**
-- **Full stack startup**: ~90 seconds (Keycloak is slowest component, health checks handle timing)
+- **Full stack startup**: ~60-70 seconds (Keycloak with H2 in-memory is main bottleneck)
+- **Keycloak optimization**: Uses H2 in-memory database instead of PostgreSQL for 30-40% faster startup
 - **Subsequent runs**: Instant if services already running (idempotent `docker compose up`)
 - **All tests**: 2-3s overhead per test for OAuth2 login (Selenium-based)
-- **Total test suite**: ~3-5 minutes with full auth stack
+- **Total test suite**: ~3-4 minutes with full auth stack
 
 ## Common Tasks
 

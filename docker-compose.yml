@@ -55,6 +55,7 @@ services:
       KC_HOSTNAME_PORT: 8090
       KC_HOSTNAME_STRICT: false
       KC_HTTP_ENABLED: true
+      KC_DB: dev-mem  # Use H2 in-memory database for faster startup
     command:
       - start-dev
       - --import-realm
@@ -62,15 +63,13 @@ services:
       - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm.json:ro
     ports:
       - "8090:8090"
-    depends_on:
-      postgres:
-        condition: service_healthy
+    # Removed postgres dependency - using H2 in-memory database
     healthcheck:
       test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/9000 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && timeout 2 cat <&3 | grep -q 'HTTP/1.1 200'"]
-      interval: 15s
+      interval: 5s        # Check frequently once started
       timeout: 5s
-      retries: 10
-      start_period: 60s
+      retries: 12         # 60s of retries after grace period
+      start_period: 55s   # H2 migrations + realm import take 55-60s total
 
   # oauth2-proxy - Authentication Gateway
   # IMPORTANT: Development-only secrets hardcoded below (DEV-LOCAL-TESTING-ONLY-*)
