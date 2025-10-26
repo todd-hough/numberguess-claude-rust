@@ -8,7 +8,6 @@ use crate::db::GameRepository;
 use crate::server::state::AppState;
 use crate::web::templates::{ErrorTemplate, GameStartedTemplate};
 use crate::web::types::CreateGameRequest;
-use askama_axum::IntoResponse as AskamaIntoResponse;
 use axum::{
     extract::{Form, State},
     response::IntoResponse,
@@ -45,7 +44,7 @@ pub async fn create_game_web<R: GameRepository>(
             "Web: Game creation failed - invalid range"
         );
         let template = ErrorTemplate { error_message: &e };
-        return AskamaIntoResponse::into_response(template);
+        return template.into_response();
     }
 
     // Validate guess limit using shared validator
@@ -59,7 +58,7 @@ pub async fn create_game_web<R: GameRepository>(
                     "Web: Game creation failed - invalid guess limit"
                 );
                 let template = ErrorTemplate { error_message: &e };
-                return AskamaIntoResponse::into_response(template);
+                return template.into_response();
             }
         }
     } else {
@@ -96,7 +95,7 @@ pub async fn create_game_web<R: GameRepository>(
             let template = ErrorTemplate {
                 error_message: &err_str,
             };
-            return AskamaIntoResponse::into_response(template);
+            return template.into_response();
         }
     };
 
@@ -106,5 +105,5 @@ pub async fn create_game_web<R: GameRepository>(
         max: payload.max,
         max_guesses: guess_limit,
     };
-    AskamaIntoResponse::into_response(template)
+    template.into_response()
 }

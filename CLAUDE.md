@@ -722,8 +722,8 @@ All configuration files reference these environment variables with defaults, pro
 - **sqlx**: PostgreSQL driver with runtime-checked queries (v0.8)
 - **dotenvy**: .env file support (v0.15)
 - **thiserror**: Error derive macros (v2.0)
-- **askama**: Type-safe compile-time HTML templates (v0.12)
-- **askama_axum**: Askama integration with Axum (v0.4)
+- **askama**: Type-safe compile-time HTML templates (v0.14)
+- **askama_web**: Askama web framework integration (v0.14)
 - **tracing**: Structured, async-aware logging framework (v0.1)
 - **tracing-subscriber**: Log collection and formatting with env-filter (v0.3)
 

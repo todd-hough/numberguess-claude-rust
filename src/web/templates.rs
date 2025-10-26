@@ -6,16 +6,17 @@
 use crate::core::GameId;
 use crate::core::features::difficulty::DifficultyInfo;
 use askama::Template;
+use askama_web::WebTemplate;
 
 /// Template for displaying error messages
-#[derive(Template)]
+#[derive(Template, WebTemplate)]
 #[template(path = "error.html")]
 pub struct ErrorTemplate<'a> {
     pub error_message: &'a str,
 }
 
 /// Template for game initialization screen
-#[derive(Template)]
+#[derive(Template, WebTemplate)]
 #[template(path = "game_started.html")]
 pub struct GameStartedTemplate {
     pub game_id: GameId,
@@ -25,7 +26,7 @@ pub struct GameStartedTemplate {
 }
 
 /// Template for guess form with feedback
-#[derive(Template)]
+#[derive(Template, WebTemplate)]
 #[template(path = "guess_form.html")]
 pub struct GuessFormTemplate {
     pub game_id: GameId,
@@ -37,7 +38,7 @@ pub struct GuessFormTemplate {
 }
 
 /// Template for game completion (win or lose)
-#[derive(Template)]
+#[derive(Template, WebTemplate)]
 #[template(path = "game_complete.html")]
 pub struct GameCompleteTemplate {
     pub feedback_class: String,
@@ -48,17 +49,17 @@ pub struct GameCompleteTemplate {
 }
 
 /// Template for game not found error
-#[derive(Template)]
+#[derive(Template, WebTemplate)]
 #[template(path = "game_not_found.html")]
 pub struct GameNotFoundTemplate;
 
 /// Template for update error
-#[derive(Template)]
+#[derive(Template, WebTemplate)]
 #[template(path = "update_error.html")]
 pub struct UpdateErrorTemplate;
 
 /// Template for difficulty indicator preview
-#[derive(Template)]
+#[derive(Template, WebTemplate)]
 #[template(path = "difficulty_indicator.html")]
 pub struct DifficultyIndicator {
     pub info: DifficultyInfo,

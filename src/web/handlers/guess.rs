@@ -10,7 +10,6 @@ use crate::web::templates::{
     GameCompleteTemplate, GameNotFoundTemplate, GuessFormTemplate, UpdateErrorTemplate,
 };
 use crate::web::types::MakeGuessRequest;
-use askama_axum::IntoResponse as AskamaIntoResponse;
 use axum::{
     extract::{Form, Path, State},
     response::IntoResponse,
@@ -46,7 +45,7 @@ pub async fn make_guess_web<R: GameRepository>(
                 game_id = %game_id,
                 "Web: Guess failed - game not found"
             );
-            return AskamaIntoResponse::into_response(GameNotFoundTemplate);
+            return GameNotFoundTemplate.into_response();
         }
         Err(e) => {
             error!(
@@ -55,7 +54,7 @@ pub async fn make_guess_web<R: GameRepository>(
                 error = %e,
                 "Web: Failed to process guess"
             );
-            return AskamaIntoResponse::into_response(UpdateErrorTemplate);
+            return UpdateErrorTemplate.into_response();
         }
     };
 
@@ -82,7 +81,7 @@ pub async fn make_guess_web<R: GameRepository>(
                         error = %e,
                         "Web: Failed to fetch game state after guess"
                     );
-                    return AskamaIntoResponse::into_response(UpdateErrorTemplate);
+                    return UpdateErrorTemplate.into_response();
                 }
             };
 
@@ -122,7 +121,7 @@ pub async fn make_guess_web<R: GameRepository>(
                 feedback_class,
                 feedback_message,
             };
-            AskamaIntoResponse::into_response(template)
+            template.into_response()
         }
         GuessResult::Correct { number, attempts } => {
             info!(
@@ -142,7 +141,7 @@ pub async fn make_guess_web<R: GameRepository>(
                 number,
                 attempts: Some(attempts),
             };
-            AskamaIntoResponse::into_response(template)
+            template.into_response()
         }
         GuessResult::LimitReached {
             number,
@@ -168,7 +167,7 @@ pub async fn make_guess_web<R: GameRepository>(
                 number,
                 attempts: None,
             };
-            AskamaIntoResponse::into_response(template)
+            template.into_response()
         }
     }
 }

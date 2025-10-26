@@ -39,7 +39,8 @@
       "Bash(git config --get:*)",
       "Bash(cargo fmt:*)",
       "Bash(cargo clippy:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "WebFetch(domain:docs.rs)"
     ],
     "deny": [
       "Bash(git push:*)",
