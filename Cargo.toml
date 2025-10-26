@@ -24,7 +24,7 @@ sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "tls-rustls",
 dotenvy = "0.15"
 thiserror = "2.0"
 askama = { version = "0.12", features = ["with-axum"] }
-askama_axum = "0.4"
+askama_axum = "0.5"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 
