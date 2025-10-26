@@ -100,7 +100,8 @@ pub fn ensure_selenium_ready() -> Option<String> {
 
     while attempts < max_attempts {
         if let Ok(resp) = client.get(&status_endpoint).send()
-            && resp.status().is_success() {
+            && resp.status().is_success()
+        {
             return Some(url);
         }
         attempts += 1;
@@ -129,7 +130,8 @@ pub fn ensure_keycloak_ready() -> String {
 
     while attempts < max_attempts {
         if let Ok(resp) = client.get(&health_endpoint).send()
-            && resp.status().is_success() {
+            && resp.status().is_success()
+        {
             eprintln!("✓ Keycloak is ready");
             return url;
         }
