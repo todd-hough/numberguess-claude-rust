@@ -5,7 +5,29 @@
 
 version: 2
 updates:
-  - package-ecosystem: "cargo" # See documentation for possible values
-    directory: "/" # Location of package manifests
+  # Rust dependencies
+  - package-ecosystem: "cargo"
+    directory: "/"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "rust"
+
+  # Docker dependencies (Dockerfile, docker-compose.yml)
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "docker"
+
+  # GitHub Actions dependencies
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ci"
