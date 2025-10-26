@@ -1,0 +1,47 @@
+# Cargo audit configuration
+# Documents accepted security risks with justification
+
+[advisories]
+# RUSTSEC-2023-0071: RSA Marvin Attack vulnerability (rsa 0.9.8 in sqlx-mysql)
+# Severity: Medium (5.9)
+#
+# Why this is ignored:
+# - Application only uses PostgreSQL, never MySQL
+# - The vulnerable rsa crate is a transitive dependency via sqlx-mysql
+# - sqlx 0.8.x umbrella crate includes all database drivers (mysql, postgres, sqlite)
+#   in Cargo.lock regardless of features enabled
+# - The MySQL driver and RSA authentication code is NEVER executed at runtime
+# - Cargo.lock shows dependency path: rsa → sqlx-mysql → sqlx → our app
+# - Runtime verification: `cargo tree` shows no mysql in actual dependency graph
+#
+# Mitigation steps taken:
+# 1. Removed sqlx "macros" feature (switched from compile-time to runtime migrations)
+# 2. Used default-features = false with explicit feature selection
+# 3. Only enabled: postgres, runtime-tokio, tls-rustls, migrate
+# 4. This minimizes attack surface but cannot remove sqlx-mysql from Cargo.lock
+#    due to sqlx 0.8.x architecture
+#
+# Future resolution:
+# - Monitoring sqlx 0.9 (currently alpha) which may restructure dependencies
+# - Consider switching to sqlx-postgres crate directly if sqlx 0.9 doesn't resolve
+#
+# Risk assessment: ACCEPTED - Code path never executed, no actual exposure
+#
+# RUSTSEC-2024-0436: paste crate unmaintained (via thirtyfour 0.33.0)
+#
+# Why this is ignored:
+# - Dev-dependency only (thirtyfour Selenium WebDriver client for integration tests)
+# - Not included in production builds (only [dev-dependencies])
+# - No known security exploits for this crate
+# - paste is a proc-macro for code generation at compile time (no runtime risk)
+#
+# Why we can't upgrade:
+# - thirtyfour 0.36+ has Selenium Grid 4 WebDriver endpoint compatibility issues
+# - Tests fail with "Unable to find handler for (POST) /wd/session"
+# - Requires thirtyfour maintainers to fix Selenium compatibility
+#
+# Risk assessment: ACCEPTED - Dev-only dependency, no production impact, no known exploits
+ignore = [
+    "RUSTSEC-2023-0071",  # rsa - Marvin Attack (in unused sqlx-mysql, never executed)
+    "RUSTSEC-2024-0436",  # paste - unmaintained (dev-only, proc-macro, no exploits)
+]
