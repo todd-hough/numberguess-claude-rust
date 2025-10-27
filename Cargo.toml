@@ -32,4 +32,4 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 reqwest = { version = "0.12.23", features = ["json", "blocking"] }
 assert_cmd = "2.0"
 predicates = "3.0"
-thirtyfour = "0.33.0"  # WebDriver client for browser testing
+thirtyfour = "0.36.1"  # WebDriver client for browser testing
