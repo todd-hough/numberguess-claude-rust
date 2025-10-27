@@ -5,7 +5,7 @@ FROM rust:1.90-slim AS builder
 ARG BUILD_TYPE=release
 
 # Install build dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
     libssl-dev \
     && rm -rf /var/lib/apt/lists/*
@@ -29,7 +29,7 @@ FROM debian:bookworm-slim
 ARG BUILD_TYPE=release
 
 # Install runtime dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 

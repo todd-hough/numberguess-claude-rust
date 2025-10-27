@@ -3,7 +3,8 @@
         devcontainer-up devcontainer-down devcontainer-attach devcontainer-restart devcontainer-status \
         dc-up dc-down dc-attach dc-shell dc-restart dc-status \
         compose-up compose-down \
-        release status info quick check reset
+        release status info quick check reset \
+        security security-audit security-dockerfile security-scan
 
 # Database configuration defaults (can be overridden by environment variables)
 POSTGRES_USER ?= numberguess
@@ -51,6 +52,14 @@ help:
 	@echo ""
 	@echo "  Note: test-integration keeps environment running for debugging"
 	@echo "        Use test-down when finished to clean up resources"
+	@echo ""
+	@echo "════════════════════════════════════════════════════════════════"
+	@echo "SECURITY"
+	@echo "════════════════════════════════════════════════════════════════"
+	@echo "  make security           - Run all security checks"
+	@echo "  make security-audit     - Audit Rust dependencies (cargo-audit)"
+	@echo "  make security-dockerfile - Lint Dockerfile (Hadolint)"
+	@echo "  make security-scan      - Scan container image (Trivy)"
 	@echo ""
 	@echo "════════════════════════════════════════════════════════════════"
 	@echo "DEVELOPMENT (App + Database)"
@@ -362,6 +371,55 @@ reset:
 	@$(MAKE) dev
 	@echo ""
 	@echo "✓ Reset complete!"
+
+## security-audit: Audit Rust dependencies for vulnerabilities
+security-audit:
+	@echo "Checking for cargo-audit..."
+	@command -v cargo-audit >/dev/null 2>&1 || { \
+		echo "Installing cargo-audit..."; \
+		cargo install cargo-audit; \
+	}
+	@echo "Running cargo-audit..."
+	cargo audit
+
+## security-dockerfile: Lint Dockerfile with Hadolint
+security-dockerfile:
+	@echo "Running Hadolint on Dockerfile..."
+	docker run --rm -i -v $(PWD)/.hadolint.yaml:/.config/hadolint.yaml hadolint/hadolint < Dockerfile
+
+## security-scan: Build and scan Docker image with Trivy
+security-scan:
+	@echo "Building Docker image (debug mode)..."
+	docker build --build-arg BUILD_TYPE=debug -t numberguess-security-scan:latest .
+	@echo ""
+	@echo "Running Trivy security scan..."
+	docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+		aquasec/trivy image --severity HIGH,CRITICAL numberguess-security-scan:latest
+	@echo ""
+	@echo "Cleaning up scan image..."
+	-docker rmi numberguess-security-scan:latest
+
+## security: Run all security checks (audit + dockerfile + scan)
+security:
+	@echo "════════════════════════════════════════════════════════════════"
+	@echo "Running Security Checks"
+	@echo "════════════════════════════════════════════════════════════════"
+	@echo ""
+	@echo "1/3 Dependency Audit (cargo-audit)"
+	@echo "────────────────────────────────────────────────────────────────"
+	@$(MAKE) security-audit
+	@echo ""
+	@echo "2/3 Dockerfile Lint (Hadolint)"
+	@echo "────────────────────────────────────────────────────────────────"
+	@$(MAKE) security-dockerfile
+	@echo ""
+	@echo "3/3 Container Scan (Trivy)"
+	@echo "────────────────────────────────────────────────────────────────"
+	@$(MAKE) security-scan
+	@echo ""
+	@echo "════════════════════════════════════════════════════════════════"
+	@echo "✓ All security checks completed!"
+	@echo "════════════════════════════════════════════════════════════════"
 
 ## clean: Clean up build artifacts and Docker resources
 clean:

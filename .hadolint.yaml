@@ -1,0 +1,11 @@
+# Hadolint configuration for Dockerfile linting
+# See: https://github.com/hadolint/hadolint
+
+ignored:
+  # DL3008: Pin versions in apt-get install
+  # We intentionally don't pin package versions because:
+  # - Base images are already pinned (rust:1.90-slim, debian:bookworm-slim)
+  # - Allows automatic security updates from Debian
+  # - Prevents build breakage when packages are updated/removed
+  # - Reduces maintenance burden
+  - DL3008
