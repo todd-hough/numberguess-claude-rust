@@ -736,9 +736,9 @@ All configuration files reference these environment variables with defaults, pro
 - **tokio-test**: Async testing utilities (v0.4)
 
 ## Version Information
-- **Rust Version**: 1.89.0 (29483883e 2025-08-04)
+- **Rust Version**: 1.90.0 (1159e78c4 2025-09-14)
 - **Rust Edition**: 2024
-- **Last Updated**: Dependencies updated to latest versions (Aug 2025)
+- **Last Updated**: Dependencies updated to latest versions (Sept 2025)
 
 ## Performance Considerations
 - Each game stores minimal state (5 fields)
