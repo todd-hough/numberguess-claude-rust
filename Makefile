@@ -394,7 +394,7 @@ security-scan:
 	@echo ""
 	@echo "Running Trivy security scan..."
 	docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-		aquasec/trivy image --severity HIGH,CRITICAL numberguess-security-scan:latest
+		aquasec/trivy image --quiet --format json --severity HIGH,CRITICAL numberguess-security-scan:latest
 	@echo ""
 	@echo "Cleaning up scan image..."
 	-docker rmi numberguess-security-scan:latest

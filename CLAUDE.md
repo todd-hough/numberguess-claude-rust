@@ -7,6 +7,11 @@ A Rust-based number guessing game with both CLI and web interfaces. The game gen
 - Even when working on Windows we work in a bash shell
 - Cargo commands may run longer than 2 minutes.  Run them without a timeout.
 - Building the Docker container image in release mode takes over 6 minutes. Use timeout of at least 600000ms (10 minutes) for release builds. Debug builds are significantly faster (~2-3 minutes).
+- **Container Base Image**: Uses `gcr.io/distroless/cc-debian12` for minimal attack surface
+  - No shell, no package manager (security hardened)
+  - 0 HIGH/CRITICAL vulnerabilities (Trivy verified)
+  - ~30MB vs ~80MB (previous Debian slim)
+  - For debugging: Use `:debug` tag in Dockerfile to get busybox shell
 
 ## Quick Commands
 

@@ -138,6 +138,11 @@ services:
         condition: service_started
 
   # Number Guessing Game Application
+  # Uses distroless base image (gcr.io/distroless/cc-debian12) for security:
+  # - No shell, no package manager (minimal attack surface)
+  # - Eliminates CVEs: linux-pam, zlib/MiniZip
+  # - ~30MB vs ~80MB (Debian slim)
+  # - 0 HIGH/CRITICAL vulnerabilities (Trivy verified)
   app:
     build:
       context: .

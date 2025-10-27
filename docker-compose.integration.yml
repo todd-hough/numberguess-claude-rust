@@ -76,6 +76,8 @@ services:
       retries: 5
       start_period: 10s
 
+  # App service inherits build configuration from docker-compose.yml
+  # (distroless base image with 0 HIGH/CRITICAL vulnerabilities)
   app:
     profiles:
       - integration

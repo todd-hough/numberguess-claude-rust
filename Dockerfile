@@ -22,19 +22,15 @@ RUN if [ "$BUILD_TYPE" = "release" ]; then \
         cargo build; \
     fi
 
-# Runtime stage
-FROM debian:bookworm-slim
+# Runtime stage - Using distroless for minimal attack surface
+# Mitigates: CVE linux-pam (directory traversal), CVE zlib/MiniZip (heap overflow)
+FROM gcr.io/distroless/cc-debian12
 
 # Build configuration (must match builder stage)
 ARG BUILD_TYPE=release
 
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-
 # Copy the built binary from builder stage (from release or debug dir)
-COPY --from=builder /app/target/${BUILD_TYPE}/number_guessing_game /usr/local/bin/
+COPY --from=builder /app/target/${BUILD_TYPE}/number_guessing_game /usr/local/bin/number_guessing_game
 
 # Set working directory
 WORKDIR /app
@@ -42,9 +38,8 @@ WORKDIR /app
 # Copy static files to working directory
 COPY --from=builder /app/static ./static
 
-# Create a non-root user
-RUN useradd -r -s /bin/false appuser && chown -R appuser:appuser /app
-USER appuser
+# Distroless runs as non-root user "nonroot" (UID 65532) by default
+# No need to create user - distroless has this built-in
 
 # Expose the web ports (main app and health check)
 EXPOSE 8080 8081
@@ -53,5 +48,5 @@ EXPOSE 8080 8081
 ENV RUST_LOG=info
 
 # Default command runs the web server
-ENTRYPOINT ["number_guessing_game"]
+ENTRYPOINT ["/usr/local/bin/number_guessing_game"]
 CMD ["--server", "--port", "8080"]

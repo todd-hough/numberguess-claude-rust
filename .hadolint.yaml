@@ -4,8 +4,9 @@
 ignored:
   # DL3008: Pin versions in apt-get install
   # We intentionally don't pin package versions because:
-  # - Base images are already pinned (rust:1.90-slim, debian:bookworm-slim)
-  # - Allows automatic security updates from Debian
+  # - Base images are already pinned (rust:1.90-slim, gcr.io/distroless/cc-debian12)
+  # - Builder stage: Allows automatic security updates from Debian
+  # - Runtime stage: Uses distroless (no package manager, minimal attack surface)
   # - Prevents build breakage when packages are updated/removed
   # - Reduces maintenance burden
   - DL3008

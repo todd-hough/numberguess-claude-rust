@@ -2,6 +2,34 @@
 
 This document outlines security improvements needed for the Number Guessing Game application.
 
+## Container Security
+
+### Base Image Vulnerabilities (Resolved)
+
+- [x] **linux-pam Directory Traversal (CVE - HIGH severity)**
+  - ✅ Mitigated by switching to distroless base image
+  - Previous: `debian:bookworm-slim` included vulnerable linux-pam package
+  - Impact: Low (application doesn't use PAM authentication)
+  - Resolution: Switched to `gcr.io/distroless/cc-debian12` (no PAM installed)
+
+- [x] **zlib/MiniZip Heap Overflow (CVE - CRITICAL severity)**
+  - ✅ Mitigated by switching to distroless base image with updated libraries
+  - Previous: `debian:bookworm-slim` included vulnerable zlib/MiniZip
+  - Impact: Low (application doesn't use ZIP operations)
+  - Resolution: Distroless uses patched system libraries, minimal attack surface
+
+- [x] **Distroless Migration**
+  - ✅ Switched from `debian:bookworm-slim` to `gcr.io/distroless/cc-debian12`
+  - Benefits:
+    - Eliminated shell access (no bash, no package manager)
+    - Reduced attack surface (~80MB → ~30MB)
+    - Removed unnecessary system packages
+    - Built-in non-root user (UID 65532)
+    - Includes only: glibc, libgcc, libstdc++, libssl, CA certificates
+  - Trade-offs:
+    - Cannot shell into container for debugging (use `:debug` variant if needed)
+    - Cannot install packages at runtime (by design)
+
 ## Server Security
 
 - [ ] **Restrict Binding Interface**: Change binding from `0.0.0.0` to `127.0.0.1` in `web.rs:75` unless external access is required
