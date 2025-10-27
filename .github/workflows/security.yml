@@ -60,6 +60,7 @@ jobs:
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: numberguess:${{ github.sha }}
+          version: v0.67.2
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'HIGH,CRITICAL'
