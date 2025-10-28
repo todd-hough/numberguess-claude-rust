@@ -14,7 +14,7 @@ path = "src/main.rs"
 [dependencies]
 rand = "0.9.2"
 clap = { version = "4.5.45", features = ["derive"] }
-axum = "0.8.4"
+axum = "0.8.6"
 tokio = { version = "1.47.1", features = ["full"] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.142"
@@ -32,4 +32,4 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 reqwest = { version = "0.12.23", features = ["json", "blocking"] }
 assert_cmd = "2.0"
 predicates = "3.0"
-thirtyfour = "0.33.0"  # WebDriver client for browser testing
+thirtyfour = "0.36.1"  # WebDriver client for browser testing

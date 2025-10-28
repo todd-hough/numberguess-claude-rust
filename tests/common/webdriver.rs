@@ -16,11 +16,11 @@ pub async fn create_webdriver_with_timeout(
     caps.add_arg("--disable-dev-shm-usage")?;
 
     println!(
-        "Connecting to Selenium WebDriver at {}/wd/hub with {}s timeout",
+        "Connecting to Selenium WebDriver at {} with {}s timeout",
         selenium_url, timeout_seconds
     );
 
-    // The thirtyfour version doesn't support custom client with timeout, so we use the standard method
-    // but increase the default HTTP timeouts
-    WebDriver::new(&format!("{}/wd/hub", selenium_url), caps).await
+    // Selenium 4.x: Use the URL directly without /wd/hub suffix
+    // (thirtyfour 0.36+ resolves WebDriver API paths relative to server_url)
+    WebDriver::new(selenium_url, caps).await
 }

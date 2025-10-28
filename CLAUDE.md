@@ -720,7 +720,7 @@ All configuration files reference these environment variables with defaults, pro
 
 ### Runtime Dependencies
 - **clap**: CLI parsing with derive macros (v4.5.45)
-- **axum**: Modern web framework (v0.8.4)
+- **axum**: Modern web framework (v0.8.6)
 - **tokio**: Async runtime (v1.47.1)
 - **serde**: JSON serialization (v1.0.219)
 - **tower-http**: Static file serving (v0.6.6)
@@ -733,17 +733,18 @@ All configuration files reference these environment variables with defaults, pro
 - **tracing**: Structured, async-aware logging framework (v0.1)
 - **tracing-subscriber**: Log collection and formatting with env-filter (v0.3)
 
-### Test Dependencies  
+### Test Dependencies
 - **Docker Compose**: Orchestrates Postgres/app/Selenium for integration tests (see `docker-compose.integration.yml`)
 - **reqwest**: HTTP client for API testing (v0.12.23)
 - **assert_cmd**: CLI testing framework (v2.0)
 - **predicates**: Test assertion predicates (v3.0)
+- **thirtyfour**: WebDriver client for browser testing (v0.36.1)
 - **tokio-test**: Async testing utilities (v0.4)
 
 ## Version Information
 - **Rust Version**: 1.90.0 (1159e78c4 2025-09-14)
 - **Rust Edition**: 2024
-- **Last Updated**: Dependencies updated to latest versions (Sept 2025)
+- **Last Updated**: Dependencies updated to latest versions (Oct 2025)
 
 ## Performance Considerations
 - Each game stores minimal state (5 fields)

@@ -100,8 +100,8 @@ A number guessing game that can be run either as a command-line application or a
 - **sqlx**: PostgreSQL driver with runtime-checked queries (v0.8 with postgres, runtime-tokio, tls-rustls, macros, migrate)
 - **dotenvy**: .env file support (v0.15)
 - **thiserror**: Error derive macros (v2.0)
-- **askama**: Type-safe compile-time HTML templates (v0.12 with with-axum)
-- **askama_axum**: Askama integration with Axum (v0.4)
+- **askama**: Type-safe compile-time HTML templates (v0.14)
+- **askama_web**: Askama web framework integration (v0.14 with features: axum-0.8, tracing-0.1)
 - **tracing**: Structured, async-aware logging framework (v0.1)
 - **tracing-subscriber**: Log collection and formatting (v0.3 with env-filter, fmt)
 - **Standard library**: For I/O operations and comparison
@@ -111,7 +111,7 @@ A number guessing game that can be run either as a command-line application or a
 - **tokio-test**: Async testing utilities (v0.4)
 - **assert_cmd**: CLI testing framework (v2.0)
 - **predicates**: Test assertion predicates (v3.0)
-- **thirtyfour**: WebDriver client for browser testing (v0.33.0)
+- **thirtyfour**: WebDriver client for browser testing (v0.36.1)
 
 ### 3. Command-Line Interface
 - **Help command**: Support `--help` flag to display usage information
