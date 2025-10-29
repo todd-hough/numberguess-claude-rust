@@ -122,10 +122,14 @@ jobs:
           echo "✓ Image found with correct tag"
 
       - name: Run Trivy vulnerability scanner (table output for visibility)
+        uses: aquasecurity/trivy-action@master
         continue-on-error: true
-        run: |
-          echo "=== Trivy Vulnerability Scan Results ==="
-          trivy image --severity HIGH,CRITICAL --format table numberguess:${{ github.sha }}
+        with:
+          image-ref: numberguess:${{ github.sha }}
+          version: v0.67.2
+          format: 'table'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '0'
 
       - name: Run Trivy vulnerability scanner (SARIF for GitHub Security)
         uses: aquasecurity/trivy-action@master
