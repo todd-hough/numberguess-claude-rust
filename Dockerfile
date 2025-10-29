@@ -12,28 +12,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Copy dependency manifests first (for caching)
-COPY Cargo.toml Cargo.lock ./
-
-# Create a dummy src directory to satisfy cargo build
-RUN mkdir -p src && \
-    echo "fn main() {}" > src/main.rs && \
-    echo "pub fn lib() {}" > src/lib.rs
-
-# Build dependencies only (this layer will be cached)
-RUN if [ "$BUILD_TYPE" = "release" ]; then \
-        cargo build --release; \
-    else \
-        cargo build; \
-    fi
-
-# Remove dummy source files and target directory artifacts
-RUN rm -rf src
-
-# Copy actual source files
+# Copy source files
 COPY . .
 
-# Build the actual application (only source code compilation, deps are cached)
+# Build the application (conditional: release or debug)
 RUN if [ "$BUILD_TYPE" = "release" ]; then \
         cargo build --release; \
     else \
