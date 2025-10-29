@@ -100,33 +100,32 @@ jobs:
           name: docker-image
           path: /tmp
 
+      - name: Clean up any cached images
+        run: docker system prune -af --volumes || true
+
       - name: Load Docker image
         run: docker load --input /tmp/numberguess-docker-image.tar
 
       - name: Verify loaded image
         run: |
-          echo "Loaded images:"
+          echo "=== All Docker images ==="
+          docker images
+          echo ""
+          echo "=== Looking for numberguess images ==="
           docker images | grep numberguess
+          echo ""
+          echo "=== Checking for our specific tag ==="
           if ! docker images | grep -q "numberguess.*${{ github.sha }}"; then
             echo "ERROR: Image with tag ${{ github.sha }} not found!"
             exit 1
           fi
+          echo "✓ Image found with correct tag"
 
-      - name: Run Trivy vulnerability scanner (JSON output for debugging)
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: numberguess:${{ github.sha }}
-          version: v0.67.2
-          format: 'json'
-          output: 'trivy-results.json'
-          severity: 'HIGH,CRITICAL'
-          exit-code: '0'  # Don't fail yet, let's see what's found
-
-      - name: Display Trivy results
-        if: always()
+      - name: Run Trivy vulnerability scanner (table output for visibility)
+        continue-on-error: true
         run: |
-          echo "=== Trivy Scan Results ==="
-          cat trivy-results.json | jq '.Results[] | select(.Vulnerabilities) | .Vulnerabilities[] | {ID: .VulnerabilityID, Severity: .Severity, Package: .PkgName, InstalledVersion: .InstalledVersion, FixedVersion: .FixedVersion}'
+          echo "=== Trivy Vulnerability Scan Results ==="
+          trivy image --severity HIGH,CRITICAL --format table numberguess:${{ github.sha }}
 
       - name: Run Trivy vulnerability scanner (SARIF for GitHub Security)
         uses: aquasecurity/trivy-action@master
