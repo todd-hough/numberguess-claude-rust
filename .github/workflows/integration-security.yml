@@ -121,25 +121,25 @@ jobs:
           fi
           echo "✓ Image found with correct tag"
 
-      - name: Run Trivy vulnerability scanner (table output for visibility)
+      - name: Run Trivy vulnerability scanner (enforce HIGH/CRITICAL check)
         uses: aquasecurity/trivy-action@master
-        continue-on-error: true
         with:
           image-ref: numberguess:${{ github.sha }}
           version: v0.67.2
           format: 'table'
           severity: 'HIGH,CRITICAL'
-          exit-code: '0'
+          exit-code: '1'  # Fail the build if HIGH/CRITICAL found
 
       - name: Run Trivy vulnerability scanner (SARIF for GitHub Security)
         uses: aquasecurity/trivy-action@master
+        if: always()  # Run even if previous step failed
         with:
           image-ref: numberguess:${{ github.sha }}
           version: v0.67.2
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'HIGH,CRITICAL'
-          exit-code: '1'
+          exit-code: '0'  # Don't fail - SARIF is just for reporting
 
       - name: Upload Trivy results to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
