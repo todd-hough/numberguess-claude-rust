@@ -473,6 +473,49 @@ Common Issues:
 - **All tests**: 2-3s overhead per test for OAuth2 login (Selenium-based)
 - **Total test suite**: ~3-4 minutes with full auth stack
 
+## GitHub Actions Workflows
+
+The project uses GitHub Actions for continuous integration and security scanning. Workflows are optimized for speed and efficiency.
+
+### Workflow Structure
+
+**ci.yml** - Fast feedback (~1-2 minutes)
+- Format checking (cargo fmt)
+- Linting (cargo clippy)
+- Unit tests (cargo test --lib)
+- Runs on every push and pull request
+- No Docker required
+
+**integration-security.yml** - Comprehensive validation (~4-5 minutes)
+- Build Docker image once (debug mode)
+- Share image artifact across all jobs
+- Run in parallel:
+  - Security audit (cargo-audit)
+  - Dockerfile linting (hadolint)
+  - Container scanning (Trivy for HIGH/CRITICAL vulnerabilities)
+  - Integration tests (full auth stack + Selenium)
+- Runs on push, pull requests, and weekly schedule (Sundays at midnight UTC)
+
+### Key Optimizations
+
+**Single Docker Build**: The integration-security workflow builds the Docker image once and shares it via artifacts, saving ~3-4 minutes compared to separate builds for security and integration.
+
+**Parallel Execution**: Jobs that don't depend on the Docker image (audit, dockerfile-lint) run in parallel with the build.
+
+**Cache Cleanup**: Docker cache is pruned before loading artifacts to prevent stale image issues with Trivy scans.
+
+**Smart Trivy Scanning**:
+- Table format scan enforces HIGH/CRITICAL failure
+- SARIF format generates security reports for GitHub Security tab
+- Workaround for trivy-action SARIF exit-code bug
+
+### Workflow Triggers
+
+- **Push to main/develop**: All workflows run
+- **Pull requests to main**: All workflows run
+- **Weekly schedule**: Security scans run Sunday at midnight UTC
+- **Manual dispatch**: Can be triggered manually from Actions tab
+
 ## Common Tasks
 
 ### Adding a New Feature
@@ -522,6 +565,10 @@ Common Issues:
 ```
 ├── .claude/
 │   └── claude.md    # This file
+├── .github/
+│   └── workflows/
+│       ├── ci.yml                      # Fast checks: format, clippy, unit tests
+│       └── integration-security.yml    # Docker build, integration tests, security scans
 ├── src/
 │   ├── auth/        # Authentication
 │   │   └── mod.rs       # AuthenticatedUser extractor
