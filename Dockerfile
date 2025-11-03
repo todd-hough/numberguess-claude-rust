@@ -1,5 +1,5 @@
 # Multi-stage build for the Number Guessing Game
-FROM rust:1.90-slim AS builder
+FROM rust:1.91-slim AS builder
 
 # Build configuration: "release" or "debug"
 ARG BUILD_TYPE=release
