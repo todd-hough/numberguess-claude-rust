@@ -1,4 +1,4 @@
-.PHONY: help build test test-unit test-integration test-down dev dev-db dev-down dev-restart dev-logs dev-status \
+.PHONY: help build test test-unit test-up test-integration test-down dev dev-db dev-down dev-restart dev-logs dev-status \
         docker-rebuild docker-check docker-clean clean logs db-shell fmt lint run-cli run-server \
         devcontainer-up devcontainer-down devcontainer-attach devcontainer-restart devcontainer-status \
         dc-up dc-down dc-attach dc-shell dc-restart dc-status \
@@ -47,6 +47,7 @@ help:
 	@echo "════════════════════════════════════════════════════════════════"
 	@echo "  make test          - Run all tests (unit + integration)"
 	@echo "  make test-unit     - Unit tests only (fast, no Docker)"
+	@echo "  make test-up       - Start integration test environment only"
 	@echo "  make test-integration - Integration tests (starts Docker Compose)"
 	@echo "  make test-down     - Stop integration test environment"
 	@echo ""
@@ -210,6 +211,25 @@ test: test-unit test-integration
 test-unit:
 	@echo "Running unit tests (no Docker required)..."
 	cargo test --lib
+
+## test-up: Start integration test environment without running tests
+test-up: docker-check
+	@echo "Starting integration test environment..."
+	@echo "Services will remain running for debugging/inspection"
+	@echo "Use 'make test-down' to stop when done"
+	@echo ""
+	$(COMPOSE_STACK) --profile integration up -d --wait --wait-timeout 120
+	@echo ""
+	@echo "✓ Integration test environment started!"
+	@echo ""
+	@echo "Services running:"
+	@echo "  Web UI: http://localhost:8080 (via oauth2-proxy)"
+	@echo "  Keycloak: http://localhost:8090"
+	@echo "  Health Check: http://localhost:8081/health"
+	@echo "  Selenium: http://localhost:4444"
+	@echo ""
+	@echo "View logs: make logs"
+	@echo "Stop services: make test-down"
 
 ## test-integration: Run integration tests via docker compose
 test-integration: docker-check
