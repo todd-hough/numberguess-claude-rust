@@ -35,10 +35,10 @@ The application already has:
 - Optimize onboarding and user experience
 
 #### Implementation Points
-- **src/web.rs:create_game_api** (line 196) - Track game starts with interface type
-- **src/web.rs:make_guess_api** (line 283) - Track completions/wins/losses
-- **src/db.rs:create_game** (line 33) - Already has created_at via default
-- **src/db.rs:make_guess_transactional** (line 225) - Calculate session duration on completion
+- **src/api/handlers/game.rs:create_game_api** - Track game starts with interface type
+- **src/api/handlers/guess.rs:make_guess_api** - Track completions/wins/losses
+- **src/db/repository.rs:create** - Already has created_at via default
+- **src/db/postgres_repository.rs:make_guess** - Calculate session duration on completion
 
 ---
 
@@ -63,10 +63,10 @@ The application already has:
 - Guide feature development (e.g., difficulty presets)
 
 #### Implementation Points
-- **src/game.rs:make_guess** (line 144) - Track guess patterns and efficiency
-- **src/web.rs:create_game_api** (line 196) - Track range configurations
+- **src/core/game.rs:make_guess** - Track guess patterns and efficiency
+- **src/api/handlers/game.rs:create_game_api** - Track range configurations
 - Add metric: `optimal_guesses = ceil(log2(max - min + 1))` for binary search baseline
-- **src/db.rs:create_game** - Already captures min, max, max_guesses
+- **src/db/repository.rs:create** - Already captures min, max, max_guesses
 
 ---
 
@@ -91,9 +91,9 @@ The application already has:
 - Database optimization opportunities
 
 #### Implementation Points
-- **src/web.rs** (line 92-95) - Already has tower-http tracing (DefaultMakeSpan, DefaultOnResponse)
-- **src/db.rs:make_guess_transactional** (line 225) - Track transaction timing
-- **src/web.rs:health_check** (line 181) - Monitor database health
+- **src/server/mod.rs** - Already has tower-http tracing (DefaultMakeSpan, DefaultOnResponse)
+- **src/db/postgres_repository.rs:make_guess** - Track transaction timing
+- **src/api/handlers/health.rs:health_check** - Monitor database health
 - Add custom middleware for detailed metrics
 - Track connection pool statistics via SQLx
 

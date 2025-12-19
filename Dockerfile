@@ -1,41 +1,56 @@
-# Multi-stage build for the Number Guessing Game
-FROM rust:1.90-slim AS builder
+# Multi-stage build for the Number Guessing Game using cargo-chef for dependency caching
+FROM rust:1.90-slim AS chef
+RUN cargo install cargo-chef
+WORKDIR /app
 
+# Stage 1: Plan the build
+FROM chef AS planner
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
+
+# Stage 2: Build dependencies (the cached layer)
+FROM chef AS builder
 # Build configuration: "release" or "debug"
 ARG BUILD_TYPE=release
 
-# Install build dependencies
+# Install build dependencies required for compiling crates like openssl or sqlx
 RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
     libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
+# Copy the recipe from the planner stage
+COPY --from=planner /app/recipe.json recipe.json
 
-# Copy source files
+# Cook the dependencies - this layer is cached unless Cargo.toml/Cargo.lock changes
+RUN if [ "$BUILD_TYPE" = "release" ]; then \
+        cargo chef cook --release --recipe-path recipe.json; \
+    else \
+        cargo chef cook --recipe-path recipe.json; \
+    fi
+
+# Copy the actual source code
 COPY . .
 
 # Build the application (conditional: release or debug)
+# This step will be very fast if only source code changed
 RUN if [ "$BUILD_TYPE" = "release" ]; then \
         cargo build --release; \
     else \
         cargo build; \
     fi
 
-# Runtime stage - Using distroless for minimal attack surface
-# Mitigates: CVE linux-pam (directory traversal), CVE zlib/MiniZip (heap overflow)
+# Stage 3: Runtime - Using distroless for minimal attack surface
 FROM gcr.io/distroless/cc-debian12
 
 # Build configuration (must match builder stage)
 ARG BUILD_TYPE=release
 
-# Copy the built binary from builder stage (from release or debug dir)
-COPY --from=builder /app/target/${BUILD_TYPE}/number_guessing_game /usr/local/bin/number_guessing_game
-
 # Set working directory
 WORKDIR /app
 
-# Copy static files to working directory
+# Copy the built binary and static assets from builder stage
+COPY --from=builder /app/target/${BUILD_TYPE}/number_guessing_game /usr/local/bin/number_guessing_game
 COPY --from=builder /app/static ./static
 
 # Distroless runs as non-root user "nonroot" (UID 65532) by default

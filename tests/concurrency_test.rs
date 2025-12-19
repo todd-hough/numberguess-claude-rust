@@ -35,7 +35,7 @@ fn restart_app_via_compose() {
 }
 
 /// Test concurrent guesses on the SAME game to verify transaction isolation
-/// This tests the FOR UPDATE row-level locking in make_guess_transactional
+/// This tests the FOR UPDATE row-level locking in the repository implementation
 #[tokio::test]
 async fn test_concurrent_guesses_on_same_game() {
     // Run environment checks in blocking context

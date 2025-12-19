@@ -106,13 +106,13 @@ This document provides a comprehensive analysis of all boundary conditions in th
 
 | From State | To State | Trigger | Database Action | Game Object |
 |-----------|----------|---------|-----------------|-------------|
-| Non-existent | Active | create_game() | INSERT | Created with guess_count=0 |
-| Active (guesses < limit) | Active | make_guess() → TooLow/TooHigh | UPDATE guess_count | guess_count++ |
-| Active (last guess) | Completed | make_guess() → Correct | DELETE | Object discarded |
-| Active (last guess) | Completed | make_guess() → LimitReached | DELETE | Object discarded |
-| Active (limit reached) | Completed | make_guess() | No DB access | LimitReached immediately |
-| Completed | N/A | get_game() | No record | DbError::NotFound |
-| Completed | N/A | make_guess() | No record | DbError::NotFound |
+| Non-existent | Active | `repo.create()` | INSERT | Created with guess_count=0 |
+| Active (guesses < limit) | Active | `repo.make_guess()` → TooLow/TooHigh | UPDATE guess_count | guess_count++ |
+| Active (last guess) | Completed | `repo.make_guess()` → Correct | DELETE | Object discarded |
+| Active (last guess) | Completed | `repo.make_guess()` → LimitReached | DELETE | Object discarded |
+| Active (limit reached) | Completed | `repo.make_guess()` | No DB access | LimitReached immediately |
+| Completed | N/A | `repo.get()` | No record | DbError::NotFound |
+| Completed | N/A | `repo.make_guess()` | No record | DbError::NotFound |
 
 ### Critical Boundary: Final Guess
 
@@ -146,9 +146,9 @@ This document provides a comprehensive analysis of all boundary conditions in th
 
 | Action | Lock Type | Duration | Blocks |
 |--------|-----------|----------|--------|
-| `make_guess_transactional()` | Row-level (FOR UPDATE) | Transaction duration | Other guesses on same game_id |
-| `get_game()` | Shared read | Query duration | Nothing |
-| `create_game()` | None (new row) | Insert only | Nothing |
+| `repo.make_guess()` | Row-level (FOR UPDATE) | Transaction duration | Other guesses on same game_id |
+| `repo.get()` | Shared read | Query duration | Nothing |
+| `repo.create()` | None (new row) | Insert only | Nothing |
 
 ---
 
@@ -158,12 +158,12 @@ This document provides a comprehensive analysis of all boundary conditions in th
 
 | Time Point | State | Database | Actions Allowed |
 |-----------|-------|----------|-----------------|
-| Before creation | Non-existent | No row | create_game() only |
-| Just created | Active, guess_count=0 | Row exists | get_game(), make_guess() |
-| During gameplay | Active, 0 < guess_count < max_guesses | Row exists, updated_at changes | get_game(), make_guess() |
+| Before creation | Non-existent | No row | `repo.create()` only |
+| Just created | Active, guess_count=0 | Row exists | `repo.get()`, `repo.make_guess()` |
+| During gameplay | Active, 0 < guess_count < max_guesses | Row exists, updated_at changes | `repo.get()`, `repo.make_guess()` |
 | Final guess (correct) | Transitioning | Row being deleted | Concurrent guesses blocked (locked) |
 | Final guess (limit) | Transitioning | Row being deleted | Concurrent guesses blocked (locked) |
-| After completion | Non-existent | No row | get_game() → NotFound, make_guess() → NotFound |
+| After completion | Non-existent | No row | `repo.get()` → NotFound, `repo.make_guess()` → NotFound |
 | Server restart | Persistent (if DB used) | Rows preserved | All active games restored |
 
 ### Timestamp Boundaries
@@ -254,7 +254,7 @@ When modifying the game:
 
 1. **Changing limits**: Update `MAX_RANGE`, `MAX_WEB_GUESS_LIMIT`, `MAX_CLI_GUESS_LIMIT` in `validators.rs`
 2. **Adding fields**: Update both `GuessingGame` struct and database schema + migrations
-3. **Changing state transitions**: Review `make_guess()` logic and `make_guess_transactional()`
+3. **Changing state transitions**: Review `make_guess()` logic and `repo.make_guess()` implementation.
 4. **New error conditions**: Add to `GameError` or `DbError` enums with proper Display messages
 
 ## Version Information
