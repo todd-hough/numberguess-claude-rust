@@ -43,7 +43,10 @@ pub async fn create_game_web<R: GameRepository>(
             error = %e,
             "Web: Game creation failed - invalid range"
         );
-        let template = ErrorTemplate { error_message: &e };
+        let err_str = e.to_string();
+        let template = ErrorTemplate {
+            error_message: &err_str,
+        };
         return template.into_response();
     }
 
@@ -57,7 +60,10 @@ pub async fn create_game_web<R: GameRepository>(
                     error = %e,
                     "Web: Game creation failed - invalid guess limit"
                 );
-                let template = ErrorTemplate { error_message: &e };
+                let err_str = e.to_string();
+                let template = ErrorTemplate {
+                    error_message: &err_str,
+                };
                 return template.into_response();
             }
         }

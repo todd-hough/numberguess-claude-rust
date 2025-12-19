@@ -1,61 +1,8 @@
 use rand::Rng;
 use std::cmp::Ordering;
-use thiserror::Error;
 
-const MAX_ALLOWED: i32 = 1_000_000;
-
-#[derive(Error, Debug)]
-pub enum GameError {
-    #[error("Minimum value ({0}) must be non-negative (>= 0)")]
-    NegativeMin(i32),
-
-    #[error("Maximum value ({0}) must be non-negative (>= 0)")]
-    NegativeMax(i32),
-
-    #[error("Maximum ({max}) must be greater than or equal to minimum ({min})")]
-    InvalidRange { min: i32, max: i32 },
-
-    #[error("Minimum value ({value}) exceeds maximum allowed value ({limit})")]
-    MinExceedsLimit { value: i32, limit: i32 },
-
-    #[error("Maximum value ({value}) exceeds maximum allowed value ({limit})")]
-    MaxExceedsLimit { value: i32, limit: i32 },
-
-    #[error("Range between min ({min}) and max ({max}) is too large")]
-    RangeTooLarge { min: i32, max: i32 },
-
-    #[error("Secret number ({secret}) must be between min ({min}) and max ({max})")]
-    SecretOutOfRange { secret: i32, min: i32, max: i32 },
-}
-
-/// Validates that min and max values are within acceptable ranges
-fn validate_range(min: i32, max: i32) -> Result<(), GameError> {
-    if min < 0 {
-        return Err(GameError::NegativeMin(min));
-    }
-    if max < 0 {
-        return Err(GameError::NegativeMax(max));
-    }
-    if max < min {
-        return Err(GameError::InvalidRange { min, max });
-    }
-    if min > MAX_ALLOWED {
-        return Err(GameError::MinExceedsLimit {
-            value: min,
-            limit: MAX_ALLOWED,
-        });
-    }
-    if max > MAX_ALLOWED {
-        return Err(GameError::MaxExceedsLimit {
-            value: max,
-            limit: MAX_ALLOWED,
-        });
-    }
-    if max.saturating_sub(min) == i32::MAX {
-        return Err(GameError::RangeTooLarge { min, max });
-    }
-    Ok(())
-}
+use crate::core::validators::validate_range;
+use crate::core::{GameError, GuessResult};
 
 pub struct GuessingGame {
     min: i32,
@@ -71,7 +18,7 @@ impl GuessingGame {
     }
 
     pub fn new_with_limit(min: i32, max: i32, max_guesses: Option<u32>) -> Result<Self, GameError> {
-        // Validate range
+        // Validate range using shared validator
         validate_range(min, max)?;
 
         let secret_number = rand::rng().random_range(min..=max);
@@ -108,7 +55,7 @@ impl GuessingGame {
         guess_count: u32,
         max_guesses: Option<u32>,
     ) -> Result<Self, GameError> {
-        // Validate range
+        // Validate range using shared validator
         validate_range(min, max)?;
 
         // Validate secret number is in range
@@ -173,30 +120,10 @@ impl GuessingGame {
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub enum GuessResult {
-    TooLow,
-    TooHigh,
-    Correct { number: i32, attempts: u32 },
-    LimitReached { number: i32, max_guesses: u32 },
-}
-
-impl GuessResult {
-    pub fn is_correct(&self) -> bool {
-        matches!(self, GuessResult::Correct { .. })
-    }
-
-    pub fn is_game_over(&self) -> bool {
-        matches!(
-            self,
-            GuessResult::Correct { .. } | GuessResult::LimitReached { .. }
-        )
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::validators::MAX_RANGE;
 
     #[test]
     fn test_game_creation() {
@@ -242,19 +169,19 @@ mod tests {
 
     #[test]
     fn test_max_allowed_limit() {
-        // Test that MAX_ALLOWED is accepted
-        let game = GuessingGame::new(0, MAX_ALLOWED);
+        // Test that MAX_RANGE is accepted
+        let game = GuessingGame::new(0, MAX_RANGE);
         assert!(game.is_ok());
 
-        // Test that exceeding MAX_ALLOWED for min is rejected
-        let game = GuessingGame::new(MAX_ALLOWED + 1, MAX_ALLOWED + 2);
+        // Test that exceeding MAX_RANGE for min is rejected
+        let game = GuessingGame::new(MAX_RANGE + 1, MAX_RANGE + 2);
         assert!(game.is_err());
         if let Err(e) = game {
             assert!(e.to_string().contains("exceeds maximum allowed value"));
         }
 
-        // Test that exceeding MAX_ALLOWED for max is rejected
-        let game = GuessingGame::new(0, MAX_ALLOWED + 1);
+        // Test that exceeding MAX_RANGE for max is rejected
+        let game = GuessingGame::new(0, MAX_RANGE + 1);
         assert!(game.is_err());
         if let Err(e) = game {
             assert!(e.to_string().contains("exceeds maximum allowed value"));
@@ -264,11 +191,11 @@ mod tests {
     #[test]
     fn test_large_valid_range() {
         // Test a large but valid range
-        let game = GuessingGame::new(0, MAX_ALLOWED);
+        let game = GuessingGame::new(0, MAX_RANGE);
         assert!(game.is_ok());
         let game = game.expect("Should create game with maximum allowed range");
-        assert_eq!(game.get_range(), (0, MAX_ALLOWED));
-        assert!(game.secret_number >= 0 && game.secret_number <= MAX_ALLOWED);
+        assert_eq!(game.get_range(), (0, MAX_RANGE));
+        assert!(game.secret_number >= 0 && game.secret_number <= MAX_RANGE);
     }
 
     #[test]

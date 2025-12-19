@@ -39,7 +39,12 @@ pub async fn create_game_api<R: GameRepository>(
             error = %e,
             "API: Game creation failed - invalid range"
         );
-        return Err((StatusCode::BAD_REQUEST, Json(ErrorResponse { error: e })));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                error: e.to_string(),
+            }),
+        ));
     }
 
     // Validate guess limit using shared validator
@@ -52,7 +57,12 @@ pub async fn create_game_api<R: GameRepository>(
                     error = %e,
                     "API: Game creation failed - invalid guess limit"
                 );
-                return Err((StatusCode::BAD_REQUEST, Json(ErrorResponse { error: e })));
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    Json(ErrorResponse {
+                        error: e.to_string(),
+                    }),
+                ));
             }
         }
     } else {
