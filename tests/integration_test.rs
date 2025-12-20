@@ -15,7 +15,7 @@ use serde_json::json;
 fn test_basic_game_flow() {
     let base_url = environment::ensure_server_ready();
 
-    println!("✅ Using game server at {}", base_url);
+    println!("Using game server at {}", base_url);
 
     // Create HTTP client
     let client = Client::new();
@@ -42,7 +42,7 @@ fn test_basic_game_flow() {
         .json()
         .expect("Should parse JSON game response");
 
-    println!("✅ Game created with ID: {}", game.game_id);
+    println!("Game created with ID: {}", game.game_id);
 
     // Use comprehensive assertion helpers
     assert_valid_game_response(&game);
@@ -74,7 +74,7 @@ fn test_basic_game_flow() {
         result = guess_result.result.clone();
 
         if guess_result.result == "correct" {
-            println!("✅ Found the correct number: {}", guess_num);
+            println!("Found the correct number: {}", guess_num);
 
             // Use comprehensive assertion for correct guess
             assert_correct_guess(&guess_result);
@@ -88,7 +88,7 @@ fn test_basic_game_flow() {
         "Should eventually find the correct number"
     );
 
-    println!("✅ Basic game flow test passed at {}", base_url);
+    println!("Basic game flow test passed at {}", base_url);
 }
 
 // NOTE: This test is superseded by authenticated API tests
@@ -98,7 +98,7 @@ fn test_basic_game_flow() {
 fn test_invalid_game_parameters() {
     let base_url = environment::ensure_server_ready();
 
-    println!("✅ Using game server at {}", base_url);
+    println!("Using game server at {}", base_url);
 
     // Create HTTP client
     let client = Client::new();
@@ -141,5 +141,5 @@ fn test_invalid_game_parameters() {
         );
     }
 
-    println!("✅ Invalid game parameters test passed at {}", base_url);
+    println!("Invalid game parameters test passed at {}", base_url);
 }

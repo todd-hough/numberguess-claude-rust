@@ -35,7 +35,7 @@ async fn test_static_file_serving() {
     );
     assert!(body.contains("<!DOCTYPE html>"), "Response should be HTML");
 
-    println!("✅ Static file serving test passed");
+    println!("Static file serving test passed");
 }
 
 #[tokio::test]
@@ -74,7 +74,7 @@ async fn test_web_form_endpoints() {
         "Response should contain form element"
     );
 
-    println!("✅ Web form endpoints test passed");
+    println!("Web form endpoints test passed");
 }
 
 #[tokio::test]
@@ -175,7 +175,7 @@ async fn test_remaining_guesses_display() {
         "Should show 2 guesses remaining after third guess"
     );
 
-    println!("✅ Remaining guesses display test passed");
+    println!("Remaining guesses display test passed");
 }
 
 #[tokio::test]
@@ -234,5 +234,5 @@ async fn test_no_remaining_guesses_display_without_limit() {
         "Should not display 'Guesses remaining' after guess when no limit"
     );
 
-    println!("✅ No remaining guesses display without limit test passed");
+    println!("No remaining guesses display without limit test passed");
 }

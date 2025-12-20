@@ -70,7 +70,7 @@ async fn test_web_ui_game_flow() {
         "Web UI test should find the correct answer"
     );
     println!(
-        "✅ Web UI test passed with API at {}, browser URL {}, selenium at {}",
+        "Web UI test passed with API at {}, browser URL {}, selenium at {}",
         base_url_for_log, browser_url_for_log, selenium_for_log
     );
 }
@@ -140,7 +140,7 @@ async fn test_web_ui_invalid_inputs() {
         "Web UI invalid input test should detect validation errors"
     );
     println!(
-        "✅ Web UI invalid input test passed with API at {}, browser URL {}, selenium at {}",
+        "Web UI invalid input test passed with API at {}, browser URL {}, selenium at {}",
         base_url_for_log, browser_url_for_log, selenium_for_log
     );
 }

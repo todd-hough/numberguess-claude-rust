@@ -58,8 +58,12 @@ impl<'a> GamePage<'a> {
         let submit = self.driver.find(By::Css("button[type='submit']")).await?;
         submit.click().await?;
 
-        // Wait for form submission to process
-        tokio::time::sleep(Duration::from_millis(500)).await;
+        // Wait for game form to appear (indicates successful submission)
+        self.driver
+            .query(By::Css(".guess-form"))
+            .wait(Duration::from_secs(30), Duration::from_millis(500))
+            .first()
+            .await?;
 
         Ok(())
     }

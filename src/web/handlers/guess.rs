@@ -14,6 +14,7 @@ use axum::{
     extract::{Form, Path, State},
     response::IntoResponse,
 };
+use axum_csrf::CsrfToken;
 use tracing::{debug, error, info, warn};
 
 /// Web UI handler for making a guess (HTML).
@@ -24,11 +25,21 @@ use tracing::{debug, error, info, warn};
 /// # Type Parameters
 /// * `R` - The repository implementation (static dispatch for zero overhead)
 pub async fn make_guess_web<R: GameRepository>(
+    token: CsrfToken,
     State(state): State<AppState<R>>,
     user: AuthenticatedUser,
     Path(game_id): Path<GameId>,
     Form(payload): Form<MakeGuessRequest>,
 ) -> impl IntoResponse {
+    // Verify CSRF token
+    if token.verify(&payload.authenticity_token).is_err() {
+        warn!("Web: CSRF token verification failed");
+        return (
+            axum::http::StatusCode::BAD_REQUEST,
+            "Invalid CSRF token",
+        ).into_response();
+    }
+
     debug!(
         user_id = %user.user_id,
         user_email = %user.email,
@@ -92,7 +103,11 @@ pub async fn make_guess_web<R: GameRepository>(
             // Calculate remaining guesses
             let remaining_guesses = max_guesses.and_then(|limit| {
                 let remaining = limit.saturating_sub(guess_count);
-                if remaining > 0 { Some(remaining) } else { None }
+                if remaining > 0 {
+                    Some(remaining)
+                } else {
+                    None
+                }
             });
 
             let (feedback_class, feedback_message) = match result {
@@ -120,6 +135,7 @@ pub async fn make_guess_web<R: GameRepository>(
                 remaining_guesses,
                 feedback_class,
                 feedback_message,
+                csrf_token: token.authenticity_token().unwrap_or_default(),
             };
             template.into_response()
         }

@@ -6,11 +6,12 @@ pub mod state;
 
 use crate::api::handlers::{create_game_api, health_check, make_guess_api};
 use crate::db::PostgresGameRepository;
-use crate::web::handlers::{create_game_web, difficulty_preview, make_guess_web};
+use crate::web::handlers::{create_game_web, difficulty_preview, index_web, make_guess_web};
 use axum::{
     Router,
     routing::{get, post},
 };
+use axum_csrf::{CsrfConfig, CsrfLayer, Key};
 use sqlx::PgPool;
 use state::AppState;
 use tower_http::LatencyUnit;
@@ -39,9 +40,19 @@ pub async fn run_server(pool: PgPool, port: u16) {
         "Configuring web server"
     );
 
+    // CSRF configuration
+    // In production, CSRF_SECRET should be a 64-byte base64 string
+    let csrf_secret = std::env::var("CSRF_SECRET")
+        .map(|s| Key::from(s.as_bytes()))
+        .unwrap_or_else(|_| {
+            info!("CSRF_SECRET not set, using temporary key");
+            Key::generate()
+        });
+    let csrf_config = CsrfConfig::default().with_key(Some(csrf_secret));
+
     // Create repository and application state
     let repo = PostgresGameRepository::new(pool.clone());
-    let state = AppState::new(repo);
+    let state = AppState::new(repo, csrf_config.clone());
 
     // API routes
     let api_routes = Router::new()
@@ -54,6 +65,7 @@ pub async fn run_server(pool: PgPool, port: u16) {
 
     // Web UI routes
     let web_routes = Router::new()
+        .route("/", get(index_web))
         .route("/game/new", post(create_game_web::<PostgresGameRepository>))
         .route(
             "/game/{game_id}/guess",
@@ -67,6 +79,7 @@ pub async fn run_server(pool: PgPool, port: u16) {
         .nest("/api", api_routes)
         .merge(web_routes)
         .fallback_service(ServeDir::new("static"))
+        .layer(CsrfLayer::new(csrf_config))
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO))

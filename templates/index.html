@@ -367,6 +367,7 @@
                       hx-post="/game/new"
                       hx-target=".container"
                       hx-swap="innerHTML">
+                    <input type="hidden" name="authenticity_token" value="{{ csrf_token }}">
                     <div class="form-group">
                         <label for="min">Minimum Number (0 to 1,000,000):</label>
                         <input type="number" id="min" name="min" value="1" min="0" max="1000000" required

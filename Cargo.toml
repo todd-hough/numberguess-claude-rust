@@ -27,6 +27,7 @@ askama = "0.14"
 askama_web = { version = "0.14", features = ["axum-0.8", "tracing-0.1"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+axum_csrf = { version = "0.11.0", features = ["layer"] }
 
 [dev-dependencies]
 reqwest = { version = "0.12.23", features = ["json", "blocking"] }

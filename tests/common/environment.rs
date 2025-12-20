@@ -55,7 +55,7 @@ pub fn ensure_server_ready() -> String {
     while attempts < max_attempts {
         match client.get(&base).send() {
             Ok(resp) if resp.status().is_success() || resp.status().is_redirection() => {
-                eprintln!("✓ Application server is ready");
+                eprintln!("Application server is ready");
                 return base;
             }
             Ok(resp) => {
@@ -132,7 +132,7 @@ pub fn ensure_keycloak_ready() -> String {
         if let Ok(resp) = client.get(&health_endpoint).send()
             && resp.status().is_success()
         {
-            eprintln!("✓ Keycloak is ready");
+            eprintln!("Keycloak is ready");
             return url;
         }
         attempts += 1;
@@ -154,7 +154,7 @@ pub fn ensure_redis_ready() {
 
     while attempts < max_attempts {
         if TcpStream::connect("localhost:6379").is_ok() {
-            eprintln!("✓ Redis is ready");
+            eprintln!("Redis is ready");
             return;
         }
         attempts += 1;
@@ -185,7 +185,7 @@ pub fn ensure_oauth2_proxy_ready() {
         if let Ok(resp) = client.get("http://localhost:8080").send() {
             let status = resp.status();
             if status.is_success() || status.is_redirection() {
-                eprintln!("✓ oauth2-proxy is ready");
+                eprintln!("oauth2-proxy is ready");
                 return;
             }
         }

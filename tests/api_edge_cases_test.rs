@@ -38,7 +38,7 @@ async fn test_guess_nonexistent_game() {
         404,
         "Should return 404 for nonexistent game"
     );
-    println!("✅ Nonexistent game test passed");
+    println!("Nonexistent game test passed");
 }
 
 #[tokio::test]
@@ -78,7 +78,7 @@ async fn test_concurrent_games() {
         game_ids.push(game.game_id);
     }
 
-    println!("✅ Created {} concurrent games", game_ids.len());
+    println!("Created {} concurrent games", game_ids.len());
 
     // Make guess to each game
     for game_id in &game_ids {
@@ -100,7 +100,7 @@ async fn test_concurrent_games() {
         println!("Game {} result: {}", game_id, guess_result.result);
     }
 
-    println!("✅ Concurrent games test passed");
+    println!("Concurrent games test passed");
 }
 
 #[tokio::test]
@@ -132,7 +132,7 @@ async fn test_guess_after_limit_reached() {
     );
     let game: GameResponse = resp.json().await.expect("Should parse JSON game response");
     println!(
-        "✅ Created game with ID {} and limit {:?} (answer is 50)",
+        "Created game with ID {} and limit {:?} (answer is 50)",
         game.game_id, game.max_guesses
     );
 
@@ -180,7 +180,7 @@ async fn test_guess_after_limit_reached() {
         second_guess_resp.status()
     );
 
-    println!("✅ Limit enforcement test passed");
+    println!("Limit enforcement test passed");
 }
 
 #[tokio::test]
@@ -222,7 +222,7 @@ async fn test_zero_limit_means_unlimited() {
         game.max_guesses, None,
         "max_guesses should be None when omitted"
     );
-    println!("✅ Created game {} with unlimited guesses", game.game_id);
+    println!("Created game {} with unlimited guesses", game.game_id);
 
     // Make many guesses to verify it's truly unlimited
     for i in 1..=15 {
@@ -252,14 +252,14 @@ async fn test_zero_limit_means_unlimited() {
 
         if guess_result.result == "correct" {
             println!(
-                "✅ Found correct answer after {} guesses (unlimited worked)",
+                "Found correct answer after {} guesses (unlimited worked)",
                 i
             );
             break;
         }
     }
 
-    println!("✅ Unlimited (omitted max_guesses) test passed");
+    println!("Unlimited (omitted max_guesses) test passed");
 }
 
 #[tokio::test]
@@ -328,7 +328,7 @@ async fn test_web_rejects_excessive_guess_limit() {
     );
     let game: GameResponse = resp.json().await.expect("Should parse game response");
     assert_eq!(game.max_guesses, Some(100));
-    println!("✅ Accepted max_guesses=100 (at boundary)");
+    println!("Accepted max_guesses=100 (at boundary)");
 
-    println!("✅ Excessive limit rejection test passed");
+    println!("Excessive limit rejection test passed");
 }

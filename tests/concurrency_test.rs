@@ -51,7 +51,7 @@ async fn test_concurrent_guesses_on_same_game() {
         .await
         .expect("Failed to create authenticated client");
 
-    println!("✅ Created authenticated client");
+    println!("Created authenticated client");
 
     // Create one game with a wide range so guesses don't accidentally win
     let create_response = client
@@ -76,7 +76,7 @@ async fn test_concurrent_guesses_on_same_game() {
         .expect("Should parse game response");
     let game_id = game.game_id;
 
-    println!("✅ Created game {}", game_id);
+    println!("Created game {}", game_id);
 
     // Spawn 10 async tasks to make guesses concurrently on THE SAME game
     let num_tasks = 10;
@@ -114,7 +114,7 @@ async fn test_concurrent_guesses_on_same_game() {
     // All requests should succeed
     let success_count = results.iter().filter(|(success, _)| *success).count();
     println!(
-        "✅ {}/{} concurrent guesses succeeded",
+        "{}/{} concurrent guesses succeeded",
         success_count, num_tasks
     );
     assert_eq!(
@@ -122,7 +122,7 @@ async fn test_concurrent_guesses_on_same_game() {
         "All concurrent guesses should succeed"
     );
 
-    println!("✅ Concurrent guesses test passed - transaction isolation verified");
+    println!("Concurrent guesses test passed - transaction isolation verified");
 }
 
 /// Test race condition: one task makes winning guess while others try to guess
@@ -141,7 +141,7 @@ async fn test_race_condition_guess_during_deletion() {
         .await
         .expect("Failed to create authenticated client");
 
-    println!("✅ Created authenticated client");
+    println!("Created authenticated client");
 
     // Create game where we know the answer
     let create_response = client
@@ -166,7 +166,7 @@ async fn test_race_condition_guess_during_deletion() {
         .expect("Should parse game response");
     let game_id = game.game_id;
 
-    println!("✅ Created game {} (answer is 42)", game_id);
+    println!("Created game {} (answer is 42)", game_id);
 
     // Spawn 5 async tasks: first will guess correctly, others will guess wrong
     let num_tasks = 5;
@@ -240,7 +240,7 @@ async fn test_race_condition_guess_during_deletion() {
     );
     assert!(not_found_count + other_success >= num_tasks - 1);
 
-    println!("✅ Race condition test passed");
+    println!("Race condition test passed");
 }
 
 /// Test that games persist across server restarts
@@ -259,7 +259,7 @@ async fn test_game_persistence_across_restart() {
         .await
         .expect("Failed to create authenticated client");
 
-    println!("✅ Created authenticated client");
+    println!("Created authenticated client");
 
     let create_response = client
         .post("http://localhost:8080/api/games")
@@ -283,7 +283,7 @@ async fn test_game_persistence_across_restart() {
         .expect("Should parse game response");
     let game_id = game.game_id;
 
-    println!("✅ Created game {}; restarting app container...", game_id);
+    println!("Created game {}; restarting app container...", game_id);
 
     // Restart app in blocking context
     tokio::task::spawn_blocking(move || {
@@ -320,5 +320,5 @@ async fn test_game_persistence_across_restart() {
         result.result.as_str(),
         "too_low" | "too_high" | "correct"
     ));
-    println!("✅ Game persisted across restart");
+    println!("Game persisted across restart");
 }

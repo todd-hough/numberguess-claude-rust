@@ -1,3 +1,5 @@
+use axum::extract::FromRef;
+use axum_csrf::CsrfConfig;
 use crate::db::GameRepository;
 
 /// Application state shared across all handlers.
@@ -17,11 +19,20 @@ use crate::db::GameRepository;
 pub struct AppState<R: GameRepository> {
     /// The game repository instance
     pub repo: R,
+    /// CSRF configuration
+    pub csrf_config: CsrfConfig,
 }
 
 impl<R: GameRepository> AppState<R> {
-    /// Create a new application state with the given repository
-    pub fn new(repo: R) -> Self {
-        Self { repo }
+    /// Create a new application state with the given repository and CSRF config
+    pub fn new(repo: R, csrf_config: CsrfConfig) -> Self {
+        Self { repo, csrf_config }
+    }
+}
+
+// Required for axum-csrf to work with combined state
+impl<R: GameRepository> FromRef<AppState<R>> for CsrfConfig {
+    fn from_ref(state: &AppState<R>) -> Self {
+        state.csrf_config.clone()
     }
 }

@@ -42,7 +42,7 @@ async fn test_oauth2_login_flow() {
         .await
         .expect("Failed to navigate to app");
 
-    println!("✓ Navigated to app, checking for Keycloak redirect");
+    println!("Navigated to app, checking for Keycloak redirect");
 
     // Verify we're on Keycloak login page
     let on_login_page = page
@@ -52,14 +52,14 @@ async fn test_oauth2_login_flow() {
 
     assert!(on_login_page, "Not redirected to Keycloak login page");
 
-    println!("✓ Redirected to Keycloak login page");
+    println!("Redirected to Keycloak login page");
 
     // Perform login
     page.login(TEST_USERNAME, TEST_PASSWORD)
         .await
         .expect("Failed to login");
 
-    println!("✓ Successfully logged in");
+    println!("Successfully logged in");
 
     // Verify we're back at the app (not on Keycloak)
     let current_url = driver
@@ -73,7 +73,7 @@ async fn test_oauth2_login_flow() {
         current_url
     );
 
-    println!("✓ Redirected back to application");
+    println!("Redirected back to application");
 
     // Verify session cookie is set
     let cookies = driver
@@ -85,12 +85,12 @@ async fn test_oauth2_login_flow() {
 
     assert!(has_session_cookie, "Session cookie not set");
 
-    println!("✓ Session cookie set");
+    println!("Session cookie set");
 
     // Cleanup
     page.quit().await.ok();
 
-    println!("✅ OAuth2 login flow test passed");
+    println!("OAuth2 login flow test passed");
 }
 
 // =============================================================================
@@ -132,10 +132,10 @@ async fn test_unauthenticated_web_ui_redirects_to_login() {
             "Redirect should be to Keycloak login, got: {}",
             location_str
         );
-        println!("✓ Redirected to Keycloak: {}", location_str);
+        println!("Redirected to Keycloak: {}", location_str);
     }
 
-    println!("✅ Unauthenticated web UI redirect test passed");
+    println!("Unauthenticated web UI redirect test passed");
 }
 
 #[tokio::test]
@@ -167,7 +167,7 @@ async fn test_unauthenticated_api_returns_401() {
         response.status()
     );
 
-    println!("✅ Unauthenticated API 401 test passed");
+    println!("Unauthenticated API 401 test passed");
 }
 
 // =============================================================================
@@ -205,14 +205,14 @@ async fn test_web_ui_endpoints_work_when_authenticated() {
         .await
         .expect("Failed to login");
 
-    println!("✓ Logged in successfully");
+    println!("Logged in successfully");
 
     // Try to start a game (tests POST /game/new)
     page.start_game(1, 100, Some(10))
         .await
         .expect("Failed to start game");
 
-    println!("✓ Started game successfully");
+    println!("Started game successfully");
 
     // Verify game interface is visible
     let game_started = page
@@ -225,12 +225,12 @@ async fn test_web_ui_endpoints_work_when_authenticated() {
         "Game interface not visible after starting game"
     );
 
-    println!("✓ Game interface visible");
+    println!("Game interface visible");
 
     // Cleanup
     page.quit().await.ok();
 
-    println!("✅ Authenticated web UI endpoints test passed");
+    println!("Authenticated web UI endpoints test passed");
 }
 
 // =============================================================================
@@ -252,7 +252,7 @@ async fn test_api_endpoints_work_when_authenticated() {
         .await
         .expect("Failed to create authenticated client");
 
-    println!("✓ Created authenticated API client");
+    println!("Created authenticated API client");
 
     // Test POST /api/games
     let create_response = client
@@ -281,7 +281,7 @@ async fn test_api_endpoints_work_when_authenticated() {
         .as_u64()
         .expect("Game response missing game_id");
 
-    println!("✓ Created game with ID: {}", game_id);
+    println!("Created game with ID: {}", game_id);
 
     // Test POST /api/games/{id}/guess
     let guess_response = client
@@ -299,7 +299,7 @@ async fn test_api_endpoints_work_when_authenticated() {
         guess_response.status()
     );
 
-    println!("✓ Made guess successfully");
+    println!("Made guess successfully");
 
-    println!("✅ Authenticated API endpoints test passed");
+    println!("Authenticated API endpoints test passed");
 }

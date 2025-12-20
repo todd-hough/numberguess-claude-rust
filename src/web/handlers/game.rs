@@ -6,13 +6,21 @@ use crate::auth::AuthenticatedUser;
 use crate::core::validators;
 use crate::db::GameRepository;
 use crate::server::state::AppState;
-use crate::web::templates::{ErrorTemplate, GameStartedTemplate};
+use crate::web::templates::{ErrorTemplate, GameStartedTemplate, IndexTemplate};
 use crate::web::types::CreateGameRequest;
 use axum::{
     extract::{Form, State},
     response::IntoResponse,
 };
+use axum_csrf::CsrfToken;
 use tracing::{debug, error, info, warn};
+
+/// Web UI handler for the main index page.
+pub async fn index_web(token: CsrfToken) -> impl IntoResponse {
+    IndexTemplate {
+        csrf_token: token.authenticity_token().unwrap_or_default(),
+    }
+}
 
 /// Web UI handler for game creation (HTML).
 ///
@@ -22,10 +30,20 @@ use tracing::{debug, error, info, warn};
 /// # Type Parameters
 /// * `R` - The repository implementation (static dispatch for zero overhead)
 pub async fn create_game_web<R: GameRepository>(
+    token: CsrfToken,
     State(state): State<AppState<R>>,
     user: AuthenticatedUser,
     Form(payload): Form<CreateGameRequest>,
 ) -> impl IntoResponse {
+    // Verify CSRF token
+    if token.verify(&payload.authenticity_token).is_err() {
+        warn!("Web: CSRF token verification failed");
+        return (
+            axum::http::StatusCode::BAD_REQUEST,
+            "Invalid CSRF token",
+        ).into_response();
+    }
+
     debug!(
         user_id = %user.user_id,
         user_email = %user.email,
@@ -110,6 +128,7 @@ pub async fn create_game_web<R: GameRepository>(
         min: payload.min,
         max: payload.max,
         max_guesses: guess_limit,
+        csrf_token: token.authenticity_token().unwrap_or_default(),
     };
     template.into_response()
 }

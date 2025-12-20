@@ -26,6 +26,8 @@ pub struct CreateGameRequest {
     pub max: i32,
     #[serde(default, deserialize_with = "deserialize_option_u32")]
     pub max_guesses: Option<u32>,
+    #[serde(default)]
+    pub authenticity_token: String,
 }
 
 // Guess handling types
@@ -33,6 +35,8 @@ pub struct CreateGameRequest {
 #[derive(Deserialize)]
 pub struct MakeGuessRequest {
     pub guess: i32,
+    #[serde(default)]
+    pub authenticity_token: String,
 }
 
 // Difficulty preview types

@@ -20,6 +20,7 @@
               hx-post='/game/{{ game_id }}/guess'
               hx-target='#game-content'
               hx-swap='innerHTML'>
+            <input type="hidden" name="authenticity_token" value="{{ csrf_token }}">
             <div class='guess-input-group'>
                 <input type='number'
                        name='guess'

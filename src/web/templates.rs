@@ -8,6 +8,13 @@ use crate::core::features::difficulty::DifficultyInfo;
 use askama::Template;
 use askama_web::WebTemplate;
 
+/// Template for the main index page
+#[derive(Template, WebTemplate)]
+#[template(path = "index.html")]
+pub struct IndexTemplate {
+    pub csrf_token: String,
+}
+
 /// Template for displaying error messages
 #[derive(Template, WebTemplate)]
 #[template(path = "error.html")]
@@ -23,6 +30,7 @@ pub struct GameStartedTemplate {
     pub min: i32,
     pub max: i32,
     pub max_guesses: Option<u32>,
+    pub csrf_token: String,
 }
 
 /// Template for guess form with feedback
@@ -35,6 +43,7 @@ pub struct GuessFormTemplate {
     pub remaining_guesses: Option<u32>,
     pub feedback_class: String,
     pub feedback_message: String,
+    pub csrf_token: String,
 }
 
 /// Template for game completion (win or lose)
