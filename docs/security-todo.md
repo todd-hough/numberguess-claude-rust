@@ -53,9 +53,16 @@ This document outlines security improvements needed for the Number Guessing Game
 
 ## Web Security
 
+- [x] **CSRF Protection**: Implemented Cross-Site Request Forgery protection for all state-changing requests
+  - ✅ Using `axum_csrf` crate with secure cookie-based tokens
+  - ✅ All POST requests require valid `authenticity_token` form field
+  - ✅ Cookie name configured as `x-csrf-token` for consistency
+  - ✅ Integration tests verify CSRF enforcement and token reuse within sessions
 - [ ] **Consider Local Scripts**: Consider bundling HTMX with the application rather than using the CDN
 - [ ] **Add Security Headers**: Implement Content Security Policy (CSP) and other security headers
-- [ ] **Use Template Escaping**: Use proper HTML templating rather than string concatenation for HTML generation
+- [x] **Use Template Escaping**: Use proper HTML templating rather than string concatenation for HTML generation
+  - ✅ Implemented using Askama compile-time checked templates
+  - ✅ All dynamic content is automatically escaped
 
 ## General Recommendations
 

@@ -3,7 +3,11 @@
 Remaining tasks from the initial project analysis and refactoring plan.
 
 ## Security
-- [ ] **CSRF Protection**: Implement application-level CSRF protection for web UI forms (using `axum-csrf` or similar).
+- [x] **CSRF Protection**: Implemented application-level CSRF protection for web UI forms using `axum_csrf`.
+  - All POST endpoints require valid `authenticity_token` form field
+  - Cookie-based tokens with configurable cookie name (`x-csrf-token`)
+  - Handlers return token in response tuple to set cookies
+  - Integration tests verify enforcement and token reuse within sessions
 - [ ] **Rate Limiting**: Add rate limiting to game creation endpoints (`/api/games`, `/game/new`) to prevent resource exhaustion.
 
 ## Testing
