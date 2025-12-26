@@ -121,14 +121,20 @@ async fn test_web_ui_invalid_inputs() {
         .await
         .expect("Failed to fill game setup");
 
-    page.submit_game_setup()
+    // Click submit (don't use submit_game_setup which expects success)
+    let submit = driver
+        .find(thirtyfour::By::Css("button[type='submit']"))
         .await
-        .expect("Failed to submit game setup");
+        .expect("Should find submit button");
+    submit.click().await.expect("Should click submit");
 
-    println!("Game form filled with min=100, max=10");
+    println!("Game form submitted with invalid inputs: min=100, max=10");
 
-    // Check for error
-    let has_error = page.has_error().await.expect("Failed to check for error");
+    // Wait for error feedback to appear
+    let has_error = page
+        .wait_for_feedback(5000)
+        .await
+        .expect("Failed to wait for feedback");
 
     println!("Error displayed? {}", has_error);
 

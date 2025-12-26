@@ -128,6 +128,7 @@ pub async fn make_guess_web<R: GameRepository>(
                 _ => unreachable!(),
             };
 
+            let csrf_token = token.authenticity_token().unwrap_or_default();
             let template = GuessFormTemplate {
                 game_id,
                 min,
@@ -135,9 +136,10 @@ pub async fn make_guess_web<R: GameRepository>(
                 remaining_guesses,
                 feedback_class,
                 feedback_message,
-                csrf_token: token.authenticity_token().unwrap_or_default(),
+                csrf_token,
             };
-            template.into_response()
+            // Return token in tuple to trigger cookie setting via IntoResponseParts
+            (token, template).into_response()
         }
         GuessResult::Correct { number, attempts } => {
             info!(

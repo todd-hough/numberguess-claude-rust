@@ -1,7 +1,6 @@
 mod common;
 
 use common::{auth_helpers, environment};
-use reqwest::header;
 
 #[tokio::test]
 async fn test_csrf_protection_enforcement() {
@@ -52,7 +51,8 @@ async fn test_csrf_protection_enforcement() {
         "POST with invalid CSRF token should be rejected"
     );
 
-    // 4. Perform legitimate GET to obtain a valid CSRF token and cookie
+    // 4. Perform legitimate GET to obtain a valid CSRF token
+    // The cookie jar will automatically store the x-csrf-token cookie from the response
     let resp = client
         .get("http://localhost:8080")
         .send()
@@ -60,17 +60,7 @@ async fn test_csrf_protection_enforcement() {
         .expect("Should GET index");
 
     assert!(resp.status().is_success());
-    
-    // Extract CSRF cookie (clone before consuming response)
-    let csrf_cookie = resp.headers()
-        .get_all(header::SET_COOKIE)
-        .iter()
-        .filter_map(|h| h.to_str().ok())
-        .find(|c| c.contains("x-csrf-token"))
-        .and_then(|c| c.split(';').next())
-        .expect("Should find x-csrf-token cookie")
-        .to_string();
-    
+
     // Extract token from HTML body
     let body = resp.text().await.expect("Should get body");
     let token = body
@@ -79,10 +69,10 @@ async fn test_csrf_protection_enforcement() {
         .and_then(|s| s.split('"').next())
         .expect("Should find authenticity_token in HTML");
 
-    // 5. Attempt POST with VALID CSRF token and cookie
+    // 5. Attempt POST with VALID CSRF token
+    // The cookie jar automatically sends both oauth2-proxy session and x-csrf-token cookies
     let resp = client
         .post("http://localhost:8080/game/new")
-        .header(header::COOKIE, csrf_cookie)
         .form(&[
             ("min", "1"),
             ("max", "100"),
@@ -102,7 +92,7 @@ async fn test_csrf_protection_enforcement() {
 }
 
 #[tokio::test]
-async fn test_csrf_token_rotation() {
+async fn test_csrf_token_reuse_within_session() {
     // Run environment checks
     tokio::task::spawn_blocking(|| {
         environment::ensure_server_ready();
@@ -118,56 +108,66 @@ async fn test_csrf_token_rotation() {
     // 1. Get initial token
     let resp = client.get("http://localhost:8080").send().await.unwrap();
     let body1 = resp.text().await.unwrap();
-    let token1 = body1
+    let token = body1
         .split("name=\"authenticity_token\" value=\"")
         .nth(1)
         .and_then(|s| s.split('"').next())
         .unwrap()
         .to_string();
 
-    // 2. Start game (submits token1)
+    // 2. Start game (first use of token)
     let resp = client
         .post("http://localhost:8080/game/new")
         .form(&[
             ("min", "1"),
             ("max", "100"),
-            ("authenticity_token", &token1),
+            ("authenticity_token", &token),
         ])
         .send()
         .await
         .unwrap();
 
-    assert!(resp.status().is_success());
+    assert!(resp.status().is_success(), "First POST with token should succeed");
     let body2 = resp.text().await.unwrap();
-    
-    // 3. Extract new token from game_started response
-    let token2 = body2
-        .split("name='authenticity_token' value='")
-        .nth(1)
-        .and_then(|s| s.split('\'').next())
-        .expect("Should find new token in response")
-        .to_string();
 
-    assert_ne!(token1, token2, "CSRF token should rotate after use");
-
-    // 4. Use new token for a guess
+    // 3. Extract game_id from response
     let game_id = body2
         .split("hx-post='/game/")
         .nth(1)
         .and_then(|s| s.split('/').next())
-        .unwrap();
+        .expect("Should find game_id in response");
 
+    // 4. Make a guess using the SAME token (axum_csrf uses per-session tokens)
     let resp = client
         .post(format!("http://localhost:8080/game/{}/guess", game_id))
         .form(&[
             ("guess", "50"),
-            ("authenticity_token", &token2),
+            ("authenticity_token", &token),
         ])
         .send()
         .await
         .unwrap();
 
-    assert!(resp.status().is_success(), "Second request with rotated token should succeed");
+    assert!(
+        resp.status().is_success(),
+        "Second POST with same token should succeed (per-session tokens)"
+    );
 
-    println!("CSRF token rotation test passed");
+    // 5. Make another guess to confirm token continues to work
+    let resp = client
+        .post(format!("http://localhost:8080/game/{}/guess", game_id))
+        .form(&[
+            ("guess", "25"),
+            ("authenticity_token", &token),
+        ])
+        .send()
+        .await
+        .unwrap();
+
+    assert!(
+        resp.status().is_success(),
+        "Third POST with same token should succeed"
+    );
+
+    println!("CSRF token reuse within session test passed");
 }

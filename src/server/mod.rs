@@ -48,7 +48,9 @@ pub async fn run_server(pool: PgPool, port: u16) {
             info!("CSRF_SECRET not set, using temporary key");
             Key::generate()
         });
-    let csrf_config = CsrfConfig::default().with_key(Some(csrf_secret));
+    let csrf_config = CsrfConfig::default()
+        .with_key(Some(csrf_secret))
+        .with_cookie_name("x-csrf-token");
 
     // Create repository and application state
     let repo = PostgresGameRepository::new(pool.clone());

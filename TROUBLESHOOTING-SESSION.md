@@ -1,64 +1,60 @@
-# Troubleshooting Session - 2025-12-19
+# CSRF Troubleshooting Session - 2025-12-25
 
-## Problem
-After adding CSRF protection, attempted to remove emojis from log/test messages, which broke integration tests.
+## Bugs Fixed
 
-## Root Causes Found
+### 1. CSRF Cookie Not Being Set (CRITICAL)
+Handlers extracted `CsrfToken` but didn't return it in response tuple.
+**Fix**: Return `(token, template)` in all handlers.
 
-### 1. Borrow Checker Error in `tests/csrf_test.rs` (FIXED)
-- Line 65-75: `resp.headers()` borrowed `resp`, then `resp.text().await` tried to consume it
-- Fix: Clone the cookie string before consuming the response
+### 2. CSRF Cookie Name Mismatch
+Test expected `"x-csrf-token"`, library default was `"Csrf_Token"`.
+**Fix**: Added `.with_cookie_name("x-csrf-token")` in server config.
 
-### 2. Timing Issue in `tests/common/page_objects.rs` (FIXED)
-- `submit_game_setup()` used a fixed 500ms sleep, insufficient for slow DB operations
-- Fix: Wait for `.guess-form` element to appear (up to 30s) instead of fixed sleep
+### 3. Test Client Missing Cookie Store
+Client didn't persist cookies between requests.
+**Fix**: Added `cookies` feature to reqwest, used `cookie_provider(jar)`.
 
-### 3. CSRF Token Not Being Verified (FIXED)
-- `axum_csrf` doesn't auto-reject invalid tokens - you must call `token.verify()` explicitly
-- Handlers were extracting `CsrfToken` but not verifying it
-- Fix: Added `authenticity_token` field to request structs and verification in handlers
+### 4. Silent Timeout Bug
+`wait_for_oauth2_redirect()` returned `Ok(())` on timeout.
+**Fix**: Return error with URL on timeout, increased timeouts to 30s.
+
+### 5. Quote Mismatch in Test
+Test used single quotes, template uses double quotes.
+**Fix**: Updated test to use double quotes.
+
+### 6. Tests Missing CSRF Tokens
+Several integration tests were POSTing without including `authenticity_token`.
+**Fix**: Updated tests to GET index page first, extract token, include in POSTs.
+
+### 7. web_ui_test Invalid Input Test
+`submit_game_setup()` waits for `.guess-form` which doesn't appear on error.
+**Fix**: Use direct submit click + wait_for_feedback() for invalid input tests.
 
 ## Files Modified
+- `src/server/mod.rs` - cookie name config
+- `src/web/handlers/game.rs` - return token in tuple
+- `src/web/handlers/guess.rs` - return token in tuple
+- `tests/common/auth_helpers.rs` - cookie jar, timeouts, error messages
+- `tests/csrf_test.rs` - renamed test, quote fix
+- `tests/web_endpoints_test.rs` - added CSRF tokens to all 3 POST tests
+- `tests/web_ui_test.rs` - fixed invalid input test to not expect success
+- `Cargo.toml` - added `cookies` feature
 
-1. **tests/csrf_test.rs** - Fixed borrow checker error (lines 65-75)
+## Test Status (as of last run)
 
-2. **tests/common/page_objects.rs** - Changed `submit_game_setup()` to wait for element
+### Passing Tests
+- ✅ api_edge_cases_test (5 tests)
+- ✅ auth_integration_test (5 tests)
+- ✅ cli_test (6 tests)
+- ✅ concurrency_test (3 tests)
+- ✅ csrf_test (2 tests)
+- ✅ integration_test (2 ignored - superseded)
+- ✅ web_endpoints_test (4 tests)
 
-3. **src/web/types.rs** - Added `authenticity_token: String` field to:
-   - `CreateGameRequest`
-   - `MakeGuessRequest`
-
-4. **src/web/handlers/game.rs** - Added CSRF verification at start of `create_game_web`:
-   ```rust
-   if token.verify(&payload.authenticity_token).is_err() {
-       warn!("Web: CSRF token verification failed");
-       return (StatusCode::BAD_REQUEST, "Invalid CSRF token").into_response();
-   }
-   ```
-
-5. **src/web/handlers/guess.rs** - Added same CSRF verification to `make_guess_web`
-
-## Current State
-- Code compiles successfully (`cargo build` passes)
-- Unit tests should pass (`make test-unit`)
-- Integration tests not fully verified due to resource constraints on laptop
-- Docker image needs rebuild (`make build`) before integration tests
+### Needs Verification
+- ⚠️ web_ui_test (2 tests) - Selenium connection failed on last run (resource issue)
 
 ## Next Steps
-1. Run `make test-down` to clean up any running containers
-2. Run `make build` to rebuild Docker image with fixes
-3. Run `make test-integration` to verify all tests pass
-4. If CSRF tests still fail, check that templates include the hidden field (they do - already verified)
-
-## Commands to Resume
-```bash
-# Clean up
-make test-down
-
-# Verify unit tests
-make test-unit
-
-# Rebuild and run integration tests
-make build
-make test-integration
-```
+1. Run `make test-integration` to verify web_ui_test passes
+2. If all pass, clean up this troubleshooting doc
+3. Commit CSRF changes to csrf-update branch

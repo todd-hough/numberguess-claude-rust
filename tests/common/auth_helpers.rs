@@ -2,7 +2,6 @@
 //!
 //! Provides Selenium-based OAuth2 authentication for all tests (Web UI and API).
 
-use reqwest::header::{HeaderMap, HeaderValue};
 use std::error::Error;
 use std::time::Duration;
 use thirtyfour::prelude::*;
@@ -69,24 +68,26 @@ pub async fn login_with_keycloak_selenium(driver: &WebDriver) -> WebDriverResult
 
 /// Wait for Keycloak login page to appear.
 async fn wait_for_keycloak_login_page(driver: &WebDriver) -> WebDriverResult<()> {
-    let timeout = Duration::from_secs(10);
+    let timeout = Duration::from_secs(30); // Increased for slow systems
     let start = std::time::Instant::now();
 
     while start.elapsed() < timeout {
         if driver.query(By::Id("kc-login")).nowait().exists().await? {
             return Ok(());
         }
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        tokio::time::sleep(Duration::from_millis(200)).await;
     }
 
-    Err(WebDriverError::Timeout(
-        "Timeout waiting for Keycloak login page".to_string(),
-    ))
+    let current_url = driver.current_url().await?;
+    Err(WebDriverError::Timeout(format!(
+        "Timeout waiting for Keycloak login page. Current URL: {}",
+        current_url.as_str()
+    )))
 }
 
 /// Wait for OAuth2 redirect back to application.
 async fn wait_for_oauth2_redirect(driver: &WebDriver) -> WebDriverResult<()> {
-    let timeout = Duration::from_secs(10);
+    let timeout = Duration::from_secs(30); // Increased for slow systems
     let start = std::time::Instant::now();
 
     while start.elapsed() < timeout {
@@ -96,25 +97,35 @@ async fn wait_for_oauth2_redirect(driver: &WebDriver) -> WebDriverResult<()> {
         if !url_str.contains("keycloak") && !url_str.contains("oauth2/callback") {
             return Ok(());
         }
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        tokio::time::sleep(Duration::from_millis(200)).await;
     }
 
-    Ok(())
+    // Get final URL for error message
+    let final_url = driver.current_url().await?;
+    Err(WebDriverError::Timeout(format!(
+        "Timeout waiting for OAuth2 redirect. Still at: {}",
+        final_url.as_str()
+    )))
 }
 
 /// Extract oauth2-proxy session cookie from WebDriver.
 async fn extract_session_cookie(driver: &WebDriver) -> WebDriverResult<Cookie> {
     let cookies = driver.get_all_cookies().await?;
 
-    for cookie in cookies {
+    for cookie in &cookies {
         if cookie.name == "_oauth2_proxy" {
-            return Ok(cookie);
+            return Ok(cookie.clone());
         }
     }
 
-    Err(WebDriverError::FatalError(
-        "oauth2-proxy session cookie not found".to_string(),
-    ))
+    // Provide helpful error with available cookies
+    let cookie_names: Vec<&str> = cookies.iter().map(|c| c.name.as_str()).collect();
+    let current_url = driver.current_url().await?;
+    Err(WebDriverError::FatalError(format!(
+        "oauth2-proxy session cookie not found. URL: {}, Available cookies: {:?}",
+        current_url.as_str(),
+        cookie_names
+    )))
 }
 
 /// Create a reqwest client with Selenium-based authentication (session cookie).
@@ -147,16 +158,20 @@ pub async fn create_authenticated_client_selenium() -> Result<reqwest::Client, B
     // Close WebDriver (quit() consumes the driver and handles cleanup)
     driver.quit().await?;
 
-    // Convert Selenium cookie to reqwest header
-    let cookie_str = format!("_oauth2_proxy={}", session_cookie.value);
+    // Create async reqwest client with cookie store enabled
+    // This allows the client to automatically manage cookies (including CSRF tokens)
+    let jar = std::sync::Arc::new(reqwest::cookie::Jar::default());
 
-    // Create async reqwest client (no runtime conflicts!)
-    let mut headers = HeaderMap::new();
-    headers.insert(reqwest::header::COOKIE, HeaderValue::from_str(&cookie_str)?);
+    // Add the oauth2-proxy session cookie to the jar
+    let cookie_url = "http://localhost:8080".parse::<reqwest::Url>().unwrap();
+    jar.add_cookie_str(
+        &format!("_oauth2_proxy={}; Path=/", session_cookie.value),
+        &cookie_url,
+    );
 
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(30))
-        .default_headers(headers)
+        .cookie_provider(jar)
         .build()?;
 
     Ok(client)

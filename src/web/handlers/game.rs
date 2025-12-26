@@ -17,9 +17,9 @@ use tracing::{debug, error, info, warn};
 
 /// Web UI handler for the main index page.
 pub async fn index_web(token: CsrfToken) -> impl IntoResponse {
-    IndexTemplate {
-        csrf_token: token.authenticity_token().unwrap_or_default(),
-    }
+    let csrf_token = token.authenticity_token().unwrap_or_default();
+    // Return token in tuple to trigger cookie setting via IntoResponseParts
+    (token, IndexTemplate { csrf_token })
 }
 
 /// Web UI handler for game creation (HTML).
@@ -123,12 +123,14 @@ pub async fn create_game_web<R: GameRepository>(
         }
     };
 
+    let csrf_token = token.authenticity_token().unwrap_or_default();
     let template = GameStartedTemplate {
         game_id,
         min: payload.min,
         max: payload.max,
         max_guesses: guess_limit,
-        csrf_token: token.authenticity_token().unwrap_or_default(),
+        csrf_token,
     };
-    template.into_response()
+    // Return token in tuple to trigger cookie setting via IntoResponseParts
+    (token, template).into_response()
 }

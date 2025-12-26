@@ -53,10 +53,28 @@ async fn test_web_form_endpoints() {
         .await
         .expect("Failed to create authenticated client");
 
-    // Test form submission to /game/new
+    // Get CSRF token from index page
+    let resp = client
+        .get("http://localhost:8080")
+        .send()
+        .await
+        .expect("Should GET index");
+    let body = resp.text().await.expect("Should get body");
+    let token = body
+        .split("name=\"authenticity_token\" value=\"")
+        .nth(1)
+        .and_then(|s| s.split('"').next())
+        .expect("Should find CSRF token");
+
+    // Test form submission to /game/new with CSRF token
     let resp = client
         .post("http://localhost:8080/game/new")
-        .form(&[("min", "1"), ("max", "10"), ("max_guesses", "5")])
+        .form(&[
+            ("min", "1"),
+            ("max", "10"),
+            ("max_guesses", "5"),
+            ("authenticity_token", token),
+        ])
         .send()
         .await
         .expect("Should send POST request with form data");
@@ -92,10 +110,29 @@ async fn test_remaining_guesses_display() {
         .await
         .expect("Failed to create authenticated client");
 
+    // Get CSRF token from index page
+    let resp = client
+        .get("http://localhost:8080")
+        .send()
+        .await
+        .expect("Should GET index");
+    let body = resp.text().await.expect("Should get body");
+    let token = body
+        .split("name=\"authenticity_token\" value=\"")
+        .nth(1)
+        .and_then(|s| s.split('"').next())
+        .expect("Should find CSRF token")
+        .to_string();
+
     // Create a game with a guess limit of 5
     let resp = client
         .post("http://localhost:8080/game/new")
-        .form(&[("min", "1"), ("max", "100"), ("max_guesses", "5")])
+        .form(&[
+            ("min", "1"),
+            ("max", "100"),
+            ("max_guesses", "5"),
+            ("authenticity_token", &token),
+        ])
         .send()
         .await
         .expect("Should create game with guess limit");
@@ -120,10 +157,10 @@ async fn test_remaining_guesses_display() {
         .and_then(|s| s.split('/').next())
         .expect("Should find game ID in response");
 
-    // Make first guess
+    // Make first guess (same token works for session)
     let resp = client
         .post(format!("http://localhost:8080/game/{}/guess", game_id))
-        .form(&[("guess", "50")])
+        .form(&[("guess", "50"), ("authenticity_token", &token)])
         .send()
         .await
         .expect("Should make first guess");
@@ -144,7 +181,7 @@ async fn test_remaining_guesses_display() {
     // Make second guess
     let resp = client
         .post(format!("http://localhost:8080/game/{}/guess", game_id))
-        .form(&[("guess", "75")])
+        .form(&[("guess", "75"), ("authenticity_token", &token)])
         .send()
         .await
         .expect("Should make second guess");
@@ -161,7 +198,7 @@ async fn test_remaining_guesses_display() {
     // Make third guess
     let resp = client
         .post(format!("http://localhost:8080/game/{}/guess", game_id))
-        .form(&[("guess", "25")])
+        .form(&[("guess", "25"), ("authenticity_token", &token)])
         .send()
         .await
         .expect("Should make third guess");
@@ -193,10 +230,28 @@ async fn test_no_remaining_guesses_display_without_limit() {
         .await
         .expect("Failed to create authenticated client");
 
+    // Get CSRF token from index page
+    let resp = client
+        .get("http://localhost:8080")
+        .send()
+        .await
+        .expect("Should GET index");
+    let body = resp.text().await.expect("Should get body");
+    let token = body
+        .split("name=\"authenticity_token\" value=\"")
+        .nth(1)
+        .and_then(|s| s.split('"').next())
+        .expect("Should find CSRF token")
+        .to_string();
+
     // Create a game WITHOUT a guess limit
     let resp = client
         .post("http://localhost:8080/game/new")
-        .form(&[("min", "1"), ("max", "100")])
+        .form(&[
+            ("min", "1"),
+            ("max", "100"),
+            ("authenticity_token", &token),
+        ])
         .send()
         .await
         .expect("Should create game without guess limit");
@@ -220,7 +275,7 @@ async fn test_no_remaining_guesses_display_without_limit() {
     // Make a guess
     let resp = client
         .post(format!("http://localhost:8080/game/{}/guess", game_id))
-        .form(&[("guess", "50")])
+        .form(&[("guess", "50"), ("authenticity_token", &token)])
         .send()
         .await
         .expect("Should make guess");
