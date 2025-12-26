@@ -247,11 +247,7 @@ async fn test_no_remaining_guesses_display_without_limit() {
     // Create a game WITHOUT a guess limit
     let resp = client
         .post("http://localhost:8080/game/new")
-        .form(&[
-            ("min", "1"),
-            ("max", "100"),
-            ("authenticity_token", &token),
-        ])
+        .form(&[("min", "1"), ("max", "100"), ("authenticity_token", &token)])
         .send()
         .await
         .expect("Should create game without guess limit");

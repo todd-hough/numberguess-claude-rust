@@ -34,10 +34,7 @@ pub async fn make_guess_web<R: GameRepository>(
     // Verify CSRF token
     if token.verify(&payload.authenticity_token).is_err() {
         warn!("Web: CSRF token verification failed");
-        return (
-            axum::http::StatusCode::BAD_REQUEST,
-            "Invalid CSRF token",
-        ).into_response();
+        return (axum::http::StatusCode::BAD_REQUEST, "Invalid CSRF token").into_response();
     }
 
     debug!(
@@ -103,11 +100,7 @@ pub async fn make_guess_web<R: GameRepository>(
             // Calculate remaining guesses
             let remaining_guesses = max_guesses.and_then(|limit| {
                 let remaining = limit.saturating_sub(guess_count);
-                if remaining > 0 {
-                    Some(remaining)
-                } else {
-                    None
-                }
+                if remaining > 0 { Some(remaining) } else { None }
             });
 
             let (feedback_class, feedback_message) = match result {

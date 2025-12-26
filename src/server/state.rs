@@ -1,6 +1,6 @@
+use crate::db::GameRepository;
 use axum::extract::FromRef;
 use axum_csrf::CsrfConfig;
-use crate::db::GameRepository;
 
 /// Application state shared across all handlers.
 ///
