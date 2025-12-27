@@ -86,7 +86,15 @@ impl<'a> GamePage<'a> {
         let submit = self.driver.find(By::Css(".guess-form button")).await?;
         submit.click().await?;
 
-        // Wait for feedback
+        // Wait for feedback to update by checking for any feedback class
+        // Use WebDriver's built-in wait with a selector that matches updated feedback
+        self.driver
+            .query(By::Css("#feedback.active"))
+            .wait(Duration::from_secs(5), Duration::from_millis(100))
+            .first()
+            .await?;
+
+        // Small delay to let DOM settle after HTMX swap
         tokio::time::sleep(Duration::from_millis(100)).await;
 
         // Check feedback type
@@ -170,23 +178,17 @@ impl<'a> GamePage<'a> {
 
     /// Wait for feedback to appear
     pub async fn wait_for_feedback(&self, timeout_ms: u64) -> WebDriverResult<bool> {
-        let start = std::time::Instant::now();
-        let timeout = Duration::from_millis(timeout_ms);
+        let result = self
+            .driver
+            .query(By::Css("#feedback.active"))
+            .wait(
+                Duration::from_millis(timeout_ms),
+                Duration::from_millis(100),
+            )
+            .exists()
+            .await;
 
-        while start.elapsed() < timeout {
-            if self
-                .driver
-                .query(By::Css("#feedback.active"))
-                .nowait()
-                .exists()
-                .await?
-            {
-                return Ok(true);
-            }
-            tokio::time::sleep(Duration::from_millis(50)).await;
-        }
-
-        Ok(false)
+        Ok(result.unwrap_or(false))
     }
 
     /// Check if the game interface is visible (game has been started)
@@ -257,36 +259,23 @@ impl<'a> GamePage<'a> {
 
     /// Wait for redirect to Keycloak login page.
     pub async fn wait_for_login_page(&self) -> WebDriverResult<()> {
-        let timeout = Duration::from_secs(10);
-        let start = std::time::Instant::now();
-
-        while start.elapsed() < timeout {
-            if self.is_on_login_page().await? {
-                return Ok(());
-            }
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
-
-        Err(WebDriverError::Timeout(
-            "Timeout waiting for Keycloak login page".to_string(),
-        ))
+        self.driver
+            .query(By::Id("kc-login"))
+            .wait(Duration::from_secs(10), Duration::from_millis(200))
+            .first()
+            .await?;
+        Ok(())
     }
 
-    /// Wait for OAuth2 redirect back to application.
+    /// Wait for OAuth2 redirect back to application and page to load.
     pub async fn wait_for_app_redirect(&self) -> WebDriverResult<()> {
-        let timeout = Duration::from_secs(10);
-        let start = std::time::Instant::now();
-
-        while start.elapsed() < timeout {
-            let url = self.driver.current_url().await?;
-            let url_str = url.as_str();
-            // We're back at the app when URL doesn't contain keycloak or oauth2/callback
-            if !url_str.contains("keycloak") && !url_str.contains("oauth2/callback") {
-                return Ok(());
-            }
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
-
+        // Wait for the game form to be visible (indicates redirect completed and page loaded)
+        // The #min input only exists on the application's index page, not on Keycloak
+        self.driver
+            .query(By::Id("min"))
+            .wait(Duration::from_secs(15), Duration::from_millis(200))
+            .first()
+            .await?;
         Ok(())
     }
 }

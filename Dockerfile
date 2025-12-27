@@ -51,7 +51,6 @@ WORKDIR /app
 
 # Copy the built binary and static assets from builder stage
 COPY --from=builder /app/target/${BUILD_TYPE}/number_guessing_game /usr/local/bin/number_guessing_game
-COPY --from=builder /app/static ./static
 
 # Distroless runs as non-root user "nonroot" (UID 65532) by default
 # No need to create user - distroless has this built-in

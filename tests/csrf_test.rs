@@ -7,7 +7,7 @@ async fn test_csrf_protection_enforcement() {
     // Run environment checks in blocking context
     tokio::task::spawn_blocking(|| {
         environment::ensure_server_ready();
-        environment::ensure_selenium_ready().expect("Selenium required for authentication");
+        environment::ensure_selenium_ready();
     })
     .await
     .expect("Environment checks failed");
@@ -92,7 +92,7 @@ async fn test_csrf_token_reuse_within_session() {
     // Run environment checks
     tokio::task::spawn_blocking(|| {
         environment::ensure_server_ready();
-        environment::ensure_selenium_ready().expect("Selenium required for authentication");
+        environment::ensure_selenium_ready();
     })
     .await
     .expect("Environment checks failed");

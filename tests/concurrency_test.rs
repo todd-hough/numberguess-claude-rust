@@ -41,7 +41,7 @@ async fn test_concurrent_guesses_on_same_game() {
     // Run environment checks in blocking context
     tokio::task::spawn_blocking(|| {
         environment::ensure_server_ready();
-        environment::ensure_selenium_ready().expect("Selenium required for authentication");
+        environment::ensure_selenium_ready();
     })
     .await
     .expect("Environment checks failed");
@@ -131,7 +131,7 @@ async fn test_race_condition_guess_during_deletion() {
     // Run environment checks in blocking context
     tokio::task::spawn_blocking(|| {
         environment::ensure_server_ready();
-        environment::ensure_selenium_ready().expect("Selenium required for authentication");
+        environment::ensure_selenium_ready();
     })
     .await
     .expect("Environment checks failed");
@@ -249,7 +249,7 @@ async fn test_game_persistence_across_restart() {
     // Run environment checks in blocking context
     tokio::task::spawn_blocking(|| {
         environment::ensure_server_ready();
-        environment::ensure_selenium_ready().expect("Selenium required for authentication");
+        environment::ensure_selenium_ready();
     })
     .await
     .expect("Environment checks failed");

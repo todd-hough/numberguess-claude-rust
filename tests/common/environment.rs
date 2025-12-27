@@ -5,21 +5,24 @@ use std::thread;
 use std::time::Duration;
 
 const DEFAULT_BASE_URL: &str = "http://localhost:8080";
+const DEFAULT_BROWSER_URL: &str = "http://oauth2-proxy:4180";
 const DEFAULT_KEYCLOAK_URL: &str = "http://localhost:8090";
+const DEFAULT_SELENIUM_URL: &str = "http://localhost:4444";
 
 /// Return the base URL for the running game server, falling back to localhost.
 pub fn base_url() -> String {
     env::var("GAME_SERVER_BASE_URL").unwrap_or_else(|_| DEFAULT_BASE_URL.to_string())
 }
 
-/// Return the base URL used by browsers (e.g., Selenium), defaulting to the API base.
+/// Return the base URL used by browsers (e.g., Selenium).
+/// Defaults to oauth2-proxy's internal Docker address since Selenium runs in Docker.
 pub fn browser_base_url() -> String {
-    env::var("GAME_SERVER_BROWSER_URL").unwrap_or_else(|_| base_url())
+    env::var("GAME_SERVER_BROWSER_URL").unwrap_or_else(|_| DEFAULT_BROWSER_URL.to_string())
 }
 
-/// Return the Selenium remote URL if configured.
-pub fn selenium_url() -> Option<String> {
-    env::var("SELENIUM_REMOTE_URL").ok()
+/// Return the Selenium remote URL.
+pub fn selenium_url() -> String {
+    env::var("SELENIUM_REMOTE_URL").unwrap_or_else(|_| DEFAULT_SELENIUM_URL.to_string())
 }
 
 /// Return the Keycloak base URL.
@@ -86,9 +89,10 @@ pub fn ensure_server_ready() -> String {
     );
 }
 
-/// Ensure Selenium is reachable, returning the configured URL.
-pub fn ensure_selenium_ready() -> Option<String> {
-    let url = selenium_url()?;
+/// Ensure Selenium is reachable, returning the URL.
+/// Panics if Selenium is not responding within the timeout.
+pub fn ensure_selenium_ready() -> String {
+    let url = selenium_url();
     let client = Client::builder()
         .timeout(Duration::from_secs(5))
         .build()
@@ -98,17 +102,23 @@ pub fn ensure_selenium_ready() -> Option<String> {
     let max_attempts = 20;
     let status_endpoint = format!("{}/status", url.trim_end_matches('/'));
 
+    eprintln!("Waiting for Selenium to be ready at {}...", url);
+
     while attempts < max_attempts {
         if let Ok(resp) = client.get(&status_endpoint).send()
             && resp.status().is_success()
         {
-            return Some(url);
+            eprintln!("Selenium is ready");
+            return url;
         }
         attempts += 1;
         thread::sleep(Duration::from_secs(1));
     }
 
-    None
+    panic!(
+        "Selenium at {} is not responding after {} attempts. Check `docker compose logs selenium`",
+        url, max_attempts
+    );
 }
 
 /// Ensure Keycloak is reachable and ready.

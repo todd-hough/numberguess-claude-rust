@@ -16,7 +16,7 @@ async fn test_guess_nonexistent_game() {
     // Run environment checks in blocking context to avoid runtime conflicts
     tokio::task::spawn_blocking(|| {
         environment::ensure_server_ready();
-        environment::ensure_selenium_ready().expect("Selenium required for authentication");
+        environment::ensure_selenium_ready();
     })
     .await
     .expect("Environment checks failed");
@@ -46,7 +46,7 @@ async fn test_concurrent_games() {
     // Run environment checks in blocking context to avoid runtime conflicts
     tokio::task::spawn_blocking(|| {
         environment::ensure_server_ready();
-        environment::ensure_selenium_ready().expect("Selenium required for authentication");
+        environment::ensure_selenium_ready();
     })
     .await
     .expect("Environment checks failed");
@@ -108,7 +108,7 @@ async fn test_guess_after_limit_reached() {
     // Run environment checks in blocking context to avoid runtime conflicts
     tokio::task::spawn_blocking(|| {
         environment::ensure_server_ready();
-        environment::ensure_selenium_ready().expect("Selenium required for authentication");
+        environment::ensure_selenium_ready();
     })
     .await
     .expect("Environment checks failed");
@@ -188,7 +188,7 @@ async fn test_zero_limit_means_unlimited() {
     // Run environment checks in blocking context to avoid runtime conflicts
     tokio::task::spawn_blocking(|| {
         environment::ensure_server_ready();
-        environment::ensure_selenium_ready().expect("Selenium required for authentication");
+        environment::ensure_selenium_ready();
     })
     .await
     .expect("Environment checks failed");
@@ -267,7 +267,7 @@ async fn test_web_rejects_excessive_guess_limit() {
     // Run environment checks in blocking context to avoid runtime conflicts
     tokio::task::spawn_blocking(|| {
         environment::ensure_server_ready();
-        environment::ensure_selenium_ready().expect("Selenium required for authentication");
+        environment::ensure_selenium_ready();
     })
     .await
     .expect("Environment checks failed");
