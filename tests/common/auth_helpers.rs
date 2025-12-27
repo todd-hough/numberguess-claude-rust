@@ -148,8 +148,7 @@ async fn extract_session_cookie(driver: &WebDriver) -> WebDriverResult<Cookie> {
 pub async fn create_authenticated_client_selenium() -> Result<reqwest::Client, Box<dyn Error>> {
     // Create temporary WebDriver
     let caps = DesiredCapabilities::chrome();
-    let selenium_url =
-        environment::selenium_url().ok_or_else(|| "SELENIUM_REMOTE_URL not set".to_string())?;
+    let selenium_url = environment::selenium_url();
     let driver = WebDriver::new(&selenium_url, caps).await?;
 
     // Perform OAuth2 login

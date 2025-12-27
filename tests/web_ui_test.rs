@@ -11,8 +11,7 @@ async fn test_web_ui_game_flow() {
     let (base_url, browser_url, selenium_url) = tokio::task::spawn_blocking(|| {
         let base_url = environment::ensure_server_ready();
         let browser_url = environment::browser_base_url();
-        let selenium_url = environment::ensure_selenium_ready()
-            .expect("Selenium required for this test. Run via 'make test-integration'");
+        let selenium_url = environment::ensure_selenium_ready();
         (base_url, browser_url, selenium_url)
     })
     .await
@@ -84,8 +83,7 @@ async fn test_web_ui_invalid_inputs() {
     let (base_url, browser_url, selenium_url) = tokio::task::spawn_blocking(|| {
         let base_url = environment::ensure_server_ready();
         let browser_url = environment::browser_base_url();
-        let selenium_url = environment::ensure_selenium_ready()
-            .expect("Selenium required for this test. Run via 'make test-integration'");
+        let selenium_url = environment::ensure_selenium_ready();
         (base_url, browser_url, selenium_url)
     })
     .await

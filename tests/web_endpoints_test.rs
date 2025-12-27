@@ -7,7 +7,7 @@ async fn test_static_file_serving() {
     // Run environment checks in blocking context
     tokio::task::spawn_blocking(|| {
         environment::ensure_server_ready();
-        environment::ensure_selenium_ready().expect("Selenium required for authentication");
+        environment::ensure_selenium_ready();
     })
     .await
     .expect("Environment checks failed");
@@ -43,7 +43,7 @@ async fn test_web_form_endpoints() {
     // Run environment checks in blocking context
     tokio::task::spawn_blocking(|| {
         environment::ensure_server_ready();
-        environment::ensure_selenium_ready().expect("Selenium required for authentication");
+        environment::ensure_selenium_ready();
     })
     .await
     .expect("Environment checks failed");
@@ -100,7 +100,7 @@ async fn test_remaining_guesses_display() {
     // Run environment checks in blocking context
     tokio::task::spawn_blocking(|| {
         environment::ensure_server_ready();
-        environment::ensure_selenium_ready().expect("Selenium required for authentication");
+        environment::ensure_selenium_ready();
     })
     .await
     .expect("Environment checks failed");
@@ -220,7 +220,7 @@ async fn test_no_remaining_guesses_display_without_limit() {
     // Run environment checks in blocking context
     tokio::task::spawn_blocking(|| {
         environment::ensure_server_ready();
-        environment::ensure_selenium_ready().expect("Selenium required for authentication");
+        environment::ensure_selenium_ready();
     })
     .await
     .expect("Environment checks failed");

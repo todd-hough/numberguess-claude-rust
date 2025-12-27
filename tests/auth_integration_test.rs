@@ -23,8 +23,7 @@ async fn test_oauth2_login_flow() {
     let (browser_url, selenium_url) = tokio::task::spawn_blocking(|| {
         environment::ensure_server_ready();
         let browser_url = environment::browser_base_url();
-        let selenium_url = environment::ensure_selenium_ready()
-            .expect("Selenium required for this test. Run via 'make test-integration'");
+        let selenium_url = environment::ensure_selenium_ready();
         (browser_url, selenium_url)
     })
     .await
@@ -182,8 +181,7 @@ async fn test_web_ui_endpoints_work_when_authenticated() {
     let (browser_url, selenium_url) = tokio::task::spawn_blocking(|| {
         environment::ensure_server_ready();
         let browser_url = environment::browser_base_url();
-        let selenium_url = environment::ensure_selenium_ready()
-            .expect("Selenium required for this test. Run via 'make test-integration'");
+        let selenium_url = environment::ensure_selenium_ready();
         (browser_url, selenium_url)
     })
     .await
@@ -242,7 +240,7 @@ async fn test_api_endpoints_work_when_authenticated() {
     // Environment checks in blocking context
     tokio::task::spawn_blocking(|| {
         environment::ensure_server_ready();
-        environment::ensure_selenium_ready().expect("Selenium required for authentication");
+        environment::ensure_selenium_ready();
     })
     .await
     .expect("Environment checks failed");
