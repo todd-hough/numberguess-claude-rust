@@ -1,5 +1,5 @@
 # Multi-stage build for the Number Guessing Game using cargo-chef for dependency caching
-FROM rust:1.90-slim AS chef
+FROM rust:1.93-slim AS chef
 RUN cargo install cargo-chef
 WORKDIR /app
 
