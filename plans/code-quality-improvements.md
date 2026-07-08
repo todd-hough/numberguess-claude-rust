@@ -102,12 +102,13 @@ Quality Phases 1-9 are cleared to begin, using `make test-func` for interim chec
 
 Ordered lowest-risk-first within each tier; bug fix first overall.
 
-### Phase 1: Bug fix — difficulty preview overflow (B1)
+### Phase 1: Bug fix — difficulty preview overflow (B1) ✅ DONE 2026-07-08
 
-- [ ] In `difficulty_preview`, replace the ad-hoc range check with `core::validators::validate_range(min, max)` (returns empty `Html` on any validation error, preserving the "silent while typing" behavior).
-- [ ] Defense in depth: make `calculate_optimal_guesses` and `calculate_difficulty` overflow-safe (`i64` widening or checked arithmetic for `max - min + 1`).
-- [ ] Add unit tests: `calculate_difficulty(0, i32::MAX, ...)` does not panic; handler-level test that out-of-range params yield empty response.
-- [ ] Run: `make test-unit`. Not an external API change: endpoint already returns empty body for invalid input; we only widen what counts as invalid to match documented range limits (0..=1,000,000).
+- [x] In `difficulty_preview`, replaced the ad-hoc range check with `core::validators::validate_range(min, max)` (returns empty `Html` on any validation error, preserving the "silent while typing" behavior).
+- [x] Defense in depth: `calculate_optimal_guesses` and `calculate_difficulty` now widen to `i64` for `max - min + 1` (types.rs clamps range_size to u32::MAX for degenerate input).
+- [x] Unit tests added: extreme-input no-overflow tests in calculator.rs and types.rs; handler-level tests (new `#[cfg(test)]` mod in `src/web/handlers/difficulty.rs`) assert empty response for `max=i32::MAX`, `max=1_000_001`, negative min, and inverted range, plus non-empty for valid input.
+- [x] Verified: `cargo test --lib` 56 passed (was 51); clippy clean; light tier green on rebuilt image (20 passed / 2 ignored); end-to-end curl through the mock proxy confirms `?min=0&max=2147483647` → 200 empty (previously debug-panic/500) and valid input still renders.
+- [x] Bonus: Q13 (difficulty template render errors silently swallowed) fixed in the same edit — render failures now log via `error!` before returning empty. Strike Q13 from Phase 2.
 
 ### Phase 2: Mechanical cleanups (Q10, Q11, Q13, Q12, Q5a)
 

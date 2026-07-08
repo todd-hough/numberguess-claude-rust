@@ -197,7 +197,11 @@ impl DifficultyInfo {
 /// assert_eq!(info.buffer, 3);
 /// ```
 pub fn calculate_difficulty(min: i32, max: i32, guess_limit: Option<u32>) -> DifficultyInfo {
-    let range_size = (max - min + 1) as u32;
+    // Widen to i64 before the +1: `max - min + 1` overflows i32 for extreme
+    // inputs (e.g. min=0, max=i32::MAX). Callers validate against MAX_RANGE
+    // (which fits u32 comfortably), but this function must not panic on
+    // unvalidated input; clamp degenerate values instead.
+    let range_size = (i64::from(max) - i64::from(min) + 1).clamp(0, i64::from(u32::MAX)) as u32;
     let optimal_guesses = calculate_optimal_guesses(min, max);
 
     // Calculate buffer and classify difficulty
@@ -315,6 +319,21 @@ mod tests {
         assert_eq!(info.optimal_guesses, 7);
         assert_eq!(info.buffer, -1);
         assert_eq!(info.level, DifficultyLevel::Impossible);
+    }
+
+    #[test]
+    fn test_calculate_difficulty_extreme_inputs_no_overflow() {
+        // Regression: `max - min + 1` previously overflowed i32 and panicked
+        // in debug builds for unvalidated extreme inputs.
+        let info = calculate_difficulty(0, i32::MAX, Some(5));
+        assert_eq!(info.range_size, 2_147_483_648); // 2^31
+        assert_eq!(info.optimal_guesses, 31);
+        assert_eq!(info.level, DifficultyLevel::Impossible);
+
+        // Full i32 span saturates range_size at u32::MAX + doesn't panic
+        let info = calculate_difficulty(i32::MIN, i32::MAX, None);
+        assert_eq!(info.range_size, u32::MAX);
+        assert_eq!(info.optimal_guesses, 32);
     }
 
     #[test]
