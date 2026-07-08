@@ -2,7 +2,7 @@
 //!
 //! Processes player guesses via JSON API.
 
-use crate::api::types::{ErrorResponse, MakeGuessRequest, MakeGuessResponse};
+use crate::api::types::{ErrorResponse, GuessOutcome, MakeGuessRequest, MakeGuessResponse};
 use crate::auth::AuthenticatedUser;
 use crate::core::{GameId, GuessResult};
 use crate::db::{DbError, GameRepository};
@@ -78,7 +78,7 @@ pub async fn make_guess_api<R: GameRepository>(
                 "API: Guess result"
             );
             MakeGuessResponse {
-                result: "too_low".to_string(),
+                result: GuessOutcome::TooLow,
                 message: format!(
                     "Too low! Your guess of {} is below the target.",
                     payload.guess
@@ -94,7 +94,7 @@ pub async fn make_guess_api<R: GameRepository>(
                 "API: Guess result"
             );
             MakeGuessResponse {
-                result: "too_high".to_string(),
+                result: GuessOutcome::TooHigh,
                 message: format!(
                     "Too high! Your guess of {} is above the target.",
                     payload.guess
@@ -114,7 +114,7 @@ pub async fn make_guess_api<R: GameRepository>(
                 "API: Game completed - correct guess"
             );
             MakeGuessResponse {
-                result: "correct".to_string(),
+                result: GuessOutcome::Correct,
                 message: format!(
                     "You got it! The number was {number}. It took you {attempts} guesses."
                 ),
@@ -136,7 +136,7 @@ pub async fn make_guess_api<R: GameRepository>(
                 "API: Game completed - limit reached"
             );
             MakeGuessResponse {
-                result: "limit_reached".to_string(),
+                result: GuessOutcome::LimitReached,
                 message: format!(
                     "Sorry, you've reached the limit of {max_guesses} guesses! The number was {number}."
                 ),

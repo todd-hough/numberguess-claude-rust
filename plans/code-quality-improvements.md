@@ -145,11 +145,11 @@ The light tier was already immune (anonymous volume, separate project).
 - [x] Added `GameError::GuessLimitExceedsMax { value, limit }`; `validate_guess_limit` uses it; `ValidationError(String)` removed (it had exactly one constructor site).
 - [x] **Wire-format check passed**: the new variant's Display includes the old wrapper's `"Validation error: "` prefix, so responses are byte-identical — verified by live curl (`400` + `{"error":"Validation error: Guess limit (101) exceeds maximum allowed (100)"}`), a unit test pinning the exact Display text, and a green light-tier run (20 passed / 2 ignored). Invalid-range path sanity-checked unchanged.
 
-### Phase 5: Typed guess result in API response (Q3)
+### Phase 5: Typed guess result in API response (Q3) ✅ DONE 2026-07-08
 
-- [ ] Replace `result: String` with `result: GuessOutcome` enum, `#[serde(rename_all = "snake_case")]` → serializes to the exact same `"too_low"` / `"too_high"` / `"correct"` / `"limit_reached"` strings.
-- [ ] **Wire-format check (required — this is external-API-adjacent)**: capture JSON responses for all four outcomes before and after (curl or integration test assertions) and diff — must be byte-identical. `docs/api.md` remains the reference; no doc change needed if identical.
-- [ ] Run full integration suite.
+- [x] Replaced `result: String` with `result: GuessOutcome` enum (`#[serde(rename_all = "snake_case")]`); handler match arms set variants; tracing log fields keep plain strings.
+- [x] **Wire-format check passed**: captured live JSON for all four outcomes (too_low, too_high, correct, limit_reached) before and after against the mock-proxy stack — `diff` empty, byte-identical. Serialization also pinned by a unit test asserting each variant's exact legacy string. No docs/api.md change needed.
+- [x] Light-tier suite green (20 passed / 2 ignored; API-only change, browser tier not affected per test strategy table). 58/58 unit tests, clippy clean.
 
 ### Phase 6: `ApiError` / handler error refactor (Q1) — largest change
 
