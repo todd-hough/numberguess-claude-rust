@@ -1,12 +1,13 @@
+use anyhow::Context;
 use clap::Parser;
 use number_guessing_game::cli::run_cli_game;
 use number_guessing_game::{Cli, run_server};
 use sqlx::postgres::PgPoolOptions;
-use tracing::{error, info};
+use tracing::{info, warn};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
-async fn main() {
+async fn main() -> anyhow::Result<()> {
     // Initialize tracing subscriber
     // Configure to write to stderr (standard practice for logs)
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
@@ -34,7 +35,7 @@ async fn main() {
 
         // Run as web server
         let database_url = std::env::var("DATABASE_URL")
-            .expect("DATABASE_URL must be set in environment or .env file");
+            .context("DATABASE_URL must be set in environment or .env file")?;
 
         // Read max connections from environment with validation
         let max_connections = std::env::var("DB_MAX_CONNECTIONS")
@@ -44,7 +45,7 @@ async fn main() {
             })
             .parse::<u32>()
             .unwrap_or_else(|e| {
-                error!(error = %e, "Failed to parse DB_MAX_CONNECTIONS, using default: 5");
+                warn!(error = %e, "Failed to parse DB_MAX_CONNECTIONS, using default: 5");
                 5
             })
             .clamp(1, 100);
@@ -55,10 +56,7 @@ async fn main() {
             .max_connections(max_connections)
             .connect(&database_url)
             .await
-            .unwrap_or_else(|e| {
-                error!(error = %e, "Failed to connect to database");
-                panic!("Failed to connect to database: {e}");
-            });
+            .context("Failed to connect to database")?;
 
         info!("Database connection established");
 
@@ -66,13 +64,10 @@ async fn main() {
         sqlx::migrate!("./migrations")
             .run(&pool)
             .await
-            .unwrap_or_else(|e| {
-                error!(error = %e, "Failed to run database migrations");
-                panic!("Failed to run migrations: {e}");
-            });
+            .context("Failed to run database migrations")?;
 
         info!("Database migrations completed successfully");
-        run_server(pool, cli.port).await;
+        run_server(pool, cli.port).await?;
     } else {
         info!(
             min = ?cli.min,
@@ -83,4 +78,6 @@ async fn main() {
         // Run as CLI game
         run_cli_game(cli);
     }
+
+    Ok(())
 }

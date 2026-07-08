@@ -75,26 +75,6 @@ pub trait GameRepository: Send + Sync + Clone {
         guess: i32,
     ) -> Result<(GuessResult, GuessingGame), DbError>;
 
-    /// Delete a game from the repository
-    ///
-    /// # Arguments
-    /// * `game_id` - The unique identifier of the game to delete
-    ///
-    /// # Errors
-    /// Returns `DbError::DatabaseError` if the storage operation fails
-    /// Note: Deleting a non-existent game is not considered an error
-    async fn delete(&self, game_id: GameId) -> Result<(), DbError>;
-
-    /// Update an existing game's state
-    ///
-    /// # Arguments
-    /// * `game_id` - The unique identifier of the game
-    /// * `game` - The updated game state
-    ///
-    /// # Errors
-    /// Returns `DbError::DatabaseError` if the storage operation fails
-    async fn update(&self, game_id: GameId, game: &GuessingGame) -> Result<(), DbError>;
-
     /// Perform a health check on the repository
     ///
     /// This verifies that the repository is accessible and operational.

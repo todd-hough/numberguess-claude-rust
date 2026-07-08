@@ -31,37 +31,30 @@ where
 
 /// Prompts for and validates a minimum value
 pub fn prompt_min_value(cli_min: Option<i32>) -> i32 {
-    match cli_min {
-        Some(m) => {
-            if let Err(e) = validators::validate_min_value(m) {
-                println!("{e}. Please provide a valid minimum.");
-                loop {
-                    let min: i32 = read_input(&format!(
-                        "Enter minimum number (inclusive, 0 to {}): ",
-                        validators::MAX_RANGE
-                    ));
-                    if let Err(e) = validators::validate_min_value(min) {
-                        println!("{e}. Please try again.");
-                        continue;
-                    }
-                    return min;
-                }
-            } else {
+    if let Some(m) = cli_min {
+        match validators::validate_min_value(m) {
+            Ok(()) => {
                 println!("Using minimum value from command line: {m}");
-                m
+                return m;
             }
+            Err(e) => println!("{e}. Please provide a valid minimum."),
         }
-        None => loop {
-            let min: i32 = read_input(&format!(
-                "Enter minimum number (inclusive, 0 to {}): ",
-                validators::MAX_RANGE
-            ));
-            if let Err(e) = validators::validate_min_value(min) {
-                println!("{e}. Please try again.");
-                continue;
-            }
-            return min;
-        },
+    }
+    prompt_valid_min()
+}
+
+/// Prompts for a valid minimum value (helper function, mirrors prompt_valid_max)
+fn prompt_valid_min() -> i32 {
+    loop {
+        let min: i32 = read_input(&format!(
+            "Enter minimum number (inclusive, 0 to {}): ",
+            validators::MAX_RANGE
+        ));
+        if let Err(e) = validators::validate_min_value(min) {
+            println!("{e}. Please try again.");
+            continue;
+        }
+        return min;
     }
 }
 

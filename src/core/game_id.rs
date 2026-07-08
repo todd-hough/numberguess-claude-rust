@@ -14,24 +14,12 @@ pub struct GameId(i64);
 impl GameId {
     /// Generate a new random game ID.
     /// Generates a positive i64 value (0 to i64::MAX).
+    // No Default impl on purpose: Default conventionally means a canonical,
+    // predictable value, and new() is randomized. A previous randomized
+    // Default was removed as misleading.
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self(rand::rng().random_range(0..i64::MAX))
-    }
-
-    /// Create a GameId from an i64 value.
-    pub fn from_i64(id: i64) -> Self {
-        Self(id)
-    }
-
-    /// Get the inner i64 value.
-    pub fn as_i64(&self) -> i64 {
-        self.0
-    }
-}
-
-impl Default for GameId {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -67,25 +55,25 @@ mod tests {
 
     #[test]
     fn test_game_id_from_i64() {
-        let id = GameId::from_i64(12345);
-        assert_eq!(id.as_i64(), 12345);
+        let id = GameId::from(12345);
+        assert_eq!(i64::from(id), 12345);
     }
 
     #[test]
     fn test_game_id_as_i64() {
-        let id = GameId::from_i64(12345);
-        assert_eq!(id.as_i64(), 12345i64);
+        let id = GameId::from(12345);
+        assert_eq!(i64::from(id), 12345i64);
     }
 
     #[test]
     fn test_game_id_display() {
-        let id = GameId::from_i64(12345);
+        let id = GameId::from(12345);
         assert_eq!(format!("{id}"), "12345");
     }
 
     #[test]
     fn test_game_id_serialization() {
-        let id = GameId::from_i64(12345);
+        let id = GameId::from(12345);
         let json = serde_json::to_string(&id).unwrap();
         assert_eq!(json, "12345");
 
