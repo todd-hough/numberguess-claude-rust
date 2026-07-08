@@ -160,11 +160,11 @@ The light tier was already immune (anonymous volume, separate project).
 - [x] **Wire-format check passed**: before/after captures of SIX error paths (API: invalid range 400, invalid limit 400, unknown game 404; WEB: invalid-range ErrorTemplate, unknown-game GameNotFoundTemplate, bad-CSRF 400) — `diff` empty, byte-identical.
 - [x] Full two-tier suite green: **27 passed / 0 failed / 2 ignored, matches baseline**. 58/58 unit tests, clippy clean.
 
-### Phase 7: Web guess handler cleanup (Q4, Q14)
+### Phase 7: Web guess handler cleanup (Q4, Q14) ✅ DONE 2026-07-08
 
-- [ ] Q4: restructure the match so each `GuessResult` variant is handled once; delete both `unreachable!()` arms.
-- [ ] Q14: change `GameRepository::make_guess` to return post-guess state alongside the result (e.g., `(GuessResult, GameSnapshot)` or result struct carrying guess_count/max_guesses), computed inside the existing transaction. Remove the follow-up `repo.get()` in the web handler. This is an internal trait change (not REST); API handler ignores the extra data.
-- [ ] Verify the "Guesses remaining: X" counter still renders correctly in the web UI (integration test `web_ui_test.rs` covers this; also manual check via `make dev`).
+- [x] Q4: four-arm match with a `render_guess_form` helper for the ongoing-game arms — both `unreachable!()`s deleted; each `GuessResult` variant handled exactly once.
+- [x] Q14: `GameRepository::make_guess` now returns `(GuessResult, GuessingGame)` captured inside the transaction; the racy follow-up `repo.get()` in the web handler is gone (one fewer query per ongoing guess, and the trait docs now state the no-follow-up-fetch contract). API handler destructures and ignores the state.
+- [x] Verified: too_low/too_high HTML fragments (with remaining-guesses counter) byte-identical before/after (normalized for game id + CSRF token); full two-tier suite green including browser `web_ui_test` — **27 passed / 0 failed / 2 ignored, matches baseline**; 58/58 unit tests; clippy clean.
 
 ### Phase 8: Remaining polish (Q8, Q9, Q15, Q5b, Q5c, Q6)
 

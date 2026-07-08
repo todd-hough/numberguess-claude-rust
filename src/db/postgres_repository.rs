@@ -149,7 +149,11 @@ impl GameRepository for PostgresGameRepository {
         )?)
     }
 
-    async fn make_guess(&self, game_id: GameId, guess: i32) -> Result<GuessResult, DbError> {
+    async fn make_guess(
+        &self,
+        game_id: GameId,
+        guess: i32,
+    ) -> Result<(GuessResult, GuessingGame), DbError> {
         debug!(
             game_id = %game_id,
             guess = guess,
@@ -309,7 +313,9 @@ impl GameRepository for PostgresGameRepository {
             "DB: Transaction committed successfully"
         );
 
-        Ok(result)
+        // Return the post-guess state captured inside the transaction so
+        // callers never need a racy follow-up fetch.
+        Ok((result, game))
     }
 
     async fn delete(&self, game_id: GameId) -> Result<(), DbError> {

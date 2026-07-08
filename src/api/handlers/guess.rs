@@ -35,8 +35,9 @@ pub async fn make_guess_api<R: GameRepository>(
         "API: Processing guess"
     );
 
-    // Make guess using transactional approach (concurrency-safe)
-    let result = state
+    // Make guess using transactional approach (concurrency-safe).
+    // The post-guess state is also returned; the JSON API doesn't need it.
+    let (result, _game) = state
         .repo
         .make_guess(game_id, payload.guess)
         .await
