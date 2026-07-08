@@ -14,8 +14,10 @@ pub enum DbError {
     #[error("Game not found")]
     NotFound,
 
+    // #[source] (not #[from] — the custom From below maps RowNotFound
+    // specially) so Error::source() exposes the underlying sqlx error.
     #[error("Database error: {0}")]
-    DatabaseError(sqlx::Error),
+    DatabaseError(#[source] sqlx::Error),
 
     #[error("Game validation error: {0}")]
     GameError(#[from] GameError),

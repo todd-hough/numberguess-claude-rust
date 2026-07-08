@@ -69,9 +69,10 @@ pub fn validate_guess_limit(limit: u32, max_limit: u32) -> Result<Option<u32>, G
         return Ok(None); // 0 means no limit
     }
     if limit > max_limit {
-        return Err(GameError::ValidationError(format!(
-            "Guess limit ({limit}) exceeds maximum allowed ({max_limit})"
-        )));
+        return Err(GameError::GuessLimitExceedsMax {
+            value: limit,
+            limit: max_limit,
+        });
     }
     Ok(Some(limit))
 }
@@ -135,6 +136,23 @@ mod tests {
         assert_eq!(validate_guess_limit(0, 100).unwrap(), None);
         assert_eq!(validate_guess_limit(10, 100).unwrap(), Some(10));
         assert_eq!(validate_guess_limit(100, 100).unwrap(), Some(100));
-        assert!(validate_guess_limit(101, 100).is_err());
+        assert!(matches!(
+            validate_guess_limit(101, 100),
+            Err(GameError::GuessLimitExceedsMax {
+                value: 101,
+                limit: 100
+            })
+        ));
+    }
+
+    #[test]
+    fn test_guess_limit_error_display_is_stable() {
+        // This exact text reaches API error responses; it must stay
+        // byte-identical to what the old ValidationError(String) produced.
+        let err = validate_guess_limit(101, 100).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Validation error: Guess limit (101) exceeds maximum allowed (100)"
+        );
     }
 }

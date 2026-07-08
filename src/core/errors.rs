@@ -24,8 +24,10 @@ pub enum GameError {
     #[error("Secret number ({secret}) must be between min ({min}) and max ({max})")]
     SecretOutOfRange { secret: i32, min: i32, max: i32 },
 
-    #[error("Validation error: {0}")]
-    ValidationError(String),
+    // Display keeps the "Validation error: " prefix the old stringly
+    // ValidationError wrapper added, so API error responses stay byte-identical.
+    #[error("Validation error: Guess limit ({value}) exceeds maximum allowed ({limit})")]
+    GuessLimitExceedsMax { value: u32, limit: u32 },
 }
 
 /// Results of a guess attempt

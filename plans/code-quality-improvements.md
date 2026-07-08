@@ -139,11 +139,11 @@ The light tier was already immune (anonymous volume, separate project).
 - [x] Renamed `get_range()` → `range()`, `get_guess_count()` → `guess_count()`, `get_max_guesses()` → `max_guesses()` on `GuessingGame`; 27 replacements across core, db, web, cli, and docs/testing-guide.md.
 - [x] Verified: zero stragglers by grep, clippy clean (-D warnings), 56/56 unit tests.
 
-### Phase 4: Error-type polish (Q7)
+### Phase 4: Error-type polish (Q7) ✅ DONE 2026-07-08
 
-- [ ] Add `#[source]` to `DbError::DatabaseError`.
-- [ ] Add `GameError::GuessLimitExceedsMax { value: u32, limit: u32 }`; use it in `validate_guess_limit`; remove `ValidationError(String)` if nothing else uses it.
-- [ ] **Wire-format check**: error message text appears in API error responses. Keep the `Display` text identical (`"Guess limit ({}) exceeds maximum allowed ({})"`) so REST responses are unchanged. Verify with a curl against the running dev stack and by integration tests.
+- [x] Added `#[source]` to `DbError::DatabaseError` (not `#[from]` — the custom `From` maps `RowNotFound` specially), restoring `Error::source()` chains.
+- [x] Added `GameError::GuessLimitExceedsMax { value, limit }`; `validate_guess_limit` uses it; `ValidationError(String)` removed (it had exactly one constructor site).
+- [x] **Wire-format check passed**: the new variant's Display includes the old wrapper's `"Validation error: "` prefix, so responses are byte-identical — verified by live curl (`400` + `{"error":"Validation error: Guess limit (101) exceeds maximum allowed (100)"}`), a unit test pinning the exact Display text, and a green light-tier run (20 passed / 2 ignored). Invalid-range path sanity-checked unchanged.
 
 ### Phase 5: Typed guess result in API response (Q3)
 
