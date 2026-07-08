@@ -176,11 +176,20 @@ The light tier was already immune (anonymous volume, separate project).
 - [x] Q6: all `.map_err(|e| { error!(...); e })` scaffolding replaced with `.inspect_err(...)`; `#[tracing::instrument(skip(self))]` on the four repository methods (arg fields now carried by spans; redundant per-call fields pruned from log lines).
 - [x] Verified: clippy clean (-D warnings), 58/58 unit tests, light tier green on rebuilt image (20 passed / 2 ignored; includes the 6 CLI tests covering the prompt refactor).
 
-### Phase 9: Documentation sync (Q16)
+### Phase 9: Documentation sync (Q16) ✅ DONE 2026-07-08
 
-- [ ] Update CLAUDE.md: error-handling description (`thiserror` enums, not `Result<T, String>`), remove stale "in-memory / no persistence" known issues, fix "Performance Considerations" section (HashMap/no-DB claims predate the PostgreSQL layer).
-- [ ] Confirm `docs/api.md` accurately documents current REST behavior (it is the behavioral reference for Phases 5-6).
-- [ ] Ask user whether to clean up this plan document (per project convention).
+- [x] CLAUDE.md updated: error-handling pattern now describes `thiserror` enums + `ApiError`/`WebError`; stale "games remain in memory / no persistent storage" known issues replaced with the accurate cleanup-function note; Performance Considerations rewritten for the PostgreSQL layer (primary-key lookup, FOR UPDATE transaction, PgPool); db/mod.rs description no longer mentions deprecated standalone functions.
+- [x] `docs/api.md` confirmed accurate against the live wire captures from Phases 4-6 (result strings, 400/404 error bodies) — no changes needed.
+- [x] **FINAL SIGN-OFF: `make test` fully green 2026-07-08** — 58 unit + light tier (20 passed / 2 ignored) + full tier (7 passed) = 27 integration passed / 0 failed / 2 ignored, matching the Phase 0 baseline exactly.
+- [x] Asked user about plan cleanup (2026-07-08): **keep both plan documents as-is** as project history.
+
+---
+
+## PLAN COMPLETE (2026-07-08)
+
+All phases 0-9 implemented and verified. Every finding from the original review is resolved
+except items intentionally deferred to their own future work: none. External API verified
+unchanged at every step (byte-identical wire captures for guess outcomes and all error paths).
 
 ---
 

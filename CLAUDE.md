@@ -158,7 +158,7 @@ Command-line interface:
 Database persistence layer using repository pattern:
 - **repository.rs**: `GameRepository` trait defining storage operations (native async traits)
 - **postgres_repository.rs**: PostgreSQL implementation of `GameRepository`
-- **mod.rs**: `DbError` type, module declarations, and deprecated standalone functions
+- **mod.rs**: `DbError` type and module declarations
 
 **Repository Pattern:**
 - Abstract interface for game storage operations
@@ -188,7 +188,7 @@ Server initialization and routing:
 4. **Shared Validation**: Single source of truth for validation logic in `core/validators` module
 5. **API vs Web UI Separation**: JSON API handlers in `src/api/`, HTML handlers in `src/web/`
 6. **Type Safety**: Newtype pattern for `GameId`, compile-time template checking with Askama
-7. **Result Types**: Extensive use of `Result<T, String>` for error handling with safe type conversions
+7. **Error Types**: Typed `thiserror` enums throughout (`GameError`, `DbError`); handlers return `Result` with `ApiError`/`WebError` (`src/api/error.rs`, `src/web/error.rs`) implementing `IntoResponse` for exact, documented HTTP mappings
 8. **State Management**: `AppState<R: GameRepository>` holds repository instance, shared across handlers via Axum state
 9. **Module Organization**: Clear boundaries between core logic, API, web UI, CLI, database, and server
 10. **Template-Based HTML**: Askama templates provide compile-time checked, type-safe HTML rendering
@@ -587,8 +587,7 @@ The project uses GitHub Actions for continuous integration and security scanning
 - See docs/security-todo.md for security improvements
 - No rate limiting on API endpoints
 - No request size limits
-- Games remain in memory until completed (potential memory leak)
-- No persistent storage option
+- Abandoned games persist in PostgreSQL until the cleanup function runs (see migrations)
 
 ## File Structure
 ```
@@ -823,9 +822,9 @@ All configuration files reference these environment variables with defaults, pro
 - **Last Updated**: Dependencies updated to latest versions (Oct 2025)
 
 ## Performance Considerations
-- Each game stores minimal state (5 fields)
-- O(1) game lookup via HashMap
-- No database queries
+- Each game stores minimal state (one row in the `games` table, keyed by game_id)
+- Game lookup via primary-key index; guesses run in a single transaction (`SELECT ... FOR UPDATE`)
+- Connection pooling via SQLx PgPool (default 5 connections, `DB_MAX_CONNECTIONS` to tune)
 - Static files served directly
 
 ## Deployment Notes
