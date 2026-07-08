@@ -93,14 +93,28 @@ help:
 	@echo "For more details: https://github.com/your-repo/numberguess"
 	@echo "════════════════════════════════════════════════════════════════"
 
+## ensure-dev-db: Create the dev database if missing (idempotent)
+## POSTGRES_DB only takes effect when postgres initializes an EMPTY volume;
+## a postgres_data volume initialized by an old/pre-fix test run can lack
+## numberguess_dev, which crashes the app at startup.
+ensure-dev-db:
+	@for i in $$(seq 1 60); do \
+		docker compose exec -T postgres pg_isready -U $(POSTGRES_USER) >/dev/null 2>&1 && break; \
+		sleep 1; \
+	done
+	@docker compose exec -T postgres createdb -U $(POSTGRES_USER) $(POSTGRES_DB) 2>/dev/null \
+		&& echo "✓ Created missing database $(POSTGRES_DB)" \
+		|| true
+
 ## dev: Start postgres + app server for manual testing (full stack)
 dev:
 	@echo "Starting full development stack (postgres + app)..."
+	docker compose --profile full-stack up -d postgres
+	@$(MAKE) ensure-dev-db
 	docker compose --profile full-stack up -d
 	@echo ""
 	@echo "✓ Services started!"
 	@echo "  Web UI: http://localhost:8080"
-	@echo "  Health Check: http://localhost:8081/health"
 	@echo "  Database: postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@localhost:5432/$(POSTGRES_DB)"
 	@echo ""
 	@echo "View logs: make logs"
@@ -110,6 +124,7 @@ dev:
 dev-db:
 	@echo "Starting postgres only..."
 	docker compose up -d postgres
+	@$(MAKE) ensure-dev-db
 	@echo ""
 	@echo "✓ PostgreSQL started!"
 	@echo "  Connection: postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@localhost:5432/$(POSTGRES_DB)"
