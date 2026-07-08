@@ -75,7 +75,7 @@ mod tests {
         assert!(game.is_ok());
         
         let game = game.unwrap();
-        assert_eq!(game.get_range(), (1, 100));
+        assert_eq!(game.range(), (1, 100));
     }
 
     #[test]
@@ -476,7 +476,7 @@ mod proptests {
             prop_assert!(game.is_ok());
             
             let game = game.unwrap();
-            let (game_min, game_max) = game.get_range();
+            let (game_min, game_max) = game.range();
             prop_assert_eq!(game_min, min);
             prop_assert_eq!(game_max, max);
             prop_assert!(game.secret_number >= min);
@@ -579,8 +579,8 @@ fn test_with_builder() {
         .with_secret(25)
         .build();
     
-    assert_eq!(game.get_range(), (1, 50));
-    assert_eq!(game.get_max_guesses(), Some(10));
+    assert_eq!(game.range(), (1, 50));
+    assert_eq!(game.max_guesses(), Some(10));
 }
 ```
 

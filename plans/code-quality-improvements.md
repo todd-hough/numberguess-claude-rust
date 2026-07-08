@@ -134,10 +134,10 @@ dev mount). Regression-tested by deliberately reproducing the contamination sequ
 (`make dev-db` → `make dev-down` → `make test-auth`): previously crashed, now 7/7 pass.
 The light tier was already immune (anonymous volume, separate project).
 
-### Phase 3: Getter renames (Q2)
+### Phase 3: Getter renames (Q2) ✅ DONE 2026-07-08
 
-- [ ] Rename `get_range()` → `range()`, `get_guess_count()` → `guess_count()`, `get_max_guesses()` → `max_guesses()` on `GuessingGame`; update all call sites (core tests, db, web, cli).
-- [ ] Internal-only change (library API, not REST). Run `make test-unit`; grep for stragglers.
+- [x] Renamed `get_range()` → `range()`, `get_guess_count()` → `guess_count()`, `get_max_guesses()` → `max_guesses()` on `GuessingGame`; 27 replacements across core, db, web, cli, and docs/testing-guide.md.
+- [x] Verified: zero stragglers by grep, clippy clean (-D warnings), 56/56 unit tests.
 
 ### Phase 4: Error-type polish (Q7)
 

@@ -45,10 +45,10 @@ impl GameRepository for PostgresGameRepository {
         let game_id = GameId::new();
 
         // Get game state
-        let (min_val, max_val) = game.get_range();
+        let (min_val, max_val) = game.range();
         let secret = game.secret_number();
         let guess_count: i32 = game
-            .get_guess_count()
+            .guess_count()
             .try_into()
             .map_err(|_| DbError::ConversionError("Guess count exceeds i32 range".into()))?;
         let max_guesses_i32: Option<i32> = max_guesses
@@ -232,7 +232,7 @@ impl GameRepository for PostgresGameRepository {
         match result {
             GuessResult::TooLow | GuessResult::TooHigh => {
                 // Game continues - update guess count
-                let new_guess_count: i32 = game.get_guess_count().try_into().map_err(|_| {
+                let new_guess_count: i32 = game.guess_count().try_into().map_err(|_| {
                     DbError::ConversionError("Guess count exceeds i32 range".into())
                 })?;
 
@@ -340,7 +340,7 @@ impl GameRepository for PostgresGameRepository {
 
     async fn update(&self, game_id: GameId, game: &GuessingGame) -> Result<(), DbError> {
         let guess_count: i32 = game
-            .get_guess_count()
+            .guess_count()
             .try_into()
             .map_err(|_| DbError::ConversionError("Guess count exceeds i32 range".into()))?;
 

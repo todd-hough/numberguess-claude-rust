@@ -93,9 +93,9 @@ pub async fn make_guess_web<R: GameRepository>(
                 }
             };
 
-            let (min, max) = game.get_range();
-            let max_guesses = game.get_max_guesses();
-            let guess_count = game.get_guess_count();
+            let (min, max) = game.range();
+            let max_guesses = game.max_guesses();
+            let guess_count = game.guess_count();
 
             // Calculate remaining guesses
             let remaining_guesses = max_guesses.and_then(|limit| {

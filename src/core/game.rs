@@ -32,15 +32,15 @@ impl GuessingGame {
         })
     }
 
-    pub fn get_range(&self) -> (i32, i32) {
+    pub fn range(&self) -> (i32, i32) {
         (self.min, self.max)
     }
 
-    pub fn get_guess_count(&self) -> u32 {
+    pub fn guess_count(&self) -> u32 {
         self.guess_count
     }
 
-    pub fn get_max_guesses(&self) -> Option<u32> {
+    pub fn max_guesses(&self) -> Option<u32> {
         self.max_guesses
     }
 
@@ -131,7 +131,7 @@ mod tests {
         assert!(game.is_ok());
 
         let game = game.unwrap();
-        assert_eq!(game.get_range(), (1, 10));
+        assert_eq!(game.range(), (1, 10));
     }
 
     #[test]
@@ -163,7 +163,7 @@ mod tests {
         let game = GuessingGame::new(0, 0);
         assert!(game.is_ok());
         let game = game.expect("Should create game with min=0 and max=0");
-        assert_eq!(game.get_range(), (0, 0));
+        assert_eq!(game.range(), (0, 0));
         assert_eq!(game.secret_number, 0);
     }
 
@@ -194,7 +194,7 @@ mod tests {
         let game = GuessingGame::new(0, MAX_RANGE);
         assert!(game.is_ok());
         let game = game.expect("Should create game with maximum allowed range");
-        assert_eq!(game.get_range(), (0, MAX_RANGE));
+        assert_eq!(game.range(), (0, MAX_RANGE));
         assert!(game.secret_number >= 0 && game.secret_number <= MAX_RANGE);
     }
 
@@ -217,13 +217,13 @@ mod tests {
     #[test]
     fn test_guess_count() {
         let mut game = GuessingGame::new(1, 10).expect("Should create game with range 1-10");
-        assert_eq!(game.get_guess_count(), 0);
+        assert_eq!(game.guess_count(), 0);
 
         game.make_guess(5);
-        assert_eq!(game.get_guess_count(), 1);
+        assert_eq!(game.guess_count(), 1);
 
         game.make_guess(3);
-        assert_eq!(game.get_guess_count(), 2);
+        assert_eq!(game.guess_count(), 2);
     }
 
     #[test]
@@ -272,7 +272,7 @@ mod tests {
             .expect("Should create game with guess limit");
         game.set_secret_for_testing(5);
 
-        assert_eq!(game.get_max_guesses(), Some(3));
+        assert_eq!(game.max_guesses(), Some(3));
         assert!(game.has_guesses_remaining());
 
         // First guess
@@ -309,7 +309,7 @@ mod tests {
             .expect("Should create game with no guess limit");
         game.set_secret_for_testing(5);
 
-        assert_eq!(game.get_max_guesses(), None);
+        assert_eq!(game.max_guesses(), None);
 
         // Many guesses should be allowed
         let mut guess_count = 0;
@@ -396,10 +396,10 @@ mod tests {
         let result = GuessingGame::from_db(1, 100, 50, 5, Some(10));
         assert!(result.is_ok());
         let game = result.unwrap();
-        assert_eq!(game.get_range(), (1, 100));
+        assert_eq!(game.range(), (1, 100));
         assert_eq!(game.secret_number(), 50);
-        assert_eq!(game.get_guess_count(), 5);
-        assert_eq!(game.get_max_guesses(), Some(10));
+        assert_eq!(game.guess_count(), 5);
+        assert_eq!(game.max_guesses(), Some(10));
     }
 
     #[test]

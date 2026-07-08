@@ -28,8 +28,8 @@ pub fn run_cli_game(cli: Cli) {
     // Main game loop
     loop {
         // Show remaining guesses if there's a limit
-        if let Some(max_guesses) = game.get_max_guesses() {
-            let remaining = max_guesses.saturating_sub(game.get_guess_count());
+        if let Some(max_guesses) = game.max_guesses() {
+            let remaining = max_guesses.saturating_sub(game.guess_count());
             if remaining > 0 {
                 println!("Guesses remaining: {remaining}");
             }
