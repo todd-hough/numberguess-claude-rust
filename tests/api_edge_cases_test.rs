@@ -22,7 +22,7 @@ async fn test_guess_nonexistent_game() {
     .expect("Environment checks failed");
 
     // Use Selenium OAuth2 authentication for API tests
-    let client = auth_helpers::create_authenticated_client_selenium()
+    let client = auth_helpers::create_authenticated_client()
         .await
         .expect("Failed to create authenticated client");
 
@@ -52,7 +52,7 @@ async fn test_concurrent_games() {
     .expect("Environment checks failed");
 
     // Use Selenium OAuth2 authentication for API tests
-    let client = auth_helpers::create_authenticated_client_selenium()
+    let client = auth_helpers::create_authenticated_client()
         .await
         .expect("Failed to create authenticated client");
 
@@ -113,7 +113,7 @@ async fn test_guess_after_limit_reached() {
     .await
     .expect("Environment checks failed");
 
-    let client = auth_helpers::create_authenticated_client_selenium()
+    let client = auth_helpers::create_authenticated_client()
         .await
         .expect("Failed to create authenticated client");
 
@@ -193,7 +193,7 @@ async fn test_zero_limit_means_unlimited() {
     .await
     .expect("Environment checks failed");
 
-    let client = auth_helpers::create_authenticated_client_selenium()
+    let client = auth_helpers::create_authenticated_client()
         .await
         .expect("Failed to create authenticated client");
 
@@ -272,7 +272,7 @@ async fn test_web_rejects_excessive_guess_limit() {
     .await
     .expect("Environment checks failed");
 
-    let client = auth_helpers::create_authenticated_client_selenium()
+    let client = auth_helpers::create_authenticated_client()
         .await
         .expect("Failed to create authenticated client");
 

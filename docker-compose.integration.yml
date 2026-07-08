@@ -23,6 +23,12 @@ services:
       # This allows Selenium (running in Docker) to access Keycloak
       KC_HOSTNAME: keycloak
       KC_HOSTNAME_PORT: 8090
+      # Cap JVM heap: unbounded, Keycloak idles at ~570 MiB for a near-empty
+      # dev realm. 256 MiB is ample and keeps the full tier laptop-friendly.
+      JAVA_OPTS_KC_HEAP: "-Xms64m -Xmx256m"
+    # Hard ceiling so a JVM spike OOMs the container instead of swap-thrashing
+    # the host (heap cap above keeps normal usage well below this).
+    mem_limit: 768m
     profiles:
       - integration
     # Removed postgres dependency - Keycloak uses H2 in-memory database
@@ -92,7 +98,10 @@ services:
         condition: service_healthy
   selenium:
     image: seleniarm/standalone-chromium:latest
-    shm_size: 2gb
+    # 512mb is plenty for a single 1920x1080 Chromium session (tests run with
+    # --test-threads=1, so there is never more than one browser session).
+    shm_size: 512mb
+    mem_limit: 1g
     ports:
       - "4444:4444"
     environment:
@@ -101,6 +110,7 @@ services:
       SE_START_NO_VNC: "false"
       SE_SCREEN_WIDTH: "1920"
       SE_SCREEN_HEIGHT: "1080"
+      SE_NODE_MAX_SESSIONS: "1"
     profiles:
       - integration
     depends_on:

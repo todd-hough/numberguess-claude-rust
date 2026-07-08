@@ -246,7 +246,7 @@ async fn test_api_endpoints_work_when_authenticated() {
     .expect("Environment checks failed");
 
     // Create authenticated client
-    let client = auth_helpers::create_authenticated_client_selenium()
+    let client = auth_helpers::create_authenticated_client()
         .await
         .expect("Failed to create authenticated client");
 

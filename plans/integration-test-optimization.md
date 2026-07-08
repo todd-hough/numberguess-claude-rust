@@ -66,12 +66,53 @@ These apply to the FULL tier so that even when it runs, it fits a small laptop:
 
 ### Implementation phases (supersedes "Implementation Plan" section below in ordering; details there still apply)
 
-- [ ] **T1 — Light-tier infrastructure**: `docker-compose.test-mock-auth.yml` (postgres + app + nginx header-injecting proxy on localhost:8080), `test-fixtures/mock-auth-nginx.conf` (must forward cookies + `Host`, inject the four `X-Forwarded-*` headers). Verify manually: create game + guess via curl through the proxy.
-- [ ] **T2 — Test helper split**: `tests/common/mock_auth_helpers.rs` (plain cookie-jar reqwest client); leave Selenium helpers untouched for the full tier. Move the 2 `*_work_when_authenticated` tests' client creation behind the same helper. No assertion changes anywhere.
-- [ ] **T3 — Makefile + tier wiring**: `test-func` (light), `test-auth` (full), `test-integration` = func → teardown → auth → keep-running-for-debug semantics preserved on the LAST tier only. `test-down` tears down both compose configs.
-- [ ] **T4 — Full-tier resource caps**: heap cap, shm reduction, mem_limits, SE_NODE_MAX_SESSIONS, session reuse (list above).
-- [ ] **T5 — Verification gate**: run `make test-integration` (both tiers); result must match the 2026-07-07 baseline: ~27 passed / 0 failed / 2 ignored (21 Docker tests + 6 cli tests, 2 ignored). Record timings + `docker stats` peaks here. Update CI workflow, CLAUDE.md test docs, README.
-- [ ] **T6 — Handoff**: mark this plan implemented; the code-quality plan's interim checkpoints then use `make test-func`, with full `make test-integration` at its Phases 0/2/6 and final verification.
+- [x] **T1 — Light-tier infrastructure** (2026-07-07): `docker-compose.test-mock-auth.yml` (postgres + app + nginx header-injecting proxy on localhost:8080, project `numberguess-mock`), `test-fixtures/mock-auth-nginx.conf` (mirrors real test user identity; forwards cookies + `Host`). Verified manually: game create + guess + CSRF cookie round-trip via curl through the proxy. Gotcha found: healthcheck must use 127.0.0.1 (in-container localhost resolves to ::1; nginx listens IPv4 only).
+- [x] **T2 — Test helper split** (2026-07-07): implemented as `MOCK_AUTH=1` env-var branch inside the existing helpers instead of a separate module — zero structural changes to test files. `create_authenticated_client_selenium` renamed to tier-aware `create_authenticated_client`; `ensure_server_ready`/`ensure_selenium_ready` skip auth-stack checks in mock mode; `concurrency_test.rs` app-restart is tier-aware. **Deviation from the triage table:** the 2 `*_work_when_authenticated` tests stay in the full tier with the rest of `auth_integration_test.rs` (avoids splitting the file; costs ~2 logins ≈ 5s in the full tier). Actual split: 14 light + 7 full Docker tests. No assertion changes.
+- [x] **T3 — Makefile + tier wiring** (2026-07-07): `test-func` (light, also runs non-Docker `cli_test` + `integration_test`), `test-func-down`, `test-auth` (full), `test-integration` = func → teardown → auth (keep-running-for-debug on last tier only), `test-down` tears down both.
+- [x] **T4 — Full-tier resource caps** (2026-07-07): Keycloak `JAVA_OPTS_KC_HEAP=-Xms64m -Xmx256m` + mem_limit 768m; selenium shm 2gb→512mb, `SE_NODE_MAX_SESSIONS=1`, mem_limit 1g. ~~Session cookie cached per test binary via `tokio::sync::OnceCell`~~ **Reverted 2026-07-08 after independent review**: the cache provided zero deduplication — each full-tier binary makes at most one `create_authenticated_client()` call (web_ui_test drives the browser directly), so the cell was written once and never re-read. Removed as dead complexity; design choice documented in `tests/common/auth_helpers.rs` and CLAUDE.md so future full-tier tests know each call costs a ~2-3s browser login.
+- [x] **T5 — Verification gate** (2026-07-08): `make test-integration` GREEN, exit 0.
+  **27 passed / 0 failed / 2 ignored — exactly matches the 2026-07-07 baseline.**
+  - Light tier: 20 passed / 2 ignored (api_edge_cases 5, cli 6, concurrency 3, csrf 2,
+    integration 0+2 ignored, web_endpoints 4). Per-suite speedups vs baseline:
+    api_edge_cases 18.7s→2.2s, csrf 11.0s→0.6s, web_endpoints 20.6s→1.0s,
+    concurrency 32.9s→~13-22s (dominated by the app-restart readiness wait).
+  - Full tier: auth_integration 5 passed (36.0s), web_ui 2 passed (11.4s).
+  - Resource caps measured live: keycloak 485 MiB (limit 768 MiB; was 567 MiB unbounded),
+    selenium 479 MiB (limit 1 GiB, shm 512 MB; was 610 MiB + 2 GB shm). Full-tier stack
+    ≈1.07 GiB peak — and now runs only for 7 tests instead of gating everything.
+  - Light-tier stack ≈70-100 MiB total (nginx + postgres + app).
+  - CI (`integration-security.yml`) switched to `make test-func` + `make test-auth`
+    (both tiers on every push); also fixed a latent bug where compose silently rebuilt
+    the image because the loaded artifact tag didn't match — added a retag step.
+  - CLAUDE.md and README testing docs updated (README's stale `test-compose*` targets
+    replaced with the real ones). fmt/clippy(-D warnings)/unit all clean after changes.
+- [x] **T6 — Handoff** (2026-07-08): **PLAN IMPLEMENTED.** The code-quality plan's interim
+  checkpoints now use `make test-func`; full `make test-integration` at its Phases 2/6
+  and final verification. Note for CI: not yet exercised on GitHub Actions — verify the
+  workflow on the first push of this branch.
+- [x] **Post-review fixes** (2026-07-08, from independent 8-angle review — 9 findings, all resolved):
+  1. Tier membership guard: `FUNC_TESTS`/`AUTH_TESTS` Makefile vars are now the single
+     source of truth; `make test-tier-check` (prereq of both tier targets) fails if any
+     `tests/*_test.rs` is unassigned or double-assigned (restores the safety the removed
+     `cargo test --tests` catch-all provided).
+  2. Light-tier compose coordinates owned by the Makefile (`MOCK_COMPOSE_FILE/PROJECT`
+     exported to tests); concurrency test asserts a running app container before
+     restarting (kills the silent no-op false-green mode).
+  3. Session-reuse OnceCell deleted (see T4 note above).
+  4. Full-stack `--wait-timeout` 120→240 (Keycloak worst-case-healthy ≈115s left ~5s margin).
+  5. `.NOTPARALLEL:` added — `make -j` no longer races tier teardown/port 8080.
+  6. Light-tier healthcheck budgets extended to cover the 120s wait window (proxy retries
+     10→40, postgres 5→24).
+  7. `MOCK_AUTH` accepts truthy/falsy variants and panics on unrecognized values;
+     `create_webdriver` asserts non-mock mode with a clear run-via-`make test-auth` message.
+  8. Doc drift fixed: docs/testing-guide.md, AGENTS.md, CLAUDE.md (Key Points + async
+     examples + session claims), environment.rs panic message.
+  9. Compose duplication (postgres/app vs docker-compose.yml) documented as deliberate
+     with keep-in-sync notes (extends/override judged not worth the coupling).
+  Refuted by verification (no action): nginx stale-upstream-IP (compose `restart`
+  preserves the container), Selenium shm crash (`--disable-dev-shm-usage` already set in
+  tests/common/webdriver.rs), hardcoded cookie URL (all request sites use the same
+  literal), mock-identity divergence (user identity is logging-only).
 
 **Verification principle: no test is deleted, no assertion changes, both tiers stay green.**
 Test-infrastructure-only change; application code and REST API untouched.

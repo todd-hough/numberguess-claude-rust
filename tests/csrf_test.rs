@@ -13,7 +13,7 @@ async fn test_csrf_protection_enforcement() {
     .expect("Environment checks failed");
 
     // 1. Create an authenticated client using Selenium OAuth2 flow
-    let client = auth_helpers::create_authenticated_client_selenium()
+    let client = auth_helpers::create_authenticated_client()
         .await
         .expect("Failed to create authenticated client");
 
@@ -97,7 +97,7 @@ async fn test_csrf_token_reuse_within_session() {
     .await
     .expect("Environment checks failed");
 
-    let client = auth_helpers::create_authenticated_client_selenium()
+    let client = auth_helpers::create_authenticated_client()
         .await
         .expect("Failed to create client");
 

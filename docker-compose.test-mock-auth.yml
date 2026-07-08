@@ -1,0 +1,76 @@
+# LIGHT integration test tier: postgres + app + nginx mock-auth proxy (~70 MiB).
+#
+# Runs the functional integration tests without Keycloak (~570 MiB), Selenium
+# (~610 MiB), oauth2-proxy, or Redis. The nginx proxy injects the same
+# X-Forwarded-* headers oauth2-proxy would add after login (see
+# test-fixtures/mock-auth-nginx.conf). The auth stack itself is still tested
+# by the FULL tier (docker-compose.yml + docker-compose.integration.yml).
+#
+# Always used with an explicit project name to stay isolated from the
+# full-tier compose project:
+#   docker compose -f docker-compose.test-mock-auth.yml -p numberguess-mock up
+# (make test-func handles this.)
+
+services:
+  # NOTE: postgres and app below deliberately duplicate their definitions in
+  # docker-compose.yml (minus host ports / named volumes). A standalone file
+  # keeps the light tier free of the profile-gated auth services, but changes
+  # to postgres/app in docker-compose.yml must be mirrored here.
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-numberguess}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: ${TEST_DB_NAME:-numberguess_test}
+    # No host port mapping and no named volume: the light tier is ephemeral
+    # and must not collide with a dev postgres on 5432.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-numberguess} -d ${TEST_DB_NAME:-numberguess_test}"]
+      interval: 5s
+      timeout: 5s
+      # Budget (start_period + retries*interval ≈ 130s) must cover the full
+      # `up --wait --wait-timeout 120` window, or a slow cold start flips the
+      # container to unhealthy while wait budget remains.
+      retries: 24
+      start_period: 10s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_TYPE: ${BUILD_TYPE:-debug}
+    image: numberguess-claude-rust:latest
+    command: ["--server", "--port", "4080"]
+    expose:
+      - "4080"
+    ports:
+      - "8081:8081" # health endpoint, used by test readiness checks
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-numberguess}:${POSTGRES_PASSWORD:-password}@postgres:5432/${TEST_DB_NAME:-numberguess_test}
+      RUST_LOG: ${RUST_LOG:-number_guessing_game=info}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  mock-auth-proxy:
+    image: nginx:1.27-alpine
+    ports:
+      - "8080:8080" # same external port as oauth2-proxy, so test URLs are identical
+    volumes:
+      - ./test-fixtures/mock-auth-nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      app:
+        condition: service_started
+    healthcheck:
+      # Gates on the app's health endpoint via the proxy (app is distroless
+      # and cannot healthcheck itself).
+      # 127.0.0.1, not localhost: in-container localhost resolves to ::1 and
+      # nginx listens on IPv4 only.
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8080/health"]
+      interval: 3s
+      timeout: 5s
+      # Budget (start_period + retries*interval ≈ 125s) must cover the full
+      # `up --wait --wait-timeout 120` window (see postgres note above).
+      retries: 40
+      start_period: 5s

@@ -52,8 +52,11 @@ make dc-down       # Stop devcontainer
 # Testing
 make test              # All tests (unit + integration)
 make test-unit         # Unit tests only (fast, no Docker)
-make test-integration  # Integration tests (starts Docker Compose, keeps running)
-make test-down         # Stop integration test environment
+make test-func         # Functional integration tests, LIGHT tier (mock auth, ~70 MiB, fast)
+make test-auth         # Auth + browser UI tests, FULL stack (Keycloak + Selenium, ~1.2 GiB)
+make test-integration  # All integration tests: light tier first, then full stack
+make test-func-down    # Stop the light tier
+make test-down         # Stop integration test environment (both tiers)
 
 # Debugging failed tests: Environment stays running after test-integration
 docker compose logs keycloak  # Check service logs
@@ -83,7 +86,7 @@ make clean             # Clean everything
 - **Build**: No database needed (SQLx uses runtime checking, not compile-time)
 - **CLI mode**: No database needed at all
 - **Web mode**: Requires PostgreSQL and authentication stack (Keycloak + oauth2-proxy + Redis)
-- **Tests**: Unit tests are fast (no Docker); integration tests use `make test-integration` with Docker Compose (includes Selenium for all tests)
+- **Tests**: Unit tests are fast (no Docker); integration tests run in two tiers via `make test-integration` — a light mock-auth tier for functional tests (no Selenium/Keycloak) and a full-stack tier for auth + browser tests (see Two-Tier Integration Test Architecture below)
 - **Docker**: Only needed for integration tests and optional full-stack development
 - **Docker Builds**: Development/test workflows use debug builds (fast); production uses release builds (optimized). Configure via `BUILD_TYPE` env var or make targets.
 - **Authentication**: All web routes require authentication via oauth2-proxy + Keycloak (OIDC)
@@ -223,16 +226,41 @@ Server initialization and routing:
 
 ## Testing Strategy
 
-### Authentication in Tests
+### Two-Tier Integration Test Architecture
 
-**All integration tests require full authentication stack** (Keycloak + oauth2-proxy + Redis). Tests use Selenium OAuth2 authentication for all endpoints (Web UI and API).
+Integration tests are split into two tiers so most tests avoid the heavy auth stack
+(Keycloak ~570 MiB + Selenium ~610 MiB). Tier selection is driven by the `MOCK_AUTH=1`
+environment variable, set automatically by `make test-func`; test files and assertions
+are identical in both tiers.
 
-**Authentication Approach:**
-- **All Tests**: Selenium OAuth2 flow (realistic, tests full user experience)
-- **Method**: Full browser-based OAuth2 authorization code flow with PKCE
-- **Target**: http://localhost:8080 (oauth2-proxy)
-- **Speed**: ~2-3s per login
-- **Coverage**: Tests oauth2-proxy integration, session cookies, redirects
+**LIGHT tier (`make test-func`)** — postgres + app + nginx mock-auth proxy (~70 MiB):
+- Runs: `api_edge_cases_test`, `web_endpoints_test`, `concurrency_test`, `csrf_test`
+  (plus the non-Docker `cli_test` and `integration_test`)
+- The nginx proxy (`docker-compose.test-mock-auth.yml` + `test-fixtures/mock-auth-nginx.conf`)
+  injects the same `X-Forwarded-*` headers oauth2-proxy would add, mirroring the real
+  test user (admin / admin@local.test / group `/admin`)
+- No Keycloak, Selenium, oauth2-proxy, or Redis; no per-test login overhead
+- Compose project name `numberguess-mock` (isolated from the full-tier project;
+  referenced by `tests/concurrency_test.rs` for the app-restart test)
+
+**FULL tier (`make test-auth`)** — complete auth stack:
+- Runs: `auth_integration_test` (OAuth2 flow, redirects, 401s) and `web_ui_test`
+  (real browser: HTMX swaps, DOM assertions)
+- Method: browser-based OAuth2 authorization code flow with PKCE via Selenium
+- **No session caching (deliberate)**: each `create_authenticated_client()` call in the
+  full tier performs a fresh browser OAuth2 login (~2-3s). A per-binary cookie cache was
+  tried and removed because each full-tier binary makes at most one such call today, so
+  a cache never got a second hit. If you add multiple authenticated-client tests to a
+  full-tier binary, either accept ~2-3s per call, reintroduce caching (see the design
+  note in `tests/common/auth_helpers.rs`), or — usually better — put the test in the
+  light tier unless it asserts on the real auth stack
+- Resource caps (docker-compose.integration.yml): Keycloak heap `-Xmx256m` + 768m
+  mem_limit; Selenium shm 512mb + 1g mem_limit + single session
+
+`make test-integration` runs light tier → teardown → full tier, so peak memory never
+includes both tiers. CI (`integration-security.yml`) runs both tiers on every push —
+full-fidelity OAuth2/browser coverage is never skipped, it just doesn't gate every
+local functional test run.
 
 **Test Credentials:**
 - Username: `admin@local.test`
@@ -244,12 +272,12 @@ Server initialization and routing:
 - Application: http://localhost:4080 (internal only, accessed via oauth2-proxy)
 - Health Check: http://localhost:8081 (internal only)
 
-**Selenium OAuth2 Flow:**
-- Used by: All integration tests (`web_ui_test.rs`, `web_endpoints_test.rs`, `api_edge_cases_test.rs`, `auth_integration_test.rs`)
+**Selenium OAuth2 Flow (FULL tier only):**
+- Used by: `auth_integration_test.rs` and `web_ui_test.rs` via `make test-auth`
 - Method: Full browser-based OAuth2 authorization code flow with PKCE
 - Target: http://localhost:8080 (oauth2-proxy)
-- Speed: ~2-3s per login
-- Coverage: Tests oauth2-proxy integration, session cookies, redirects for both web and API endpoints
+- Speed: ~2-3s per login, paid on every `create_authenticated_client()` call (no caching — see design note above)
+- Coverage: Tests oauth2-proxy integration, session cookies, redirects, and browser UI
 
 ### Integration Test Architecture & Networking
 
@@ -334,7 +362,7 @@ GAME_SERVER_BROWSER_URL=http://oauth2-proxy:4180
 #[test]  // Wrong! Not async
 fn test_something() {
     let client = tokio_test::block_on(  // Wrong! Nested runtime
-        create_authenticated_client_selenium()
+        create_authenticated_client()
     ).unwrap();
 
     let response = tokio_test::block_on(async {  // Wrong! Multiple block_on
@@ -350,13 +378,13 @@ async fn test_something() {  // Correct! Async function
     // Environment checks in blocking context (they use blocking client)
     tokio::task::spawn_blocking(|| {
         environment::ensure_server_ready();
-        environment::ensure_selenium_ready().expect("Selenium required");
+        environment::ensure_selenium_ready();
     })
     .await
     .expect("Environment checks failed");
 
     // Create async authenticated client
-    let client = auth_helpers::create_authenticated_client_selenium()
+    let client = auth_helpers::create_authenticated_client()
         .await  // Correct! Direct await
         .expect("Failed to create client");
 
@@ -470,8 +498,9 @@ Common Issues:
 - **Full stack startup**: ~60-70 seconds (Keycloak with H2 in-memory is main bottleneck)
 - **Keycloak optimization**: Uses H2 in-memory database instead of PostgreSQL for 30-40% faster startup
 - **Subsequent runs**: Instant if services already running (idempotent `docker compose up`)
-- **All tests**: 2-3s overhead per test for OAuth2 login (Selenium-based)
-- **Total test suite**: ~3-4 minutes with full auth stack
+- **Light tier** (`make test-func`): no login overhead, ~70 MiB, functional tests finish in seconds
+- **Full tier** (`make test-auth`): one Selenium OAuth2 login per test binary (~2-3s each)
+- **Total test suite**: light tier ~1 minute (incl. startup); full tier still dominated by Keycloak startup (~60s)
 
 ## GitHub Actions Workflows
 

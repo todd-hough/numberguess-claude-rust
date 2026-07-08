@@ -166,31 +166,37 @@ jobs:
       - name: Verify Docker image
         run: docker images | grep numberguess
 
-      - name: Start integration test services
-        run: |
-          docker compose -f docker-compose.yml -f docker-compose.integration.yml --profile integration up -d --wait
-          echo "All services are healthy and ready"
+      - name: Tag loaded image for docker compose
+        # Both test tiers reference numberguess-claude-rust:latest; without this
+        # tag, docker compose would silently rebuild instead of using the
+        # artifact built by the build-docker job.
+        run: docker tag numberguess:${{ github.sha }} numberguess-claude-rust:latest
 
-      - name: Run integration tests
-        env:
-          GAME_SERVER_BASE_URL: http://localhost:8080
-          GAME_SERVER_BROWSER_URL: http://oauth2-proxy:4180
-          SELENIUM_REMOTE_URL: http://localhost:4444
-          TEST_DB_NAME: numberguess_test
-        run: cargo test --tests -- --test-threads=1
+      # Both tiers run on every push: the light tier covers functional tests
+      # (mock auth headers, no Keycloak/Selenium), the full tier covers the
+      # OAuth2 flow and browser UI tests against the real auth stack.
+      - name: Run functional tests (light tier, mock auth)
+        run: |
+          make test-func
+          make test-func-down
+
+      - name: Run auth + browser UI tests (full stack)
+        run: make test-auth
 
       - name: Show service logs on failure
         if: failure()
         run: |
+          echo "=== Light tier logs ==="
+          docker compose -f docker-compose.test-mock-auth.yml -p numberguess-mock logs || true
           echo "=== App logs ==="
-          docker compose logs app
+          docker compose logs app || true
           echo "=== Keycloak logs ==="
-          docker compose logs keycloak
+          docker compose logs keycloak || true
           echo "=== oauth2-proxy logs ==="
-          docker compose logs oauth2-proxy
+          docker compose logs oauth2-proxy || true
           echo "=== Selenium logs ==="
-          docker compose logs selenium
+          docker compose logs selenium || true
 
       - name: Stop integration test services
         if: always()
-        run: docker compose -f docker-compose.yml -f docker-compose.integration.yml --profile integration down -v
+        run: make test-down

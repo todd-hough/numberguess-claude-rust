@@ -1,6 +1,7 @@
 //! Authentication helpers for integration tests.
 //!
-//! Provides Selenium-based OAuth2 authentication for all tests (Web UI and API).
+//! Provides tier-aware authentication: Selenium OAuth2 login (full tier) or
+//! pass-through clients for the nginx mock-auth proxy (light tier, MOCK_AUTH=1).
 
 use std::error::Error;
 use std::time::Duration;
@@ -128,45 +129,57 @@ async fn extract_session_cookie(driver: &WebDriver) -> WebDriverResult<Cookie> {
     )))
 }
 
-/// Create a reqwest client with Selenium-based authentication (session cookie).
+/// Create an authenticated reqwest client for the active test tier.
 ///
-/// This performs a full OAuth2 login via Selenium, extracts the session cookie,
-/// and creates a reqwest client with that cookie.
-///
-/// Use this for Web UI tests that access oauth2-proxy on port 8080.
+/// - **Full tier** (default): performs a full OAuth2 login via Selenium,
+///   extracts the oauth2-proxy session cookie, and returns a client carrying it.
+/// - **Light tier** (`MOCK_AUTH=1`, `make test-func`): the nginx mock-auth
+///   proxy injects the identity headers, so no login is needed — returns a
+///   plain client with a cookie store (still required for CSRF cookies).
 ///
 /// # Example
 /// ```no_run
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// let client = create_authenticated_client_selenium().await?;
+/// let client = create_authenticated_client().await?;
 /// let resp = client.get("http://localhost:8080")
 ///     .send()
 ///     .await?;
 /// # Ok(())
 /// # }
 /// ```
-pub async fn create_authenticated_client_selenium() -> Result<reqwest::Client, Box<dyn Error>> {
-    // Create temporary WebDriver
-    let caps = DesiredCapabilities::chrome();
-    let selenium_url = environment::selenium_url();
-    let driver = WebDriver::new(&selenium_url, caps).await?;
-
-    // Perform OAuth2 login
-    let session_cookie = login_with_keycloak_selenium(&driver).await?;
-
-    // Close WebDriver (quit() consumes the driver and handles cleanup)
-    driver.quit().await?;
-
-    // Create async reqwest client with cookie store enabled
-    // This allows the client to automatically manage cookies (including CSRF tokens)
+pub async fn create_authenticated_client() -> Result<reqwest::Client, Box<dyn Error>> {
+    // Cookie store is always enabled: full tier stores the oauth2-proxy
+    // session cookie, and both tiers need it for CSRF token cookies.
     let jar = std::sync::Arc::new(reqwest::cookie::Jar::default());
 
-    // Add the oauth2-proxy session cookie to the jar
-    let cookie_url = "http://localhost:8080".parse::<reqwest::Url>().unwrap();
-    jar.add_cookie_str(
-        &format!("_oauth2_proxy={}; Path=/", session_cookie.value),
-        &cookie_url,
-    );
+    if !environment::is_mock_auth() {
+        // DESIGN CHOICE — no session-cookie caching, one full browser OAuth2
+        // login (~2-3s) per call. A per-binary cache (tokio OnceCell) was
+        // tried and removed: in the current tier split each full-tier binary
+        // makes at most ONE call here (auth_integration_test has one call
+        // site; web_ui_test drives the browser directly), so a cache never
+        // gets a second hit and only adds complexity. If the full tier ever
+        // gains multiple authenticated-client tests per binary, reintroduce
+        // caching then — and keep such tests in the light tier when they
+        // don't assert on the real auth stack (see CLAUDE.md "Two-Tier
+        // Integration Test Architecture").
+        let caps = DesiredCapabilities::chrome();
+        let selenium_url = environment::selenium_url();
+        let driver = WebDriver::new(&selenium_url, caps).await?;
+
+        // Perform OAuth2 login
+        let session_cookie = login_with_keycloak_selenium(&driver).await?;
+
+        // Close WebDriver (quit() consumes the driver and handles cleanup)
+        driver.quit().await?;
+
+        // Add the oauth2-proxy session cookie to the jar
+        let cookie_url = "http://localhost:8080".parse::<reqwest::Url>().unwrap();
+        jar.add_cookie_str(
+            &format!("_oauth2_proxy={}; Path=/", session_cookie.value),
+            &cookie_url,
+        );
+    }
 
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(30))
@@ -178,6 +191,14 @@ pub async fn create_authenticated_client_selenium() -> Result<reqwest::Client, B
 
 /// Helper function to create a WebDriver for Selenium tests.
 pub async fn create_webdriver(selenium_url: &str) -> WebDriverResult<WebDriver> {
+    // Selenium only exists in the full tier. Fail with a clear message instead
+    // of a confusing connection error if a browser test is run in mock mode
+    // (e.g. `MOCK_AUTH=1 cargo test` without the Makefile's --test filter).
+    assert!(
+        !environment::is_mock_auth(),
+        "This test requires Selenium and the full auth stack, which do not run in mock mode. \
+         Run it via `make test-auth` (without MOCK_AUTH)."
+    );
     let caps = DesiredCapabilities::chrome();
     WebDriver::new(selenium_url, caps).await
 }

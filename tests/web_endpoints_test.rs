@@ -13,7 +13,7 @@ async fn test_static_file_serving() {
     .expect("Environment checks failed");
 
     // Create authenticated client using Selenium OAuth2 flow
-    let client = auth_helpers::create_authenticated_client_selenium()
+    let client = auth_helpers::create_authenticated_client()
         .await
         .expect("Failed to create authenticated client");
 
@@ -49,7 +49,7 @@ async fn test_web_form_endpoints() {
     .expect("Environment checks failed");
 
     // Create authenticated client using Selenium OAuth2 flow
-    let client = auth_helpers::create_authenticated_client_selenium()
+    let client = auth_helpers::create_authenticated_client()
         .await
         .expect("Failed to create authenticated client");
 
@@ -106,7 +106,7 @@ async fn test_remaining_guesses_display() {
     .expect("Environment checks failed");
 
     // Create authenticated client using Selenium OAuth2 flow
-    let client = auth_helpers::create_authenticated_client_selenium()
+    let client = auth_helpers::create_authenticated_client()
         .await
         .expect("Failed to create authenticated client");
 
@@ -226,7 +226,7 @@ async fn test_no_remaining_guesses_display_without_limit() {
     .expect("Environment checks failed");
 
     // Create authenticated client using Selenium OAuth2 flow
-    let client = auth_helpers::create_authenticated_client_selenium()
+    let client = auth_helpers::create_authenticated_client()
         .await
         .expect("Failed to create authenticated client");
 

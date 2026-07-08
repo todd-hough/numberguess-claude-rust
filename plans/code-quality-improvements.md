@@ -57,6 +57,10 @@ phases T1-T6). Rationale:
 
 **Dependency gate: T5 verification green ⇒ quality Phases 1-9 may begin.**
 
+✅ **Gate PASSED 2026-07-08**: precursor implemented and verified — `make test-integration`
+(both tiers) green with 27 passed / 0 failed / 2 ignored, exactly matching the baseline.
+Quality Phases 1-9 are cleared to begin, using `make test-func` for interim checkpoints.
+
 - [ ] `make test-down` when done (or keep running if proceeding straight into Phase 1)
 
 **Gate: do not proceed past this phase unless everything is green.**

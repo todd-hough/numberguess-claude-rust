@@ -13,14 +13,50 @@ const COMPOSE_FILES: [&str; 4] = [
     "docker-compose.integration.yml",
 ];
 
+/// Light-tier compose coordinates. The Makefile (`make test-func`) is the
+/// owner and exports MOCK_COMPOSE_FILE / MOCK_COMPOSE_PROJECT; the literals
+/// here are only fallbacks for running `MOCK_AUTH=1 cargo test` by hand.
+fn mock_compose_args() -> [String; 4] {
+    let file = std::env::var("MOCK_COMPOSE_FILE")
+        .unwrap_or_else(|_| "docker-compose.test-mock-auth.yml".to_string());
+    let project =
+        std::env::var("MOCK_COMPOSE_PROJECT").unwrap_or_else(|_| "numberguess-mock".to_string());
+    ["-f".to_string(), file, "-p".to_string(), project]
+}
+
 fn restart_app_via_compose() {
-    let mut args = Vec::new();
-    args.extend_from_slice(&COMPOSE_FILES);
-    args.extend_from_slice(&["--profile", "integration", "restart", "app"]);
+    let mock_args = mock_compose_args();
+    let (compose_args, restart_args): (Vec<&str>, [&str; 2]) = if environment::is_mock_auth() {
+        (
+            mock_args.iter().map(String::as_str).collect(),
+            ["restart", "app"],
+        )
+    } else {
+        let mut v = COMPOSE_FILES.to_vec();
+        v.extend_from_slice(&["--profile", "integration"]);
+        (v, ["restart", "app"])
+    };
+
+    // Guard against a silent no-op: `docker compose restart` on a project with
+    // no running app container can exit 0 without restarting anything, which
+    // would let the persistence test pass while testing nothing.
+    let ps = Command::new("docker")
+        .arg("compose")
+        .args(&compose_args)
+        .args(["ps", "-q", "app"])
+        .output()
+        .expect("Failed to run docker compose ps");
+    assert!(
+        !String::from_utf8_lossy(&ps.stdout).trim().is_empty(),
+        "No running 'app' container found for compose args {:?} — project/file mismatch? \
+         (Makefile exports MOCK_COMPOSE_FILE/MOCK_COMPOSE_PROJECT for the light tier.)",
+        compose_args
+    );
 
     let status = Command::new("docker")
         .arg("compose")
-        .args(&args)
+        .args(&compose_args)
+        .args(restart_args)
         .status()
         .expect("Failed to run docker compose restart app");
 
@@ -47,7 +83,7 @@ async fn test_concurrent_guesses_on_same_game() {
     .expect("Environment checks failed");
 
     // Create authenticated client
-    let client = auth_helpers::create_authenticated_client_selenium()
+    let client = auth_helpers::create_authenticated_client()
         .await
         .expect("Failed to create authenticated client");
 
@@ -137,7 +173,7 @@ async fn test_race_condition_guess_during_deletion() {
     .expect("Environment checks failed");
 
     // Create authenticated client
-    let client = auth_helpers::create_authenticated_client_selenium()
+    let client = auth_helpers::create_authenticated_client()
         .await
         .expect("Failed to create authenticated client");
 
@@ -255,7 +291,7 @@ async fn test_game_persistence_across_restart() {
     .expect("Environment checks failed");
 
     // Create authenticated client
-    let client = auth_helpers::create_authenticated_client_selenium()
+    let client = auth_helpers::create_authenticated_client()
         .await
         .expect("Failed to create authenticated client");
 
@@ -294,7 +330,7 @@ async fn test_game_persistence_across_restart() {
     .expect("Restart failed");
 
     // After restart, we need a new authenticated client (session may have been lost)
-    let client = auth_helpers::create_authenticated_client_selenium()
+    let client = auth_helpers::create_authenticated_client()
         .await
         .expect("Failed to create authenticated client after restart");
 
