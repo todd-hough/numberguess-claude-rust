@@ -1,9 +1,80 @@
 # Integration Test Optimization Analysis
 
-**Date:** 2025-11-09
+**Date:** 2025-11-09 · **Refreshed:** 2026-07-07
 **Current Test Runtime:** 160-220 seconds (2.7-3.7 minutes)
 **Optimized Target:** 15-20 seconds
 **Potential Improvement:** 89% faster (8.9x speedup)
+**Status:** APPROVED — implement as precursor to `plans/code-quality-improvements.md`
+
+---
+
+## 2026-07-07 Refresh (READ THIS FIRST — supersedes stale details below)
+
+The original analysis below remains architecturally correct, but was written 2025-11-09 and never
+implemented (Makefile still has only the monolithic `test-integration` target). This refresh
+updates it against the current codebase, adds **memory/resource reduction** as a co-equal goal
+(development happens on a resource-constrained laptop), and is now approved for implementation
+**before** the code-quality plan, whose per-phase test checkpoints will depend on the light tier.
+
+### Measured resource usage (2026-07-07, live during a green baseline run)
+
+| Service | Memory | Needed by |
+|---|---|---|
+| selenium (seleniarm/standalone-chromium, shm_size 2gb) | 610 MiB | 5 tests |
+| keycloak (quay.io/keycloak 26.0, H2 in-mem) | 567 MiB | 5 tests |
+| postgres:16 | 52 MiB | all |
+| oauth2-proxy | 25 MiB | 5 tests |
+| redis:7-alpine | 8 MiB | 5 tests |
+| app | 5 MiB | all |
+
+~93% of stack memory (≈1.2 GiB) serves the 5 tests that genuinely need the auth/browser stack.
+The light tier (postgres + app + nginx mock-auth) needs **≈70 MiB** total.
+
+### Refreshed test inventory (was 19 tests; now 21 Docker-dependent tests)
+
+Changes since the original analysis: `csrf_test.rs` added (2 tests); `cli_test.rs` has 6 non-Docker
+tests; `integration_test.rs` has 2 `#[ignore]`d tests. Baseline 2026-07-07: all green.
+
+| File | Tests | Tier | Notes |
+|---|---|---|---|
+| `api_edge_cases_test.rs` | 5 | **Light** | Business logic via HTTP; headers via nginx |
+| `web_endpoints_test.rs` | 4 | **Light** | HTML fragment assertions; no DOM needed |
+| `concurrency_test.rs` | 3 | **Light** | Transaction/race tests; DB + app only |
+| `csrf_test.rs` | 2 | **Light** | NEW since original plan. Verified 2026-07-07: uses Selenium only to obtain a session cookie; CSRF mechanics (axum-csrf cookie + `authenticity_token` form field) are app-level. Needs a cookie-jar `reqwest::Client` in the light tier — mock nginx must pass cookies through untouched. |
+| `auth_integration_test.rs` (2 of 5: `*_work_when_authenticated`) | 2 | **Light** | Test that endpoints accept an authenticated user, not the OAuth2 flow itself |
+| `auth_integration_test.rs` (3 of 5: login flow, redirect, 401) | 3 | **Full** | Validate oauth2-proxy/Keycloak behavior itself |
+| `web_ui_test.rs` | 2 | **Full** | Real browser: HTMX swaps, DOM, client-side validation |
+| **Totals** | **21** | 16 light / 5 full | 76% of tests escape the heavy stack |
+
+### Additions to the original plan (resource focus)
+
+These apply to the FULL tier so that even when it runs, it fits a small laptop:
+
+- [ ] Cap Keycloak JVM heap in compose: `JAVA_OPTS_KC_HEAP="-Xms64m -Xmx256m"` (measured 567 MiB unbounded; near-empty dev realm doesn't need it)
+- [ ] Reduce selenium `shm_size: 2gb` → `512mb` and set `SE_NODE_MAX_SESSIONS=1` (tests run `--test-threads=1`; never more than one browser session)
+- [ ] Add `mem_limit` to keycloak (768m) and selenium (1g) so a spike OOMs the container instead of swap-thrashing the host
+- [ ] `make test-integration` runs tiers **sequentially with teardown between them** — peak memory never includes both tiers
+- [ ] Session reuse for the full tier (1 Selenium login per test binary via `tokio::sync::OnceCell`, not per test) — cuts Chrome CPU churn
+
+### Corrections to the original plan text
+
+- Test counts/categorization in the body below are stale — use the table above.
+- `once_cell` crate examples below: prefer `std::sync::OnceLock` / `tokio::sync::OnceCell` (no new dependency).
+- Original savings table omitted csrf tests; light tier is 16 tests, not 14-16.
+- CI note: `integration-security.yml` must run BOTH tiers on every push — that is what preserves
+  full-fidelity coverage while local runs default to the light tier.
+
+### Implementation phases (supersedes "Implementation Plan" section below in ordering; details there still apply)
+
+- [ ] **T1 — Light-tier infrastructure**: `docker-compose.test-mock-auth.yml` (postgres + app + nginx header-injecting proxy on localhost:8080), `test-fixtures/mock-auth-nginx.conf` (must forward cookies + `Host`, inject the four `X-Forwarded-*` headers). Verify manually: create game + guess via curl through the proxy.
+- [ ] **T2 — Test helper split**: `tests/common/mock_auth_helpers.rs` (plain cookie-jar reqwest client); leave Selenium helpers untouched for the full tier. Move the 2 `*_work_when_authenticated` tests' client creation behind the same helper. No assertion changes anywhere.
+- [ ] **T3 — Makefile + tier wiring**: `test-func` (light), `test-auth` (full), `test-integration` = func → teardown → auth → keep-running-for-debug semantics preserved on the LAST tier only. `test-down` tears down both compose configs.
+- [ ] **T4 — Full-tier resource caps**: heap cap, shm reduction, mem_limits, SE_NODE_MAX_SESSIONS, session reuse (list above).
+- [ ] **T5 — Verification gate**: run `make test-integration` (both tiers); result must match the 2026-07-07 baseline: ~27 passed / 0 failed / 2 ignored (21 Docker tests + 6 cli tests, 2 ignored). Record timings + `docker stats` peaks here. Update CI workflow, CLAUDE.md test docs, README.
+- [ ] **T6 — Handoff**: mark this plan implemented; the code-quality plan's interim checkpoints then use `make test-func`, with full `make test-integration` at its Phases 0/2/6 and final verification.
+
+**Verification principle: no test is deleted, no assertion changes, both tiers stay green.**
+Test-infrastructure-only change; application code and REST API untouched.
 
 ---
 
