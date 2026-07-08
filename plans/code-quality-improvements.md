@@ -151,14 +151,14 @@ The light tier was already immune (anonymous volume, separate project).
 - [x] **Wire-format check passed**: captured live JSON for all four outcomes (too_low, too_high, correct, limit_reached) before and after against the mock-proxy stack — `diff` empty, byte-identical. Serialization also pinned by a unit test asserting each variant's exact legacy string. No docs/api.md change needed.
 - [x] Light-tier suite green (20 passed / 2 ignored; API-only change, browser tier not affected per test strategy table). 58/58 unit tests, clippy clean.
 
-### Phase 6: `ApiError` / handler error refactor (Q1) — largest change
+### Phase 6: `ApiError` / handler error refactor (Q1) ✅ DONE 2026-07-08
 
-- [ ] Define `ApiError` enum in `src/api/` implementing `IntoResponse`, with `From<DbError>` and `From<GameError>`. Must reproduce today's exact mapping: validation → 400 + `{"error": "<Display text>"}`, `NotFound` → 404 + `Game with ID {} not found`, other DB errors → 500 + `e.to_string()`.
-- [ ] Rewrite `create_game_api` / `make_guess_api` to `Result<Json<...>, ApiError>` with `?`. Keep all existing `tracing` events (warn on validation failure, error on DB failure) — move them into `ApiError` constructors or keep at call sites.
-- [ ] Analogous `WebError` (renders `ErrorTemplate` / `GameNotFoundTemplate` / `UpdateErrorTemplate`) for the web handlers.
-- [ ] Extract the shared validate-range → validate-limit → `repo.create` sequence used by both API and web creation handlers into one helper.
-- [ ] **External API constraint**: status codes and JSON error body shape must be unchanged. Verify against `docs/api.md` and with before/after curl captures for: invalid range (400), invalid limit (400), unknown game id (404).
-- [ ] Run full test suite (`make test`).
+- [x] `src/api/error.rs`: `ApiError { Validation, GameNotFound, Internal }` implements `IntoResponse` with the exact legacy mapping (400/404/500 + `{"error": ...}`), documented in a table in the module docs. `From<GameError>` provided; `ApiError::from_db_for_game(game_id)` maps `DbError::NotFound` → 404 for that game (a plain `From<DbError>` can't know the id).
+- [x] `create_game_api` / `make_guess_api` rewritten to `Result<Json<...>, ApiError>` with `?`; all tracing events kept at call sites (they carry request-context fields the error type can't know).
+- [x] `src/web/error.rs`: `WebError { ErrorMessage, GameNotFound, UpdateFailed, InvalidCsrf }` renders the same templates/status as before; both web handlers now return `Result<_, WebError>`.
+- [x] Shared `validators::validate_new_game_params` (range + guess limit in one call) used by both creation handlers — the validation sequence can no longer drift between API and web.
+- [x] **Wire-format check passed**: before/after captures of SIX error paths (API: invalid range 400, invalid limit 400, unknown game 404; WEB: invalid-range ErrorTemplate, unknown-game GameNotFoundTemplate, bad-CSRF 400) — `diff` empty, byte-identical.
+- [x] Full two-tier suite green: **27 passed / 0 failed / 2 ignored, matches baseline**. 58/58 unit tests, clippy clean.
 
 ### Phase 7: Web guess handler cleanup (Q4, Q14)
 

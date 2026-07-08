@@ -2,12 +2,13 @@
 //!
 //! Handles creating new game instances via JSON API.
 
-use crate::api::types::{CreateGameRequest, CreateGameResponse, ErrorResponse};
+use crate::api::error::ApiError;
+use crate::api::types::{CreateGameRequest, CreateGameResponse};
 use crate::auth::AuthenticatedUser;
 use crate::core::validators;
 use crate::db::GameRepository;
 use crate::server::state::AppState;
-use axum::{extract::State, http::StatusCode, response::Json};
+use axum::{extract::State, response::Json};
 use tracing::{debug, error, info, warn};
 
 /// API handler for game creation (JSON).
@@ -21,7 +22,7 @@ pub async fn create_game_api<R: GameRepository>(
     State(state): State<AppState<R>>,
     user: AuthenticatedUser,
     Json(payload): Json<CreateGameRequest>,
-) -> Result<Json<CreateGameResponse>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<CreateGameResponse>, ApiError> {
     debug!(
         user_id = %user.user_id,
         user_email = %user.email,
@@ -31,43 +32,23 @@ pub async fn create_game_api<R: GameRepository>(
         "API: Creating new game"
     );
 
-    // Validate range using shared validator
-    if let Err(e) = validators::validate_range(payload.min, payload.max) {
+    // Validate range and guess limit together (shared with the web handler)
+    let guess_limit = validators::validate_new_game_params(
+        payload.min,
+        payload.max,
+        payload.max_guesses,
+        validators::MAX_WEB_GUESS_LIMIT,
+    )
+    .map_err(|e| {
         warn!(
             min = payload.min,
             max = payload.max,
+            max_guesses = ?payload.max_guesses,
             error = %e,
-            "API: Game creation failed - invalid range"
+            "API: Game creation failed - invalid parameters"
         );
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse {
-                error: e.to_string(),
-            }),
-        ));
-    }
-
-    // Validate guess limit using shared validator
-    let guess_limit = if let Some(limit) = payload.max_guesses {
-        match validators::validate_guess_limit(limit, validators::MAX_WEB_GUESS_LIMIT) {
-            Ok(validated) => validated,
-            Err(e) => {
-                warn!(
-                    limit = limit,
-                    error = %e,
-                    "API: Game creation failed - invalid guess limit"
-                );
-                return Err((
-                    StatusCode::BAD_REQUEST,
-                    Json(ErrorResponse {
-                        error: e.to_string(),
-                    }),
-                ));
-            }
-        }
-    } else {
-        None
-    };
+        ApiError::Validation(e)
+    })?;
 
     // Create game in database
     let game_id = state
@@ -82,12 +63,7 @@ pub async fn create_game_api<R: GameRepository>(
                 error = %e,
                 "API: Failed to create game in database"
             );
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    error: e.to_string(),
-                }),
-            )
+            ApiError::Internal(e.to_string())
         })?;
 
     info!(

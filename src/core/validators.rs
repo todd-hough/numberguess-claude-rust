@@ -63,6 +63,24 @@ pub fn validate_range(min: i32, max: i32) -> Result<(), GameError> {
     Ok(())
 }
 
+/// Validates all new-game parameters together: range plus optional guess limit.
+///
+/// Single entry point shared by the API and Web UI creation handlers so the
+/// validation sequence cannot drift between them. Returns the normalized
+/// guess limit (`None` when absent or explicitly 0 = unlimited).
+pub fn validate_new_game_params(
+    min: i32,
+    max: i32,
+    max_guesses: Option<u32>,
+    max_limit: u32,
+) -> Result<Option<u32>, GameError> {
+    validate_range(min, max)?;
+    match max_guesses {
+        Some(limit) => validate_guess_limit(limit, max_limit),
+        None => Ok(None),
+    }
+}
+
 /// Validates a guess limit and returns the adjusted limit (or None for no limit)
 pub fn validate_guess_limit(limit: u32, max_limit: u32) -> Result<Option<u32>, GameError> {
     if limit == 0 {

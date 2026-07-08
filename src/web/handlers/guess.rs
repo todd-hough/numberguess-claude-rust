@@ -6,13 +6,12 @@ use crate::auth::AuthenticatedUser;
 use crate::core::{GameId, GuessResult};
 use crate::db::{DbError, GameRepository};
 use crate::server::state::AppState;
-use crate::web::templates::{
-    GameCompleteTemplate, GameNotFoundTemplate, GuessFormTemplate, UpdateErrorTemplate,
-};
+use crate::web::error::WebError;
+use crate::web::templates::{GameCompleteTemplate, GuessFormTemplate};
 use crate::web::types::MakeGuessRequest;
 use axum::{
     extract::{Form, Path, State},
-    response::IntoResponse,
+    response::{IntoResponse, Response},
 };
 use axum_csrf::CsrfToken;
 use tracing::{debug, error, info, warn};
@@ -30,11 +29,11 @@ pub async fn make_guess_web<R: GameRepository>(
     user: AuthenticatedUser,
     Path(game_id): Path<GameId>,
     Form(payload): Form<MakeGuessRequest>,
-) -> impl IntoResponse {
+) -> Result<Response, WebError> {
     // Verify CSRF token
     if token.verify(&payload.authenticity_token).is_err() {
         warn!("Web: CSRF token verification failed");
-        return (axum::http::StatusCode::BAD_REQUEST, "Invalid CSRF token").into_response();
+        return Err(WebError::InvalidCsrf);
     }
 
     debug!(
@@ -46,25 +45,28 @@ pub async fn make_guess_web<R: GameRepository>(
     );
 
     // Make guess using transactional approach (concurrency-safe)
-    let result = match state.repo.make_guess(game_id, payload.guess).await {
-        Ok(r) => r,
-        Err(DbError::NotFound) => {
-            warn!(
-                game_id = %game_id,
-                "Web: Guess failed - game not found"
-            );
-            return GameNotFoundTemplate.into_response();
-        }
-        Err(e) => {
-            error!(
-                game_id = %game_id,
-                guess = payload.guess,
-                error = %e,
-                "Web: Failed to process guess"
-            );
-            return UpdateErrorTemplate.into_response();
-        }
-    };
+    let result = state
+        .repo
+        .make_guess(game_id, payload.guess)
+        .await
+        .map_err(|e| match e {
+            DbError::NotFound => {
+                warn!(
+                    game_id = %game_id,
+                    "Web: Guess failed - game not found"
+                );
+                WebError::GameNotFound
+            }
+            e => {
+                error!(
+                    game_id = %game_id,
+                    guess = payload.guess,
+                    error = %e,
+                    "Web: Failed to process guess"
+                );
+                WebError::UpdateFailed
+            }
+        })?;
 
     match result {
         GuessResult::TooLow | GuessResult::TooHigh => {
@@ -81,17 +83,14 @@ pub async fn make_guess_web<R: GameRepository>(
             );
 
             // For ongoing games, fetch current state for display
-            let game = match state.repo.get(game_id).await {
-                Ok(g) => g,
-                Err(e) => {
-                    error!(
-                        game_id = %game_id,
-                        error = %e,
-                        "Web: Failed to fetch game state after guess"
-                    );
-                    return UpdateErrorTemplate.into_response();
-                }
-            };
+            let game = state.repo.get(game_id).await.map_err(|e| {
+                error!(
+                    game_id = %game_id,
+                    error = %e,
+                    "Web: Failed to fetch game state after guess"
+                );
+                WebError::UpdateFailed
+            })?;
 
             let (min, max) = game.range();
             let max_guesses = game.max_guesses();
@@ -132,7 +131,7 @@ pub async fn make_guess_web<R: GameRepository>(
                 csrf_token,
             };
             // Return token in tuple to trigger cookie setting via IntoResponseParts
-            (token, template).into_response()
+            Ok((token, template).into_response())
         }
         GuessResult::Correct { number, attempts } => {
             info!(
@@ -152,7 +151,7 @@ pub async fn make_guess_web<R: GameRepository>(
                 number,
                 attempts: Some(attempts),
             };
-            template.into_response()
+            Ok(template.into_response())
         }
         GuessResult::LimitReached {
             number,
@@ -175,7 +174,7 @@ pub async fn make_guess_web<R: GameRepository>(
                 number,
                 attempts: None,
             };
-            template.into_response()
+            Ok(template.into_response())
         }
     }
 }

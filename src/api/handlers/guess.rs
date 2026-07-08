@@ -2,14 +2,14 @@
 //!
 //! Processes player guesses via JSON API.
 
-use crate::api::types::{ErrorResponse, GuessOutcome, MakeGuessRequest, MakeGuessResponse};
+use crate::api::error::ApiError;
+use crate::api::types::{GuessOutcome, MakeGuessRequest, MakeGuessResponse};
 use crate::auth::AuthenticatedUser;
 use crate::core::{GameId, GuessResult};
 use crate::db::{DbError, GameRepository};
 use crate::server::state::AppState;
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
     response::Json,
 };
 use tracing::{debug, error, info, warn};
@@ -26,7 +26,7 @@ pub async fn make_guess_api<R: GameRepository>(
     user: AuthenticatedUser,
     Path(game_id): Path<GameId>,
     Json(payload): Json<MakeGuessRequest>,
-) -> Result<Json<MakeGuessResponse>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<MakeGuessResponse>, ApiError> {
     debug!(
         user_id = %user.user_id,
         user_email = %user.email,
@@ -40,33 +40,20 @@ pub async fn make_guess_api<R: GameRepository>(
         .repo
         .make_guess(game_id, payload.guess)
         .await
-        .map_err(|e| match e {
-            DbError::NotFound => {
-                warn!(
+        .map_err(|e| {
+            match &e {
+                DbError::NotFound => warn!(
                     game_id = %game_id,
                     "API: Guess failed - game not found"
-                );
-                (
-                    StatusCode::NOT_FOUND,
-                    Json(ErrorResponse {
-                        error: format!("Game with ID {game_id} not found"),
-                    }),
-                )
-            }
-            _ => {
-                error!(
+                ),
+                e => error!(
                     game_id = %game_id,
                     guess = payload.guess,
                     error = %e,
                     "API: Failed to process guess"
-                );
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorResponse {
-                        error: e.to_string(),
-                    }),
-                )
+                ),
             }
+            ApiError::from_db_for_game(game_id)(e)
         })?;
 
     let response = match result {
