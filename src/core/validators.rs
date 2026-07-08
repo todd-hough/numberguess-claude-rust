@@ -70,8 +70,7 @@ pub fn validate_guess_limit(limit: u32, max_limit: u32) -> Result<Option<u32>, G
     }
     if limit > max_limit {
         return Err(GameError::ValidationError(format!(
-            "Guess limit ({}) exceeds maximum allowed ({})",
-            limit, max_limit
+            "Guess limit ({limit}) exceeds maximum allowed ({max_limit})"
         )));
     }
     Ok(Some(limit))

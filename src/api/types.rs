@@ -1,23 +1,8 @@
 //! Request and response types for JSON API endpoints.
 
 use crate::core::GameId;
-use serde::{Deserialize, Deserializer, Serialize};
-
-/// Custom deserializer for optional u32 that treats empty strings as None.
-///
-/// This handles API inputs where an empty field comes through as an empty string
-/// rather than being omitted entirely. Also accepts numeric strings.
-pub fn deserialize_option_u32<'de, D>(deserializer: D) -> Result<Option<u32>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let s: Option<String> = Option::deserialize(deserializer)?;
-    match s {
-        Some(ref s) if s.is_empty() => Ok(None),
-        Some(s) => s.parse::<u32>().map(Some).map_err(serde::de::Error::custom),
-        None => Ok(None),
-    }
-}
+use crate::serde_helpers::deserialize_option_u32;
+use serde::{Deserialize, Serialize};
 
 // Game creation types
 

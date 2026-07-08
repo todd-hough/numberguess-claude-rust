@@ -49,7 +49,7 @@ pub async fn make_guess_api<R: GameRepository>(
                 (
                     StatusCode::NOT_FOUND,
                     Json(ErrorResponse {
-                        error: format!("Game with ID {} not found", game_id),
+                        error: format!("Game with ID {game_id} not found"),
                     }),
                 )
             }
@@ -116,8 +116,7 @@ pub async fn make_guess_api<R: GameRepository>(
             MakeGuessResponse {
                 result: "correct".to_string(),
                 message: format!(
-                    "You got it! The number was {}. It took you {} guesses.",
-                    number, attempts
+                    "You got it! The number was {number}. It took you {attempts} guesses."
                 ),
                 attempts: Some(attempts),
             }
@@ -139,8 +138,7 @@ pub async fn make_guess_api<R: GameRepository>(
             MakeGuessResponse {
                 result: "limit_reached".to_string(),
                 message: format!(
-                    "Sorry, you've reached the limit of {} guesses! The number was {}.",
-                    max_guesses, number
+                    "Sorry, you've reached the limit of {max_guesses} guesses! The number was {number}."
                 ),
                 attempts: Some(max_guesses),
             }

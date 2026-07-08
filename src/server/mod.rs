@@ -52,8 +52,9 @@ pub async fn run_server(pool: PgPool, port: u16) {
         .with_key(Some(csrf_secret))
         .with_cookie_name("x-csrf-token");
 
-    // Create repository and application state
-    let repo = PostgresGameRepository::new(pool.clone());
+    // Create repository and application state (pool moves in; it has no
+    // other consumers in this function)
+    let repo = PostgresGameRepository::new(pool);
     let state = AppState::new(repo, csrf_config.clone());
 
     // API routes
@@ -97,16 +98,16 @@ pub async fn run_server(pool: PgPool, port: u16) {
         .route("/health", get(health_check::<PostgresGameRepository>))
         .with_state(state.clone());
 
-    let main_addr = format!("0.0.0.0:{}", port);
-    let health_addr = format!("0.0.0.0:{}", health_port);
+    let main_addr = format!("0.0.0.0:{port}");
+    let health_addr = format!("0.0.0.0:{health_port}");
 
     let main_listener = tokio::net::TcpListener::bind(&main_addr)
         .await
-        .unwrap_or_else(|_| panic!("Failed to bind to {}", main_addr));
+        .unwrap_or_else(|_| panic!("Failed to bind to {main_addr}"));
 
     let health_listener = tokio::net::TcpListener::bind(&health_addr)
         .await
-        .unwrap_or_else(|_| panic!("Failed to bind to {}", health_addr));
+        .unwrap_or_else(|_| panic!("Failed to bind to {health_addr}"));
 
     // Log server startup info to stderr (structured logs)
     info!(

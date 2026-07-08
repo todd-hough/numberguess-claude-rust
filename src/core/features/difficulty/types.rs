@@ -156,7 +156,7 @@ impl DifficultyInfo {
         match self.guess_limit {
             Some(limit) => {
                 let guess_word = if limit == 1 { "guess" } else { "guesses" };
-                format!("{} {}", limit, guess_word)
+                format!("{limit} {guess_word}")
             }
             None => "unlimited".to_string(),
         }
@@ -167,7 +167,7 @@ impl DifficultyInfo {
         if self.buffer < 0 {
             let abs_buffer = self.buffer.abs();
             let guess_word = if abs_buffer == 1 { "guess" } else { "guesses" };
-            format!("{} {} below optimal!", abs_buffer, guess_word)
+            format!("{abs_buffer} {guess_word} below optimal!")
         } else if self.buffer == 0 {
             "no extra guesses".to_string()
         } else {

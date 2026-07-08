@@ -171,10 +171,7 @@ pub async fn make_guess_web<R: GameRepository>(
             let template = GameCompleteTemplate {
                 feedback_class: "limit-reached".to_string(),
                 emoji: "❌".to_string(),
-                message: format!(
-                    "Sorry! You've reached the limit of {} guesses!",
-                    max_guesses
-                ),
+                message: format!("Sorry! You've reached the limit of {max_guesses} guesses!"),
                 number,
                 attempts: None,
             };

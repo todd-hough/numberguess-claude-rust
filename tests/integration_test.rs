@@ -15,7 +15,7 @@ use serde_json::json;
 fn test_basic_game_flow() {
     let base_url = environment::ensure_server_ready();
 
-    println!("Using game server at {}", base_url);
+    println!("Using game server at {base_url}");
 
     // Create HTTP client
     let client = Client::new();
@@ -28,7 +28,7 @@ fn test_basic_game_flow() {
     });
 
     let create_response = client
-        .post(format!("{}/api/games", base_url))
+        .post(format!("{base_url}/api/games"))
         .json(&game_data)
         .send()
         .expect("Should send POST request to create game");
@@ -54,10 +54,10 @@ fn test_basic_game_flow() {
     let mut result = String::new();
 
     for guess_num in 1..=10 {
-        println!("Making guess: {}", guess_num);
+        println!("Making guess: {guess_num}");
 
         let guess_response = client
-            .post(format!("{}/api/games/{}/guess", base_url, game_id))
+            .post(format!("{base_url}/api/games/{game_id}/guess"))
             .json(&json!({ "guess": guess_num }))
             .send()
             .expect("Should send POST request to make guess");
@@ -74,7 +74,7 @@ fn test_basic_game_flow() {
         result = guess_result.result.clone();
 
         if guess_result.result == "correct" {
-            println!("Found the correct number: {}", guess_num);
+            println!("Found the correct number: {guess_num}");
 
             // Use comprehensive assertion for correct guess
             assert_correct_guess(&guess_result);
@@ -88,7 +88,7 @@ fn test_basic_game_flow() {
         "Should eventually find the correct number"
     );
 
-    println!("Basic game flow test passed at {}", base_url);
+    println!("Basic game flow test passed at {base_url}");
 }
 
 // NOTE: This test is superseded by authenticated API tests
@@ -98,7 +98,7 @@ fn test_basic_game_flow() {
 fn test_invalid_game_parameters() {
     let base_url = environment::ensure_server_ready();
 
-    println!("Using game server at {}", base_url);
+    println!("Using game server at {base_url}");
 
     // Create HTTP client
     let client = Client::new();
@@ -126,10 +126,10 @@ fn test_invalid_game_parameters() {
     ];
 
     for (i, game_data) in invalid_game_data.iter().enumerate() {
-        println!("Testing invalid game data case {}: {:?}", i, game_data);
+        println!("Testing invalid game data case {i}: {game_data:?}");
 
         let create_response = client
-            .post(format!("{}/api/games", base_url))
+            .post(format!("{base_url}/api/games"))
             .json(game_data)
             .send()
             .expect("Should send POST request with invalid game parameters");
@@ -141,5 +141,5 @@ fn test_invalid_game_parameters() {
         );
     }
 
-    println!("Invalid game parameters test passed at {}", base_url);
+    println!("Invalid game parameters test passed at {base_url}");
 }

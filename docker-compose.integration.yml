@@ -2,6 +2,12 @@ services:
   postgres:
     environment:
       POSTGRES_DB: ${TEST_DB_NAME:-numberguess_test}
+    # Dedicated test volume: POSTGRES_DB only takes effect when postgres
+    # initializes an EMPTY data dir. Sharing dev's postgres_data volume meant
+    # a `make dev-db` session left a volume without numberguess_test, crashing
+    # the app on the next full-tier test run.
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-numberguess} -d ${TEST_DB_NAME:-numberguess_test}"]
       interval: 5s
@@ -124,3 +130,6 @@ services:
       timeout: 10s
       retries: 10
       start_period: 20s
+
+volumes:
+  postgres_test_data:

@@ -110,21 +110,29 @@ Ordered lowest-risk-first within each tier; bug fix first overall.
 - [x] Verified: `cargo test --lib` 56 passed (was 51); clippy clean; light tier green on rebuilt image (20 passed / 2 ignored); end-to-end curl through the mock proxy confirms `?min=0&max=2147483647` → 200 empty (previously debug-panic/500) and valid input still renders.
 - [x] Bonus: Q13 (difficulty template render errors silently swallowed) fixed in the same edit — render failures now log via `error!` before returning empty. Strike Q13 from Phase 2.
 
-### Phase 2: Mechanical cleanups (Q10, Q11, Q13, Q12, Q5a)
+### Phase 2: Mechanical cleanups (Q10, Q11, Q13, Q12, Q5a) ✅ DONE 2026-07-08
 
-Small, independent, low-risk edits batched together:
+- [x] Q10: `cargo clippy --fix -- -W clippy::uninlined_format_args -W clippy::redundant_closure` applied across 18 files (106 insertions / 133 deletions).
+- [x] Q11: duplicated comment lines deleted in `src/auth/mod.rs`.
+- [x] Q13: done early in Phase 1 (render errors logged in `difficulty_preview`).
+- [x] Q5a: `deserialize_option_u32` moved to new `src/serde_helpers.rs`; `api/types.rs` and `web/types.rs` import it (no api↔web dependency).
+- [x] Q12: pool passed by move into `PostgresGameRepository::new` in `run_server`.
 
-- [ ] Q10: `cargo clippy --fix -- -W clippy::uninlined_format_args` + manual pass for `Html(String::new())` and redundant closures.
-- [ ] Q11: delete duplicated comment lines in `src/auth/mod.rs`.
-- [ ] Q13: log template render errors in `difficulty_preview` before returning empty.
-- [ ] Q5a: move `deserialize_option_u32` to one shared location (e.g., a small `src/serde_helpers.rs` or into `web/types.rs` re-exported to api) — pick whichever avoids a web→api dependency.
-- [ ] Q12: **pool ownership change** — remove `pool.clone()` in `run_server`; pass `pool` by move into `PostgresGameRepository::new`.
+**Q12 verification (all passed 2026-07-08):**
+- [x] `make dev-db` + local `cargo run -- --server --port 4080`: DB connection established, migrations completed, `READY` emitted on stdout.
+- [x] `http://localhost:8081/health` → 200 (SELECT 1 through the moved pool); game creation INSERT via direct request with auth headers also verified.
+- [x] Full two-tier suite on rebuilt image: light 20 passed / 2 ignored, full 5 + 2 passed — **27 passed / 0 failed / 2 ignored, matches baseline**.
+- [x] Move-vs-clone equivalence proven empirically, not assumed.
 
-**⚠ Q12 specific test requirement (per review discussion):** the pool change must be explicitly proven to work, not just compile:
-- [ ] `make dev-db` + `cargo run -- --server --port 4080`: confirm startup logs show DB connection, migrations run, and `READY` is emitted on stdout.
-- [ ] Hit `http://localhost:8081/health` → expect 200 (exercises the pool through the repository).
-- [ ] Run the **full integration suite** (`make test-integration`) — game create + guess flows exercise pooled connections under concurrency (`--test-threads=1` but multiple sequential connections); confirm counts match the Phase 0 baseline.
-- [ ] Confirm no behavior change: `PgPool` is internally `Arc`-based, so move vs. clone is semantically identical — the tests above prove that assumption in this codebase rather than trusting it.
+**Unplanned fix discovered during Q12 verification — dev/test postgres volume collision:**
+The full test tier shared dev's `postgres_data` volume; `POSTGRES_DB` only takes effect when
+postgres initializes an EMPTY data dir, so a `make dev-db` session left a volume without
+`numberguess_test` and the next full-tier run crashed the app ("database numberguess_test
+does not exist"). Fixed by giving the integration overlay a dedicated `postgres_test_data`
+volume (compose merges service volumes by container target path, so it cleanly replaces the
+dev mount). Regression-tested by deliberately reproducing the contamination sequence
+(`make dev-db` → `make dev-down` → `make test-auth`): previously crashed, now 7/7 pass.
+The light tier was already immune (anonymous volume, separate project).
 
 ### Phase 3: Getter renames (Q2)
 

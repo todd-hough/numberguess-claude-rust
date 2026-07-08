@@ -22,9 +22,8 @@ pub fn is_mock_auth() -> bool {
             "1" | "true" | "yes" | "on" => true,
             "" | "0" | "false" | "no" | "off" => false,
             other => panic!(
-                "Unrecognized MOCK_AUTH value {:?}. Use MOCK_AUTH=1 for the light tier \
-                 (make test-func) or unset it for the full tier (make test-auth).",
-                other
+                "Unrecognized MOCK_AUTH value {other:?}. Use MOCK_AUTH=1 for the light tier \
+                 (make test-func) or unset it for the full tier (make test-auth)."
             ),
         },
     }
@@ -78,7 +77,7 @@ pub fn ensure_server_ready() -> String {
     let mut attempts = 0;
     let max_attempts = 30;
 
-    eprintln!("Waiting for application server at {}...", base);
+    eprintln!("Waiting for application server at {base}...");
 
     while attempts < max_attempts {
         match client.get(&base).send() {
@@ -109,9 +108,8 @@ pub fn ensure_server_ready() -> String {
     }
 
     panic!(
-        "Game server at {} is not responding. Start the light tier with `make test-func` \
-         (or the full stack with `make test-auth` / `make test-up`).",
-        base
+        "Game server at {base} is not responding. Start the light tier with `make test-func` \
+         (or the full stack with `make test-auth` / `make test-up`)."
     );
 }
 
@@ -133,7 +131,7 @@ pub fn ensure_selenium_ready() -> String {
     let max_attempts = 20;
     let status_endpoint = format!("{}/status", url.trim_end_matches('/'));
 
-    eprintln!("Waiting for Selenium to be ready at {}...", url);
+    eprintln!("Waiting for Selenium to be ready at {url}...");
 
     while attempts < max_attempts {
         if let Ok(resp) = client.get(&status_endpoint).send()
@@ -147,8 +145,7 @@ pub fn ensure_selenium_ready() -> String {
     }
 
     panic!(
-        "Selenium at {} is not responding after {} attempts. Check `docker compose logs selenium`",
-        url, max_attempts
+        "Selenium at {url} is not responding after {max_attempts} attempts. Check `docker compose logs selenium`"
     );
 }
 
@@ -162,12 +159,9 @@ pub fn ensure_keycloak_ready() -> String {
 
     let mut attempts = 0;
     let max_attempts = 60; // Keycloak can take up to 60s to start
-    let health_endpoint = format!(
-        "{}/realms/numberguess/.well-known/openid-configuration",
-        url
-    );
+    let health_endpoint = format!("{url}/realms/numberguess/.well-known/openid-configuration");
 
-    eprintln!("Waiting for Keycloak to be ready at {}...", url);
+    eprintln!("Waiting for Keycloak to be ready at {url}...");
 
     while attempts < max_attempts {
         if let Ok(resp) = client.get(&health_endpoint).send()
@@ -181,8 +175,7 @@ pub fn ensure_keycloak_ready() -> String {
     }
 
     panic!(
-        "Keycloak at {} is not responding after {} attempts. Check `docker compose logs keycloak`",
-        url, max_attempts
+        "Keycloak at {url} is not responding after {max_attempts} attempts. Check `docker compose logs keycloak`"
     );
 }
 
@@ -203,8 +196,7 @@ pub fn ensure_redis_ready() {
     }
 
     panic!(
-        "Redis is not responding after {} attempts. Check `docker compose logs redis`",
-        max_attempts
+        "Redis is not responding after {max_attempts} attempts. Check `docker compose logs redis`"
     );
 }
 
@@ -235,7 +227,6 @@ pub fn ensure_oauth2_proxy_ready() {
     }
 
     panic!(
-        "oauth2-proxy is not responding after {} attempts. Check `docker compose logs oauth2-proxy`",
-        max_attempts
+        "oauth2-proxy is not responding after {max_attempts} attempts. Check `docker compose logs oauth2-proxy`"
     );
 }

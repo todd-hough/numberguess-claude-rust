@@ -57,7 +57,7 @@ async fn main() {
             .await
             .unwrap_or_else(|e| {
                 error!(error = %e, "Failed to connect to database");
-                panic!("Failed to connect to database: {}", e);
+                panic!("Failed to connect to database: {e}");
             });
 
         info!("Database connection established");
@@ -68,7 +68,7 @@ async fn main() {
             .await
             .unwrap_or_else(|e| {
                 error!(error = %e, "Failed to run database migrations");
-                panic!("Failed to run migrations: {}", e);
+                panic!("Failed to run migrations: {e}");
             });
 
         info!("Database migrations completed successfully");

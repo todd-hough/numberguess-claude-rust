@@ -159,7 +159,7 @@ async fn test_remaining_guesses_display() {
 
     // Make first guess (same token works for session)
     let resp = client
-        .post(format!("http://localhost:8080/game/{}/guess", game_id))
+        .post(format!("http://localhost:8080/game/{game_id}/guess"))
         .form(&[("guess", "50"), ("authenticity_token", &token)])
         .send()
         .await
@@ -180,7 +180,7 @@ async fn test_remaining_guesses_display() {
 
     // Make second guess
     let resp = client
-        .post(format!("http://localhost:8080/game/{}/guess", game_id))
+        .post(format!("http://localhost:8080/game/{game_id}/guess"))
         .form(&[("guess", "75"), ("authenticity_token", &token)])
         .send()
         .await
@@ -197,7 +197,7 @@ async fn test_remaining_guesses_display() {
 
     // Make third guess
     let resp = client
-        .post(format!("http://localhost:8080/game/{}/guess", game_id))
+        .post(format!("http://localhost:8080/game/{game_id}/guess"))
         .form(&[("guess", "25"), ("authenticity_token", &token)])
         .send()
         .await
@@ -270,7 +270,7 @@ async fn test_no_remaining_guesses_display_without_limit() {
 
     // Make a guess
     let resp = client
-        .post(format!("http://localhost:8080/game/{}/guess", game_id))
+        .post(format!("http://localhost:8080/game/{game_id}/guess"))
         .form(&[("guess", "50"), ("authenticity_token", &token)])
         .send()
         .await

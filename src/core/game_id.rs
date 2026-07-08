@@ -80,7 +80,7 @@ mod tests {
     #[test]
     fn test_game_id_display() {
         let id = GameId::from_i64(12345);
-        assert_eq!(format!("{}", id), "12345");
+        assert_eq!(format!("{id}"), "12345");
     }
 
     #[test]

@@ -15,13 +15,10 @@ pub fn run_cli_game(cli: Cli) {
     let max = prompt_max_value(cli.max, min);
     let guess_limit = prompt_guess_limit(cli.limit);
 
-    println!(
-        "I'm thinking of a number between {} and {} (inclusive)...",
-        min, max
-    );
+    println!("I'm thinking of a number between {min} and {max} (inclusive)...");
 
     if let Some(limit) = guess_limit {
-        println!("You have {} guesses to find the number!", limit);
+        println!("You have {limit} guesses to find the number!");
     }
 
     // Create the game
@@ -34,7 +31,7 @@ pub fn run_cli_game(cli: Cli) {
         if let Some(max_guesses) = game.get_max_guesses() {
             let remaining = max_guesses.saturating_sub(game.get_guess_count());
             if remaining > 0 {
-                println!("Guesses remaining: {}", remaining);
+                println!("Guesses remaining: {remaining}");
             }
         }
 
@@ -46,19 +43,16 @@ pub fn run_cli_game(cli: Cli) {
             GuessResult::TooLow => println!("Too low!"),
             GuessResult::TooHigh => println!("Too high!"),
             GuessResult::Correct { number, attempts } => {
-                println!("You got it! The number was {}.", number);
-                println!("It took you {} guesses.", attempts);
+                println!("You got it! The number was {number}.");
+                println!("It took you {attempts} guesses.");
                 break;
             }
             GuessResult::LimitReached {
                 number,
                 max_guesses,
             } => {
-                println!(
-                    "Sorry, you've reached the limit of {} guesses!",
-                    max_guesses
-                );
-                println!("The number was {}.", number);
+                println!("Sorry, you've reached the limit of {max_guesses} guesses!");
+                println!("The number was {number}.");
                 println!("Better luck next time!");
                 break;
             }

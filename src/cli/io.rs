@@ -14,7 +14,7 @@ where
     <T as std::str::FromStr>::Err: std::fmt::Debug,
 {
     loop {
-        print!("{}", prompt);
+        print!("{prompt}");
         io::stdout().flush().expect("Failed to flush stdout");
 
         let mut input = String::new();
@@ -34,20 +34,20 @@ pub fn prompt_min_value(cli_min: Option<i32>) -> i32 {
     match cli_min {
         Some(m) => {
             if let Err(e) = validators::validate_min_value(m) {
-                println!("{}. Please provide a valid minimum.", e);
+                println!("{e}. Please provide a valid minimum.");
                 loop {
                     let min: i32 = read_input(&format!(
                         "Enter minimum number (inclusive, 0 to {}): ",
                         validators::MAX_RANGE
                     ));
                     if let Err(e) = validators::validate_min_value(min) {
-                        println!("{}. Please try again.", e);
+                        println!("{e}. Please try again.");
                         continue;
                     }
                     return min;
                 }
             } else {
-                println!("Using minimum value from command line: {}", m);
+                println!("Using minimum value from command line: {m}");
                 m
             }
         }
@@ -57,7 +57,7 @@ pub fn prompt_min_value(cli_min: Option<i32>) -> i32 {
                 validators::MAX_RANGE
             ));
             if let Err(e) = validators::validate_min_value(min) {
-                println!("{}. Please try again.", e);
+                println!("{e}. Please try again.");
                 continue;
             }
             return min;
@@ -71,17 +71,17 @@ pub fn prompt_max_value(cli_max: Option<i32>, min: i32) -> i32 {
         Some(m) => {
             // Validate the max value itself
             if let Err(e) = validators::validate_max_value(m) {
-                println!("{}. Please provide a valid maximum.", e);
+                println!("{e}. Please provide a valid maximum.");
                 return prompt_valid_max(min);
             }
 
             // Validate max >= min
             if let Err(e) = validators::validate_max_gte_min(min, m) {
-                println!("{}. Please provide a valid maximum.", e);
+                println!("{e}. Please provide a valid maximum.");
                 return prompt_valid_max(min);
             }
 
-            println!("Using maximum value from command line: {}", m);
+            println!("Using maximum value from command line: {m}");
             m
         }
         None => prompt_valid_max(min),
@@ -97,12 +97,12 @@ fn prompt_valid_max(min: i32) -> i32 {
         ));
 
         if let Err(e) = validators::validate_max_value(max) {
-            println!("{}. Please try again.", e);
+            println!("{e}. Please try again.");
             continue;
         }
 
         if let Err(e) = validators::validate_max_gte_min(min, max) {
-            println!("{}. Please try again.", e);
+            println!("{e}. Please try again.");
             continue;
         }
 
@@ -127,12 +127,12 @@ pub fn prompt_guess_limit(cli_limit: Option<u32>) -> Option<u32> {
                             validators::MAX_CLI_GUESS_LIMIT
                         );
                     } else {
-                        println!("Using guess limit from command line: {} guesses", limit);
+                        println!("Using guess limit from command line: {limit} guesses");
                     }
                     Some(validated_limit)
                 }
                 Err(e) => {
-                    println!("{}. Playing without a limit.", e);
+                    println!("{e}. Playing without a limit.");
                     None
                 }
             }
@@ -159,11 +159,11 @@ pub fn prompt_guess_limit(cli_limit: Option<u32>) -> Option<u32> {
                             return None;
                         }
                         Ok(Some(validated_limit)) => {
-                            println!("Guess limit set to {} guesses.", validated_limit);
+                            println!("Guess limit set to {validated_limit} guesses.");
                             return Some(validated_limit);
                         }
                         Err(e) => {
-                            println!("{}. Please try again.", e);
+                            println!("{e}. Please try again.");
                         }
                     }
                 }
