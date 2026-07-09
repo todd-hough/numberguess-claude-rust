@@ -104,7 +104,7 @@ fn test_invalid_game_parameters() {
     let client = Client::new();
 
     // Test invalid game parameters
-    let invalid_game_data = vec![
+    let invalid_game_data = [
         // Min > Max
         json!({
             "min": 100,
