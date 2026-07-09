@@ -1,6 +1,10 @@
 # Multi-stage build for the Number Guessing Game using cargo-chef for dependency caching
 FROM rust:1.90-slim AS chef
-RUN cargo install cargo-chef
+# Pinned + --locked: an unpinned install resolves the latest cargo-chef with
+# fresh dependencies, which eventually require a newer rustc than the base
+# image (broke in 2026: cargo-platform@0.3.3 wanted rustc 1.91). Bump the
+# version together with the base image, not independently.
+RUN cargo install cargo-chef --version 0.1.72 --locked
 WORKDIR /app
 
 # Stage 1: Plan the build

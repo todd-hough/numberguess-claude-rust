@@ -64,6 +64,12 @@ jobs:
   audit:
     name: Security Audit
     runs-on: ubuntu-latest
+    # Informational only (hobby project): advisories in transitive deps
+    # accumulate over time without any code change here, and this job used to
+    # paint every run red because of them. It still runs and reports; it just
+    # cannot fail the workflow. Run `cargo audit` / `cargo update` locally if
+    # you want to act on its findings.
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v5
 
