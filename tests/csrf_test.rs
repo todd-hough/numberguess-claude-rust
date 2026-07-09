@@ -13,7 +13,7 @@ async fn test_csrf_protection_enforcement() {
     .expect("Environment checks failed");
 
     // 1. Create an authenticated client using Selenium OAuth2 flow
-    let client = auth_helpers::create_authenticated_client_selenium()
+    let client = auth_helpers::create_authenticated_client()
         .await
         .expect("Failed to create authenticated client");
 
@@ -97,7 +97,7 @@ async fn test_csrf_token_reuse_within_session() {
     .await
     .expect("Environment checks failed");
 
-    let client = auth_helpers::create_authenticated_client_selenium()
+    let client = auth_helpers::create_authenticated_client()
         .await
         .expect("Failed to create client");
 
@@ -134,7 +134,7 @@ async fn test_csrf_token_reuse_within_session() {
 
     // 4. Make a guess using the SAME token (axum_csrf uses per-session tokens)
     let resp = client
-        .post(format!("http://localhost:8080/game/{}/guess", game_id))
+        .post(format!("http://localhost:8080/game/{game_id}/guess"))
         .form(&[("guess", "50"), ("authenticity_token", &token)])
         .send()
         .await
@@ -147,7 +147,7 @@ async fn test_csrf_token_reuse_within_session() {
 
     // 5. Make another guess to confirm token continues to work
     let resp = client
-        .post(format!("http://localhost:8080/game/{}/guess", game_id))
+        .post(format!("http://localhost:8080/game/{game_id}/guess"))
         .form(&[("guess", "25"), ("authenticity_token", &token)])
         .send()
         .await

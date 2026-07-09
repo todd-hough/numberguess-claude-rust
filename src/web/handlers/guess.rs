@@ -3,16 +3,15 @@
 //! Processes player guesses via HTML forms (HTMX).
 
 use crate::auth::AuthenticatedUser;
-use crate::core::{GameId, GuessResult};
+use crate::core::{GameId, GuessResult, GuessingGame};
 use crate::db::{DbError, GameRepository};
 use crate::server::state::AppState;
-use crate::web::templates::{
-    GameCompleteTemplate, GameNotFoundTemplate, GuessFormTemplate, UpdateErrorTemplate,
-};
+use crate::web::error::WebError;
+use crate::web::templates::{GameCompleteTemplate, GuessFormTemplate};
 use crate::web::types::MakeGuessRequest;
 use axum::{
     extract::{Form, Path, State},
-    response::IntoResponse,
+    response::{IntoResponse, Response},
 };
 use axum_csrf::CsrfToken;
 use tracing::{debug, error, info, warn};
@@ -30,11 +29,11 @@ pub async fn make_guess_web<R: GameRepository>(
     user: AuthenticatedUser,
     Path(game_id): Path<GameId>,
     Form(payload): Form<MakeGuessRequest>,
-) -> impl IntoResponse {
+) -> Result<Response, WebError> {
     // Verify CSRF token
     if token.verify(&payload.authenticity_token).is_err() {
         warn!("Web: CSRF token verification failed");
-        return (axum::http::StatusCode::BAD_REQUEST, "Invalid CSRF token").into_response();
+        return Err(WebError::InvalidCsrf);
     }
 
     debug!(
@@ -45,95 +44,58 @@ pub async fn make_guess_web<R: GameRepository>(
         "Web: Processing guess"
     );
 
-    // Make guess using transactional approach (concurrency-safe)
-    let result = match state.repo.make_guess(game_id, payload.guess).await {
-        Ok(r) => r,
-        Err(DbError::NotFound) => {
-            warn!(
-                game_id = %game_id,
-                "Web: Guess failed - game not found"
-            );
-            return GameNotFoundTemplate.into_response();
-        }
-        Err(e) => {
-            error!(
-                game_id = %game_id,
-                guess = payload.guess,
-                error = %e,
-                "Web: Failed to process guess"
-            );
-            return UpdateErrorTemplate.into_response();
-        }
-    };
+    // Make guess using transactional approach (concurrency-safe). The
+    // post-guess state comes back from the same transaction, so no follow-up
+    // fetch is needed (a concurrent request could delete the game between
+    // two calls).
+    let (result, game) = state
+        .repo
+        .make_guess(game_id, payload.guess)
+        .await
+        .map_err(|e| match e {
+            DbError::NotFound => {
+                warn!(
+                    game_id = %game_id,
+                    "Web: Guess failed - game not found"
+                );
+                WebError::GameNotFound
+            }
+            e => {
+                error!(
+                    game_id = %game_id,
+                    guess = payload.guess,
+                    error = %e,
+                    "Web: Failed to process guess"
+                );
+                WebError::UpdateFailed
+            }
+        })?;
 
     match result {
-        GuessResult::TooLow | GuessResult::TooHigh => {
-            let result_str = match result {
-                GuessResult::TooLow => "too_low",
-                GuessResult::TooHigh => "too_high",
-                _ => unreachable!(),
-            };
-            debug!(
-                game_id = %game_id,
-                guess = payload.guess,
-                result = result_str,
-                "Web: Guess result"
-            );
-
-            // For ongoing games, fetch current state for display
-            let game = match state.repo.get(game_id).await {
-                Ok(g) => g,
-                Err(e) => {
-                    error!(
-                        game_id = %game_id,
-                        error = %e,
-                        "Web: Failed to fetch game state after guess"
-                    );
-                    return UpdateErrorTemplate.into_response();
-                }
-            };
-
-            let (min, max) = game.get_range();
-            let max_guesses = game.get_max_guesses();
-            let guess_count = game.get_guess_count();
-
-            // Calculate remaining guesses
-            let remaining_guesses = max_guesses.and_then(|limit| {
-                let remaining = limit.saturating_sub(guess_count);
-                if remaining > 0 { Some(remaining) } else { None }
-            });
-
-            let (feedback_class, feedback_message) = match result {
-                GuessResult::TooLow => (
-                    "too-low".to_string(),
-                    format!(
-                        "Too low! Your guess of {} is below the target.",
-                        payload.guess
-                    ),
-                ),
-                GuessResult::TooHigh => (
-                    "too-high".to_string(),
-                    format!(
-                        "Too high! Your guess of {} is above the target.",
-                        payload.guess
-                    ),
-                ),
-                _ => unreachable!(),
-            };
-
-            let csrf_token = token.authenticity_token().unwrap_or_default();
-            let template = GuessFormTemplate {
-                game_id,
-                min,
-                max,
-                remaining_guesses,
-                feedback_class,
-                feedback_message,
-                csrf_token,
-            };
-            // Return token in tuple to trigger cookie setting via IntoResponseParts
-            (token, template).into_response()
-        }
+        GuessResult::TooLow => Ok(render_guess_form(
+            token,
+            game_id,
+            &game,
+            payload.guess,
+            "too_low",
+            "too-low",
+            format!(
+                "Too low! Your guess of {} is below the target.",
+                payload.guess
+            ),
+        )),
+        GuessResult::TooHigh => Ok(render_guess_form(
+            token,
+            game_id,
+            &game,
+            payload.guess,
+            "too_high",
+            "too-high",
+            format!(
+                "Too high! Your guess of {} is above the target.",
+                payload.guess
+            ),
+        )),
         GuessResult::Correct { number, attempts } => {
             info!(
                 user_id = %user.user_id,
@@ -152,7 +114,7 @@ pub async fn make_guess_web<R: GameRepository>(
                 number,
                 attempts: Some(attempts),
             };
-            template.into_response()
+            Ok(template.into_response())
         }
         GuessResult::LimitReached {
             number,
@@ -171,14 +133,51 @@ pub async fn make_guess_web<R: GameRepository>(
             let template = GameCompleteTemplate {
                 feedback_class: "limit-reached".to_string(),
                 emoji: "❌".to_string(),
-                message: format!(
-                    "Sorry! You've reached the limit of {} guesses!",
-                    max_guesses
-                ),
+                message: format!("Sorry! You've reached the limit of {max_guesses} guesses!"),
                 number,
                 attempts: None,
             };
-            template.into_response()
+            Ok(template.into_response())
         }
     }
+}
+
+/// Render the guess form for an ongoing game (too-low / too-high feedback),
+/// using the post-guess state returned by the repository.
+fn render_guess_form(
+    token: CsrfToken,
+    game_id: GameId,
+    game: &GuessingGame,
+    guess: i32,
+    result_str: &str,
+    feedback_class: &str,
+    feedback_message: String,
+) -> Response {
+    debug!(
+        game_id = %game_id,
+        guess = guess,
+        result = result_str,
+        "Web: Guess result"
+    );
+
+    let (min, max) = game.range();
+
+    // Calculate remaining guesses
+    let remaining_guesses = game.max_guesses().and_then(|limit| {
+        let remaining = limit.saturating_sub(game.guess_count());
+        if remaining > 0 { Some(remaining) } else { None }
+    });
+
+    let csrf_token = token.authenticity_token().unwrap_or_default();
+    let template = GuessFormTemplate {
+        game_id,
+        min,
+        max,
+        remaining_guesses,
+        feedback_class: feedback_class.to_string(),
+        feedback_message,
+        csrf_token,
+    };
+    // Return token in tuple to trigger cookie setting via IntoResponseParts
+    (token, template).into_response()
 }

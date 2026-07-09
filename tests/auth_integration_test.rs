@@ -68,8 +68,7 @@ async fn test_oauth2_login_flow() {
 
     assert!(
         !current_url.as_str().contains("keycloak"),
-        "Still on Keycloak after login: {}",
-        current_url
+        "Still on Keycloak after login: {current_url}"
     );
 
     println!("Redirected back to application");
@@ -128,10 +127,9 @@ async fn test_unauthenticated_web_ui_redirects_to_login() {
         let location_str = location.to_str().unwrap_or("");
         assert!(
             location_str.contains("keycloak") || location_str.contains("oauth2"),
-            "Redirect should be to Keycloak login, got: {}",
-            location_str
+            "Redirect should be to Keycloak login, got: {location_str}"
         );
-        println!("Redirected to Keycloak: {}", location_str);
+        println!("Redirected to Keycloak: {location_str}");
     }
 
     println!("Unauthenticated web UI redirect test passed");
@@ -246,7 +244,7 @@ async fn test_api_endpoints_work_when_authenticated() {
     .expect("Environment checks failed");
 
     // Create authenticated client
-    let client = auth_helpers::create_authenticated_client_selenium()
+    let client = auth_helpers::create_authenticated_client()
         .await
         .expect("Failed to create authenticated client");
 
@@ -279,11 +277,11 @@ async fn test_api_endpoints_work_when_authenticated() {
         .as_u64()
         .expect("Game response missing game_id");
 
-    println!("Created game with ID: {}", game_id);
+    println!("Created game with ID: {game_id}");
 
     // Test POST /api/games/{id}/guess
     let guess_response = client
-        .post(format!("http://localhost:8080/api/games/{}/guess", game_id))
+        .post(format!("http://localhost:8080/api/games/{game_id}/guess"))
         .json(&serde_json::json!({
             "guess": 50
         }))

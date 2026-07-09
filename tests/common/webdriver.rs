@@ -15,10 +15,7 @@ pub async fn create_webdriver_with_timeout(
     caps.add_arg("--no-sandbox")?;
     caps.add_arg("--disable-dev-shm-usage")?;
 
-    println!(
-        "Connecting to Selenium WebDriver at {} with {}s timeout",
-        selenium_url, timeout_seconds
-    );
+    println!("Connecting to Selenium WebDriver at {selenium_url} with {timeout_seconds}s timeout");
 
     // Selenium 4.x: Use the URL directly without /wd/hub suffix
     // (thirtyfour 0.36+ resolves WebDriver API paths relative to server_url)

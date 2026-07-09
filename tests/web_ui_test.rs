@@ -33,7 +33,7 @@ async fn test_web_ui_game_flow() {
         .await
         .expect("Failed to navigate to game URL");
 
-    println!("Successfully navigated to game URL {}", browser_url);
+    println!("Successfully navigated to game URL {browser_url}");
 
     // Perform OAuth2 login via Keycloak
     page.login("admin@local.test", "password")
@@ -58,7 +58,7 @@ async fn test_web_ui_game_flow() {
         .get_feedback_message()
         .await
         .unwrap_or_else(|_| String::from("[Could not get feedback]"));
-    println!("Feedback message: {}", message);
+    println!("Feedback message: {message}");
 
     // Cleanup
     page.quit().await.ok();
@@ -69,8 +69,7 @@ async fn test_web_ui_game_flow() {
         "Web UI test should find the correct answer"
     );
     println!(
-        "Web UI test passed with API at {}, browser URL {}, selenium at {}",
-        base_url_for_log, browser_url_for_log, selenium_for_log
+        "Web UI test passed with API at {base_url_for_log}, browser URL {browser_url_for_log}, selenium at {selenium_for_log}"
     );
 }
 
@@ -105,7 +104,7 @@ async fn test_web_ui_invalid_inputs() {
         .await
         .expect("Failed to navigate to game URL");
 
-    println!("Successfully navigated to game URL {}", browser_url);
+    println!("Successfully navigated to game URL {browser_url}");
 
     // Perform OAuth2 login via Keycloak
     page.login("admin@local.test", "password")
@@ -134,7 +133,7 @@ async fn test_web_ui_invalid_inputs() {
         .await
         .expect("Failed to wait for feedback");
 
-    println!("Error displayed? {}", has_error);
+    println!("Error displayed? {has_error}");
 
     // Cleanup
     page.quit().await.ok();
@@ -144,7 +143,6 @@ async fn test_web_ui_invalid_inputs() {
         "Web UI invalid input test should detect validation errors"
     );
     println!(
-        "Web UI invalid input test passed with API at {}, browser URL {}, selenium at {}",
-        base_url_for_log, browser_url_for_log, selenium_for_log
+        "Web UI invalid input test passed with API at {base_url_for_log}, browser URL {browser_url_for_log}, selenium at {selenium_for_log}"
     );
 }

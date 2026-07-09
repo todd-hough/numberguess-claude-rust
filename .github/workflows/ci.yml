@@ -1,10 +1,10 @@
 name: CI
 
+# Quick checks (fmt, clippy, unit tests) on every commit to every branch.
+# No pull_request trigger: push-event runs attach to the head commit and
+# therefore already show on PRs; keeping both would double-run every check.
 on:
   push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main ]
 
 jobs:
   format:

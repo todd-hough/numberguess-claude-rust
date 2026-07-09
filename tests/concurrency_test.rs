@@ -13,21 +13,55 @@ const COMPOSE_FILES: [&str; 4] = [
     "docker-compose.integration.yml",
 ];
 
+/// Light-tier compose coordinates. The Makefile (`make test-func`) is the
+/// owner and exports MOCK_COMPOSE_FILE / MOCK_COMPOSE_PROJECT; the literals
+/// here are only fallbacks for running `MOCK_AUTH=1 cargo test` by hand.
+fn mock_compose_args() -> [String; 4] {
+    let file = std::env::var("MOCK_COMPOSE_FILE")
+        .unwrap_or_else(|_| "docker-compose.test-mock-auth.yml".to_string());
+    let project =
+        std::env::var("MOCK_COMPOSE_PROJECT").unwrap_or_else(|_| "numberguess-mock".to_string());
+    ["-f".to_string(), file, "-p".to_string(), project]
+}
+
 fn restart_app_via_compose() {
-    let mut args = Vec::new();
-    args.extend_from_slice(&COMPOSE_FILES);
-    args.extend_from_slice(&["--profile", "integration", "restart", "app"]);
+    let mock_args = mock_compose_args();
+    let (compose_args, restart_args): (Vec<&str>, [&str; 2]) = if environment::is_mock_auth() {
+        (
+            mock_args.iter().map(String::as_str).collect(),
+            ["restart", "app"],
+        )
+    } else {
+        let mut v = COMPOSE_FILES.to_vec();
+        v.extend_from_slice(&["--profile", "integration"]);
+        (v, ["restart", "app"])
+    };
+
+    // Guard against a silent no-op: `docker compose restart` on a project with
+    // no running app container can exit 0 without restarting anything, which
+    // would let the persistence test pass while testing nothing.
+    let ps = Command::new("docker")
+        .arg("compose")
+        .args(&compose_args)
+        .args(["ps", "-q", "app"])
+        .output()
+        .expect("Failed to run docker compose ps");
+    assert!(
+        !String::from_utf8_lossy(&ps.stdout).trim().is_empty(),
+        "No running 'app' container found for compose args {compose_args:?} — project/file mismatch? \
+         (Makefile exports MOCK_COMPOSE_FILE/MOCK_COMPOSE_PROJECT for the light tier.)"
+    );
 
     let status = Command::new("docker")
         .arg("compose")
-        .args(&args)
+        .args(&compose_args)
+        .args(restart_args)
         .status()
         .expect("Failed to run docker compose restart app");
 
     assert!(
         status.success(),
-        "docker compose restart app failed with status {:?}",
-        status
+        "docker compose restart app failed with status {status:?}"
     );
 
     // Wait for app to come back online using existing helper
@@ -47,7 +81,7 @@ async fn test_concurrent_guesses_on_same_game() {
     .expect("Environment checks failed");
 
     // Create authenticated client
-    let client = auth_helpers::create_authenticated_client_selenium()
+    let client = auth_helpers::create_authenticated_client()
         .await
         .expect("Failed to create authenticated client");
 
@@ -68,7 +102,7 @@ async fn test_concurrent_guesses_on_same_game() {
     if !create_response.status().is_success() {
         let status = create_response.status();
         let body = create_response.text().await.unwrap_or_default();
-        panic!("Game creation failed with {}: {}", status, body);
+        panic!("Game creation failed with {status}: {body}");
     }
     let game: GameResponse = create_response
         .json()
@@ -76,7 +110,7 @@ async fn test_concurrent_guesses_on_same_game() {
         .expect("Should parse game response");
     let game_id = game.game_id;
 
-    println!("Created game {}", game_id);
+    println!("Created game {game_id}");
 
     // Spawn 10 async tasks to make guesses concurrently on THE SAME game
     let num_tasks = 10;
@@ -94,7 +128,7 @@ async fn test_concurrent_guesses_on_same_game() {
                 // All tasks guess at the same time
                 let guess_value = i * 100 + 1;
                 let response = client
-                    .post(format!("http://localhost:8080/api/games/{}/guess", game_id))
+                    .post(format!("http://localhost:8080/api/games/{game_id}/guess"))
                     .json(&json!({"guess": guess_value}))
                     .send()
                     .await
@@ -113,10 +147,7 @@ async fn test_concurrent_guesses_on_same_game() {
 
     // All requests should succeed
     let success_count = results.iter().filter(|(success, _)| *success).count();
-    println!(
-        "{}/{} concurrent guesses succeeded",
-        success_count, num_tasks
-    );
+    println!("{success_count}/{num_tasks} concurrent guesses succeeded");
     assert_eq!(
         success_count, num_tasks,
         "All concurrent guesses should succeed"
@@ -137,7 +168,7 @@ async fn test_race_condition_guess_during_deletion() {
     .expect("Environment checks failed");
 
     // Create authenticated client
-    let client = auth_helpers::create_authenticated_client_selenium()
+    let client = auth_helpers::create_authenticated_client()
         .await
         .expect("Failed to create authenticated client");
 
@@ -158,7 +189,7 @@ async fn test_race_condition_guess_during_deletion() {
     if !create_response.status().is_success() {
         let status = create_response.status();
         let body = create_response.text().await.unwrap_or_default();
-        panic!("Game creation failed with {}: {}", status, body);
+        panic!("Game creation failed with {status}: {body}");
     }
     let game: GameResponse = create_response
         .json()
@@ -166,7 +197,7 @@ async fn test_race_condition_guess_during_deletion() {
         .expect("Should parse game response");
     let game_id = game.game_id;
 
-    println!("Created game {} (answer is 42)", game_id);
+    println!("Created game {game_id} (answer is 42)");
 
     // Spawn 5 async tasks: first will guess correctly, others will guess wrong
     let num_tasks = 5;
@@ -183,7 +214,7 @@ async fn test_race_condition_guess_during_deletion() {
                 let guess_value = if i == 0 { 42 } else { i * 10 };
 
                 let response = client
-                    .post(format!("http://localhost:8080/api/games/{}/guess", game_id))
+                    .post(format!("http://localhost:8080/api/games/{game_id}/guess"))
                     .json(&json!({"guess": guess_value}))
                     .send()
                     .await
@@ -217,7 +248,7 @@ async fn test_race_condition_guess_during_deletion() {
                 if let Some(response) = body {
                     if response.result == "correct" {
                         correct_count += 1;
-                        println!("  Task guessed {} -> Correct!", guess);
+                        println!("  Task guessed {guess} -> Correct!");
                     } else {
                         other_success += 1;
                         println!("  Task guessed {} -> {}", guess, response.result);
@@ -226,10 +257,10 @@ async fn test_race_condition_guess_during_deletion() {
             }
             404 => {
                 not_found_count += 1;
-                println!("  Task guessed {} -> 404 Not Found", guess);
+                println!("  Task guessed {guess} -> 404 Not Found");
             }
             _ => {
-                println!("  Task guessed {} -> Status {}", guess, status);
+                println!("  Task guessed {guess} -> Status {status}");
             }
         }
     }
@@ -255,7 +286,7 @@ async fn test_game_persistence_across_restart() {
     .expect("Environment checks failed");
 
     // Create authenticated client
-    let client = auth_helpers::create_authenticated_client_selenium()
+    let client = auth_helpers::create_authenticated_client()
         .await
         .expect("Failed to create authenticated client");
 
@@ -275,7 +306,7 @@ async fn test_game_persistence_across_restart() {
     if !create_response.status().is_success() {
         let status = create_response.status();
         let body = create_response.text().await.unwrap_or_default();
-        panic!("Game creation failed with {}: {}", status, body);
+        panic!("Game creation failed with {status}: {body}");
     }
     let game: GameResponse = create_response
         .json()
@@ -283,7 +314,7 @@ async fn test_game_persistence_across_restart() {
         .expect("Should parse game response");
     let game_id = game.game_id;
 
-    println!("Created game {}; restarting app container...", game_id);
+    println!("Created game {game_id}; restarting app container...");
 
     // Restart app in blocking context
     tokio::task::spawn_blocking(move || {
@@ -294,12 +325,12 @@ async fn test_game_persistence_across_restart() {
     .expect("Restart failed");
 
     // After restart, we need a new authenticated client (session may have been lost)
-    let client = auth_helpers::create_authenticated_client_selenium()
+    let client = auth_helpers::create_authenticated_client()
         .await
         .expect("Failed to create authenticated client after restart");
 
     let guess_response = client
-        .post(format!("http://localhost:8080/api/games/{}/guess", game_id))
+        .post(format!("http://localhost:8080/api/games/{game_id}/guess"))
         .json(&json!({"guess": 75}))
         .send()
         .await

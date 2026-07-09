@@ -1,23 +1,8 @@
 //! Request and response types for JSON API endpoints.
 
 use crate::core::GameId;
-use serde::{Deserialize, Deserializer, Serialize};
-
-/// Custom deserializer for optional u32 that treats empty strings as None.
-///
-/// This handles API inputs where an empty field comes through as an empty string
-/// rather than being omitted entirely. Also accepts numeric strings.
-pub fn deserialize_option_u32<'de, D>(deserializer: D) -> Result<Option<u32>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let s: Option<String> = Option::deserialize(deserializer)?;
-    match s {
-        Some(ref s) if s.is_empty() => Ok(None),
-        Some(s) => s.parse::<u32>().map(Some).map_err(serde::de::Error::custom),
-        None => Ok(None),
-    }
-}
+use crate::serde_helpers::deserialize_option_u32;
+use serde::{Deserialize, Serialize};
 
 // Game creation types
 
@@ -45,11 +30,51 @@ pub struct MakeGuessRequest {
     pub guess: i32,
 }
 
+/// Outcome of a guess as exposed by the JSON API.
+///
+/// Serializes to the exact legacy string values ("too_low", "too_high",
+/// "correct", "limit_reached") via `rename_all = "snake_case"` — the wire
+/// format is part of the external API and must not change.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GuessOutcome {
+    TooLow,
+    TooHigh,
+    Correct,
+    LimitReached,
+}
+
 #[derive(Serialize)]
 pub struct MakeGuessResponse {
-    pub result: String,
+    pub result: GuessOutcome,
     pub message: String,
     pub attempts: Option<u32>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_guess_outcome_serializes_to_legacy_strings() {
+        // These exact strings are the external API contract (docs/api.md).
+        assert_eq!(
+            serde_json::to_string(&GuessOutcome::TooLow).unwrap(),
+            "\"too_low\""
+        );
+        assert_eq!(
+            serde_json::to_string(&GuessOutcome::TooHigh).unwrap(),
+            "\"too_high\""
+        );
+        assert_eq!(
+            serde_json::to_string(&GuessOutcome::Correct).unwrap(),
+            "\"correct\""
+        );
+        assert_eq!(
+            serde_json::to_string(&GuessOutcome::LimitReached).unwrap(),
+            "\"limit_reached\""
+        );
+    }
 }
 
 // Error types

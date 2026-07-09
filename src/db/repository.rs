@@ -60,31 +60,20 @@ pub trait GameRepository: Send + Sync + Clone {
     ///
     /// # Returns
     /// The result of the guess (TooLow, TooHigh, Correct, or LimitReached)
+    /// together with the post-guess game state, captured inside the same
+    /// transaction. Callers that need the state for display (e.g. the web
+    /// UI's remaining-guesses counter) must use it instead of issuing a
+    /// follow-up `get` — the game may be deleted or changed by a concurrent
+    /// request between the two calls.
     ///
     /// # Errors
     /// Returns `DbError::NotFound` if the game doesn't exist
     /// Returns `DbError::DatabaseError` if the storage operation fails
-    async fn make_guess(&self, game_id: GameId, guess: i32) -> Result<GuessResult, DbError>;
-
-    /// Delete a game from the repository
-    ///
-    /// # Arguments
-    /// * `game_id` - The unique identifier of the game to delete
-    ///
-    /// # Errors
-    /// Returns `DbError::DatabaseError` if the storage operation fails
-    /// Note: Deleting a non-existent game is not considered an error
-    async fn delete(&self, game_id: GameId) -> Result<(), DbError>;
-
-    /// Update an existing game's state
-    ///
-    /// # Arguments
-    /// * `game_id` - The unique identifier of the game
-    /// * `game` - The updated game state
-    ///
-    /// # Errors
-    /// Returns `DbError::DatabaseError` if the storage operation fails
-    async fn update(&self, game_id: GameId, game: &GuessingGame) -> Result<(), DbError>;
+    async fn make_guess(
+        &self,
+        game_id: GameId,
+        guess: i32,
+    ) -> Result<(GuessResult, GuessingGame), DbError>;
 
     /// Perform a health check on the repository
     ///

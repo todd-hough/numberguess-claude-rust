@@ -21,7 +21,10 @@
 /// assert_eq!(calculate_optimal_guesses(1, 1000), 10); // 1000 numbers -> 10 guesses
 /// ```
 pub fn calculate_optimal_guesses(min: i32, max: i32) -> u32 {
-    let range_size = (max - min + 1) as u32;
+    // Widen to i64: `max - min + 1` overflows i32 for extreme inputs
+    // (e.g. min=0, max=i32::MAX). Callers validate against MAX_RANGE, but
+    // this function must not panic on unvalidated input.
+    let range_size = i64::from(max) - i64::from(min) + 1;
 
     // Edge case: if range has 1 or fewer numbers, only need 1 guess
     if range_size <= 1 {
@@ -31,7 +34,7 @@ pub fn calculate_optimal_guesses(min: i32, max: i32) -> u32 {
     // Calculate ceil(log2(range_size)) iteratively
     // Each guess cuts the search space in half (rounding up)
     let mut guesses = 0;
-    let mut remaining = range_size;
+    let mut remaining = range_size as u64;
 
     while remaining > 1 {
         remaining = remaining.div_ceil(2);
@@ -96,5 +99,13 @@ mod tests {
         // Test the upper limit (1,000,000)
         assert_eq!(calculate_optimal_guesses(0, 999999), 20); // 1,000,000 numbers
         assert_eq!(calculate_optimal_guesses(0, 1000000), 20); // 1,000,001 numbers
+    }
+
+    #[test]
+    fn test_calculate_optimal_guesses_extreme_inputs_no_overflow() {
+        // Regression: `max - min + 1` previously overflowed i32 and panicked
+        // in debug builds for unvalidated extreme inputs.
+        assert_eq!(calculate_optimal_guesses(0, i32::MAX), 31); // 2^31 numbers
+        assert_eq!(calculate_optimal_guesses(i32::MIN, i32::MAX), 32); // 2^32 numbers
     }
 }

@@ -2,14 +2,14 @@
 //!
 //! Processes player guesses via JSON API.
 
-use crate::api::types::{ErrorResponse, MakeGuessRequest, MakeGuessResponse};
+use crate::api::error::ApiError;
+use crate::api::types::{GuessOutcome, MakeGuessRequest, MakeGuessResponse};
 use crate::auth::AuthenticatedUser;
 use crate::core::{GameId, GuessResult};
 use crate::db::{DbError, GameRepository};
 use crate::server::state::AppState;
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
     response::Json,
 };
 use tracing::{debug, error, info, warn};
@@ -26,7 +26,7 @@ pub async fn make_guess_api<R: GameRepository>(
     user: AuthenticatedUser,
     Path(game_id): Path<GameId>,
     Json(payload): Json<MakeGuessRequest>,
-) -> Result<Json<MakeGuessResponse>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<MakeGuessResponse>, ApiError> {
     debug!(
         user_id = %user.user_id,
         user_email = %user.email,
@@ -35,38 +35,26 @@ pub async fn make_guess_api<R: GameRepository>(
         "API: Processing guess"
     );
 
-    // Make guess using transactional approach (concurrency-safe)
-    let result = state
+    // Make guess using transactional approach (concurrency-safe).
+    // The post-guess state is also returned; the JSON API doesn't need it.
+    let (result, _game) = state
         .repo
         .make_guess(game_id, payload.guess)
         .await
-        .map_err(|e| match e {
-            DbError::NotFound => {
-                warn!(
+        .map_err(|e| {
+            match &e {
+                DbError::NotFound => warn!(
                     game_id = %game_id,
                     "API: Guess failed - game not found"
-                );
-                (
-                    StatusCode::NOT_FOUND,
-                    Json(ErrorResponse {
-                        error: format!("Game with ID {} not found", game_id),
-                    }),
-                )
-            }
-            _ => {
-                error!(
+                ),
+                e => error!(
                     game_id = %game_id,
                     guess = payload.guess,
                     error = %e,
                     "API: Failed to process guess"
-                );
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorResponse {
-                        error: e.to_string(),
-                    }),
-                )
+                ),
             }
+            ApiError::from_db_for_game(game_id)(e)
         })?;
 
     let response = match result {
@@ -78,7 +66,7 @@ pub async fn make_guess_api<R: GameRepository>(
                 "API: Guess result"
             );
             MakeGuessResponse {
-                result: "too_low".to_string(),
+                result: GuessOutcome::TooLow,
                 message: format!(
                     "Too low! Your guess of {} is below the target.",
                     payload.guess
@@ -94,7 +82,7 @@ pub async fn make_guess_api<R: GameRepository>(
                 "API: Guess result"
             );
             MakeGuessResponse {
-                result: "too_high".to_string(),
+                result: GuessOutcome::TooHigh,
                 message: format!(
                     "Too high! Your guess of {} is above the target.",
                     payload.guess
@@ -114,10 +102,9 @@ pub async fn make_guess_api<R: GameRepository>(
                 "API: Game completed - correct guess"
             );
             MakeGuessResponse {
-                result: "correct".to_string(),
+                result: GuessOutcome::Correct,
                 message: format!(
-                    "You got it! The number was {}. It took you {} guesses.",
-                    number, attempts
+                    "You got it! The number was {number}. It took you {attempts} guesses."
                 ),
                 attempts: Some(attempts),
             }
@@ -137,10 +124,9 @@ pub async fn make_guess_api<R: GameRepository>(
                 "API: Game completed - limit reached"
             );
             MakeGuessResponse {
-                result: "limit_reached".to_string(),
+                result: GuessOutcome::LimitReached,
                 message: format!(
-                    "Sorry, you've reached the limit of {} guesses! The number was {}.",
-                    max_guesses, number
+                    "Sorry, you've reached the limit of {max_guesses} guesses! The number was {number}."
                 ),
                 attempts: Some(max_guesses),
             }

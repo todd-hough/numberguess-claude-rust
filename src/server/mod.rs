@@ -7,6 +7,7 @@ pub mod state;
 use crate::api::handlers::{create_game_api, health_check, make_guess_api};
 use crate::db::PostgresGameRepository;
 use crate::web::handlers::{create_game_web, difficulty_preview, index_web, make_guess_web};
+use anyhow::Context;
 use axum::{
     Router,
     routing::{get, post},
@@ -30,7 +31,7 @@ use tracing::{debug, info};
 /// This server runs behind oauth2-proxy, which handles all authentication.
 /// All routes require authentication via Keycloak (OIDC provider).
 /// User information is extracted from headers added by oauth2-proxy.
-pub async fn run_server(pool: PgPool, port: u16) {
+pub async fn run_server(pool: PgPool, port: u16) -> anyhow::Result<()> {
     let health_port = 8081;
 
     info!("Running behind oauth2-proxy - all routes require authentication");
@@ -42,18 +43,28 @@ pub async fn run_server(pool: PgPool, port: u16) {
 
     // CSRF configuration
     // In production, CSRF_SECRET should be a 64-byte base64 string
-    let csrf_secret = std::env::var("CSRF_SECRET")
-        .map(|s| Key::from(s.as_bytes()))
-        .unwrap_or_else(|_| {
+    let csrf_secret = match std::env::var("CSRF_SECRET") {
+        Ok(s) => {
+            // Key::from panics below this length; fail with a clear message instead
+            anyhow::ensure!(
+                s.len() >= 64,
+                "CSRF_SECRET must be at least 64 bytes, got {} bytes",
+                s.len()
+            );
+            Key::from(s.as_bytes())
+        }
+        Err(_) => {
             info!("CSRF_SECRET not set, using temporary key");
             Key::generate()
-        });
+        }
+    };
     let csrf_config = CsrfConfig::default()
         .with_key(Some(csrf_secret))
         .with_cookie_name("x-csrf-token");
 
-    // Create repository and application state
-    let repo = PostgresGameRepository::new(pool.clone());
+    // Create repository and application state (pool moves in; it has no
+    // other consumers in this function)
+    let repo = PostgresGameRepository::new(pool);
     let state = AppState::new(repo, csrf_config.clone());
 
     // API routes
@@ -97,16 +108,16 @@ pub async fn run_server(pool: PgPool, port: u16) {
         .route("/health", get(health_check::<PostgresGameRepository>))
         .with_state(state.clone());
 
-    let main_addr = format!("0.0.0.0:{}", port);
-    let health_addr = format!("0.0.0.0:{}", health_port);
+    let main_addr = format!("0.0.0.0:{port}");
+    let health_addr = format!("0.0.0.0:{health_port}");
 
     let main_listener = tokio::net::TcpListener::bind(&main_addr)
         .await
-        .unwrap_or_else(|_| panic!("Failed to bind to {}", main_addr));
+        .with_context(|| format!("Failed to bind to {main_addr}"))?;
 
     let health_listener = tokio::net::TcpListener::bind(&health_addr)
         .await
-        .unwrap_or_else(|_| panic!("Failed to bind to {}", health_addr));
+        .with_context(|| format!("Failed to bind to {health_addr}"))?;
 
     // Log server startup info to stderr (structured logs)
     info!(
@@ -170,6 +181,8 @@ pub async fn run_server(pool: PgPool, port: u16) {
 
     // Wait for both servers to complete
     let _ = tokio::join!(main_server, health_server);
+
+    Ok(())
 }
 
 /// Graceful shutdown signal handler.

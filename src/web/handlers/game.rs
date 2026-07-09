@@ -6,7 +6,8 @@ use crate::auth::AuthenticatedUser;
 use crate::core::validators;
 use crate::db::GameRepository;
 use crate::server::state::AppState;
-use crate::web::templates::{ErrorTemplate, GameStartedTemplate, IndexTemplate};
+use crate::web::error::WebError;
+use crate::web::templates::{GameStartedTemplate, IndexTemplate};
 use crate::web::types::CreateGameRequest;
 use axum::{
     extract::{Form, State},
@@ -34,11 +35,11 @@ pub async fn create_game_web<R: GameRepository>(
     State(state): State<AppState<R>>,
     user: AuthenticatedUser,
     Form(payload): Form<CreateGameRequest>,
-) -> impl IntoResponse {
+) -> Result<impl IntoResponse, WebError> {
     // Verify CSRF token
     if token.verify(&payload.authenticity_token).is_err() {
         warn!("Web: CSRF token verification failed");
-        return (axum::http::StatusCode::BAD_REQUEST, "Invalid CSRF token").into_response();
+        return Err(WebError::InvalidCsrf);
     }
 
     debug!(
@@ -50,61 +51,30 @@ pub async fn create_game_web<R: GameRepository>(
         "Web: Creating new game"
     );
 
-    // Validate range using shared validator
-    if let Err(e) = validators::validate_range(payload.min, payload.max) {
+    // Validate range and guess limit together (shared with the API handler)
+    let guess_limit = validators::validate_new_game_params(
+        payload.min,
+        payload.max,
+        payload.max_guesses,
+        validators::MAX_WEB_GUESS_LIMIT,
+    )
+    .map_err(|e| {
         warn!(
             min = payload.min,
             max = payload.max,
+            max_guesses = ?payload.max_guesses,
             error = %e,
-            "Web: Game creation failed - invalid range"
+            "Web: Game creation failed - invalid parameters"
         );
-        let err_str = e.to_string();
-        let template = ErrorTemplate {
-            error_message: &err_str,
-        };
-        return template.into_response();
-    }
-
-    // Validate guess limit using shared validator
-    let guess_limit = if let Some(limit) = payload.max_guesses {
-        match validators::validate_guess_limit(limit, validators::MAX_WEB_GUESS_LIMIT) {
-            Ok(validated) => validated,
-            Err(e) => {
-                warn!(
-                    limit = limit,
-                    error = %e,
-                    "Web: Game creation failed - invalid guess limit"
-                );
-                let err_str = e.to_string();
-                let template = ErrorTemplate {
-                    error_message: &err_str,
-                };
-                return template.into_response();
-            }
-        }
-    } else {
-        None
-    };
+        WebError::from(e)
+    })?;
 
     // Create game in database
-    let game_id = match state
+    let game_id = state
         .repo
         .create(payload.min, payload.max, guess_limit)
         .await
-    {
-        Ok(id) => {
-            info!(
-                user_id = %user.user_id,
-                user_email = %user.email,
-                game_id = %id,
-                min = payload.min,
-                max = payload.max,
-                max_guesses = ?guess_limit,
-                "Web: Game created successfully"
-            );
-            id
-        }
-        Err(e) => {
+        .map_err(|e| {
             error!(
                 min = payload.min,
                 max = payload.max,
@@ -112,13 +82,18 @@ pub async fn create_game_web<R: GameRepository>(
                 error = %e,
                 "Web: Failed to create game in database"
             );
-            let err_str = e.to_string();
-            let template = ErrorTemplate {
-                error_message: &err_str,
-            };
-            return template.into_response();
-        }
-    };
+            WebError::ErrorMessage(e.to_string())
+        })?;
+
+    info!(
+        user_id = %user.user_id,
+        user_email = %user.email,
+        game_id = %game_id,
+        min = payload.min,
+        max = payload.max,
+        max_guesses = ?guess_limit,
+        "Web: Game created successfully"
+    );
 
     let csrf_token = token.authenticity_token().unwrap_or_default();
     let template = GameStartedTemplate {
@@ -129,5 +104,5 @@ pub async fn create_game_web<R: GameRepository>(
         csrf_token,
     };
     // Return token in tuple to trigger cookie setting via IntoResponseParts
-    (token, template).into_response()
+    Ok((token, template))
 }

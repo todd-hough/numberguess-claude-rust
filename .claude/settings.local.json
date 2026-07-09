@@ -40,7 +40,12 @@
       "Bash(cargo fmt:*)",
       "Bash(cargo clippy:*)",
       "Bash(curl:*)",
-      "WebFetch(domain:docs.rs)"
+      "WebFetch(domain:docs.rs)",
+      "Bash(sed -n '/^test-up:/,/^test-down:/p' Makefile)",
+      "Bash(sed -n '/^test-integration:/,/^$/p' Makefile)",
+      "Bash(docker exec *)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(MOCK_AUTH=1 GAME_SERVER_BASE_URL=http://localhost:8080 cargo test --test api_edge_cases_test --test web_endpoints_test --test concurrency_test --test csrf_test -- --test-threads=1)"
     ],
     "deny": [
       "Bash(git push:*)",

@@ -75,7 +75,7 @@ mod tests {
         assert!(game.is_ok());
         
         let game = game.unwrap();
-        assert_eq!(game.get_range(), (1, 100));
+        assert_eq!(game.range(), (1, 100));
     }
 
     #[test]
@@ -272,7 +272,7 @@ GAME_SERVER_BROWSER_URL=http://oauth2-proxy:4180
 #[test]
 fn test_with_blocking() {
     let client = tokio_test::block_on(async {
-        auth_helpers::create_authenticated_client_selenium().await
+        auth_helpers::create_authenticated_client().await
     }).unwrap();
 
     let response = tokio_test::block_on(async {
@@ -293,13 +293,13 @@ async fn test_with_async() {
     // Environment checks use blocking client, so wrap in spawn_blocking
     tokio::task::spawn_blocking(|| {
         environment::ensure_server_ready();
-        environment::ensure_selenium_ready().expect("Selenium required");
+        environment::ensure_selenium_ready();
     })
     .await
     .expect("Environment checks failed");
 
     // Create async authenticated client
-    let client = auth_helpers::create_authenticated_client_selenium()
+    let client = auth_helpers::create_authenticated_client()
         .await
         .expect("Failed to create client");
 
@@ -334,13 +334,13 @@ async fn test_authenticated_endpoint() {
     // 1. Check environment (blocking operations)
     tokio::task::spawn_blocking(|| {
         environment::ensure_server_ready();
-        environment::ensure_selenium_ready().expect("Selenium required");
+        environment::ensure_selenium_ready();
     })
     .await
     .expect("Environment checks failed");
 
     // 2. Create authenticated client (async)
-    let client = auth_helpers::create_authenticated_client_selenium()
+    let client = auth_helpers::create_authenticated_client()
         .await
         .expect("Failed to create authenticated client");
 
@@ -375,7 +375,8 @@ async fn test_authenticated_endpoint() {
 
 ```bash
 # Run all integration tests (sets environment variables automatically)
-make test-compose
+make test-func          # light tier (mock auth)
+make test-integration   # both tiers
 
 # Run specific test file with proper environment
 GAME_SERVER_BASE_URL=http://localhost:8080 \
@@ -475,7 +476,7 @@ mod proptests {
             prop_assert!(game.is_ok());
             
             let game = game.unwrap();
-            let (game_min, game_max) = game.get_range();
+            let (game_min, game_max) = game.range();
             prop_assert_eq!(game_min, min);
             prop_assert_eq!(game_max, max);
             prop_assert!(game.secret_number >= min);
@@ -578,8 +579,8 @@ fn test_with_builder() {
         .with_secret(25)
         .build();
     
-    assert_eq!(game.get_range(), (1, 50));
-    assert_eq!(game.get_max_guesses(), Some(10));
+    assert_eq!(game.range(), (1, 50));
+    assert_eq!(game.max_guesses(), Some(10));
 }
 ```
 

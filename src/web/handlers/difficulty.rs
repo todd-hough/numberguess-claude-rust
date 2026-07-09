@@ -4,11 +4,12 @@
 
 use crate::auth::AuthenticatedUser;
 use crate::core::features::difficulty;
+use crate::core::validators;
 use crate::web::templates::DifficultyIndicator;
 use crate::web::types::DifficultyParams;
 use askama::Template;
 use axum::{extract::Query, response::Html};
-use tracing::debug;
+use tracing::{debug, error};
 
 /// Handles difficulty preview requests from the game setup form.
 ///
@@ -28,14 +29,18 @@ pub async fn difficulty_preview(
     let min = params.min.unwrap_or(1);
     let max = params.max.unwrap_or(100);
 
-    // Validate range (silently return empty for invalid inputs during typing)
-    if min < 0 || max < 0 || max < min {
+    // Validate with the shared validator (silently return empty for invalid
+    // inputs during typing). This also enforces MAX_RANGE, which the previous
+    // ad-hoc check missed — an unbounded max like i32::MAX overflowed the
+    // range-size arithmetic in calculate_difficulty.
+    if let Err(e) = validators::validate_range(min, max) {
         debug!(
             min = min,
             max = max,
+            error = %e,
             "Difficulty preview: Invalid range, returning empty response"
         );
-        return Html("".to_string());
+        return Html(String::new());
     }
 
     // Calculate difficulty information
@@ -54,5 +59,62 @@ pub async fn difficulty_preview(
 
     // Render template
     let template = DifficultyIndicator { info };
-    Html(template.render().unwrap_or_default())
+    Html(template.render().unwrap_or_else(|e| {
+        error!(error = %e, "Difficulty preview: template render failed");
+        String::new()
+    }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_user() -> AuthenticatedUser {
+        AuthenticatedUser {
+            user_id: "test-user".to_string(),
+            email: "test@example.com".to_string(),
+            username: Some("test".to_string()),
+            groups: vec![],
+        }
+    }
+
+    fn params(min: Option<i32>, max: Option<i32>, max_guesses: Option<u32>) -> DifficultyParams {
+        DifficultyParams {
+            min,
+            max,
+            max_guesses,
+        }
+    }
+
+    #[tokio::test]
+    async fn test_valid_range_renders_indicator() {
+        let Html(body) =
+            difficulty_preview(test_user(), Query(params(Some(1), Some(100), Some(10)))).await;
+        assert!(!body.is_empty(), "Valid range should render the indicator");
+    }
+
+    #[tokio::test]
+    async fn test_max_above_limit_returns_empty() {
+        // Regression: max = i32::MAX previously overflowed `max - min + 1`
+        // in calculate_difficulty (panic in debug builds).
+        let Html(body) =
+            difficulty_preview(test_user(), Query(params(Some(0), Some(i32::MAX), None))).await;
+        assert!(body.is_empty(), "Out-of-range max should return empty");
+
+        // Just above the documented limit is also rejected
+        let Html(body) =
+            difficulty_preview(test_user(), Query(params(Some(0), Some(1_000_001), None))).await;
+        assert!(body.is_empty(), "max > MAX_RANGE should return empty");
+    }
+
+    #[tokio::test]
+    async fn test_invalid_ranges_return_empty() {
+        for (min, max) in [(Some(-1), Some(100)), (Some(100), Some(1))] {
+            let Html(body) = difficulty_preview(test_user(), Query(params(min, max, None))).await;
+            assert!(
+                body.is_empty(),
+                "Invalid range {min:?}..{max:?} should return empty"
+            );
+        }
+    }
 }

@@ -3,6 +3,7 @@
 //! Provides JSON API endpoints for the number guessing game.
 //! All handlers return JSON responses.
 
+pub mod error;
 pub mod handlers;
 pub mod types;
 

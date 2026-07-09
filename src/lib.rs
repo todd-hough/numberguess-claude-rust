@@ -3,6 +3,7 @@ pub mod auth;
 pub mod cli;
 pub mod core;
 pub mod db;
+pub mod serde_helpers;
 pub mod server;
 pub mod web;
 

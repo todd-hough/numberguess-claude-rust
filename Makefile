@@ -1,4 +1,4 @@
-.PHONY: help build test test-unit test-up test-integration test-down dev dev-db dev-down dev-restart dev-logs dev-status \
+.PHONY: help build test test-unit test-up test-tier-check test-func test-func-down test-auth test-integration test-down dev dev-db dev-down dev-restart dev-logs dev-status \
         docker-rebuild docker-check docker-clean clean logs db-shell fmt lint run-cli run-server \
         devcontainer-up devcontainer-down devcontainer-attach devcontainer-restart devcontainer-status \
         dc-up dc-down dc-attach dc-shell dc-restart dc-status \
@@ -48,7 +48,9 @@ help:
 	@echo "  make test          - Run all tests (unit + integration)"
 	@echo "  make test-unit     - Unit tests only (fast, no Docker)"
 	@echo "  make test-up       - Start integration test environment only"
-	@echo "  make test-integration - Integration tests (starts Docker Compose)"
+	@echo "  make test-func     - Functional tests, light tier (mock auth, ~70 MiB, fast)"
+	@echo "  make test-auth     - Auth + browser tests, full stack (Keycloak + Selenium)"
+	@echo "  make test-integration - All integration tests (light tier, then full stack)"
 	@echo "  make test-down     - Stop integration test environment"
 	@echo ""
 	@echo "  Note: test-integration keeps environment running for debugging"
@@ -91,14 +93,28 @@ help:
 	@echo "For more details: https://github.com/your-repo/numberguess"
 	@echo "════════════════════════════════════════════════════════════════"
 
+## ensure-dev-db: Create the dev database if missing (idempotent)
+## POSTGRES_DB only takes effect when postgres initializes an EMPTY volume;
+## a postgres_data volume initialized by an old/pre-fix test run can lack
+## numberguess_dev, which crashes the app at startup.
+ensure-dev-db:
+	@for i in $$(seq 1 60); do \
+		docker compose exec -T postgres pg_isready -U $(POSTGRES_USER) >/dev/null 2>&1 && break; \
+		sleep 1; \
+	done
+	@docker compose exec -T postgres createdb -U $(POSTGRES_USER) $(POSTGRES_DB) 2>/dev/null \
+		&& echo "✓ Created missing database $(POSTGRES_DB)" \
+		|| true
+
 ## dev: Start postgres + app server for manual testing (full stack)
 dev:
 	@echo "Starting full development stack (postgres + app)..."
+	docker compose --profile full-stack up -d postgres
+	@$(MAKE) ensure-dev-db
 	docker compose --profile full-stack up -d
 	@echo ""
 	@echo "✓ Services started!"
 	@echo "  Web UI: http://localhost:8080"
-	@echo "  Health Check: http://localhost:8081/health"
 	@echo "  Database: postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@localhost:5432/$(POSTGRES_DB)"
 	@echo ""
 	@echo "View logs: make logs"
@@ -108,6 +124,7 @@ dev:
 dev-db:
 	@echo "Starting postgres only..."
 	docker compose up -d postgres
+	@$(MAKE) ensure-dev-db
 	@echo ""
 	@echo "✓ PostgreSQL started!"
 	@echo "  Connection: postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@localhost:5432/$(POSTGRES_DB)"
@@ -183,8 +200,50 @@ devcontainer-status:
 ## dc-status: Show devcontainer status (shortcut)
 dc-status: devcontainer-status
 
+# Test targets orchestrate stateful docker compose stacks that share host
+# ports; running them in parallel (make -j) would race teardown against tests
+# and collide both tiers on port 8080.
+.NOTPARALLEL:
+
 COMPOSE_STACK = docker compose -f docker-compose.yml -f docker-compose.integration.yml
+# Light test tier: postgres + app + nginx mock-auth proxy (~70 MiB, no Keycloak/Selenium).
+# The project name isolates it from the full-tier compose project. These two
+# variables are the single owner of the light-tier coordinates: test-func
+# exports them to the tests (tests/concurrency_test.rs reads them for its
+# app-restart; the literals there are fallbacks only).
+MOCK_COMPOSE_FILE = docker-compose.test-mock-auth.yml
+MOCK_COMPOSE_PROJECT = numberguess-mock
+COMPOSE_MOCK = docker compose -f $(MOCK_COMPOSE_FILE) -p $(MOCK_COMPOSE_PROJECT)
 TEST_DB ?= numberguess_test
+
+# Test tier membership — the single source of truth for which integration
+# test binary runs in which tier. `make test-tier-check` fails if a
+# tests/*_test.rs binary is not assigned to exactly one tier, so a new test
+# file cannot silently run in no tier.
+FUNC_TESTS = api_edge_cases_test web_endpoints_test concurrency_test csrf_test cli_test integration_test
+AUTH_TESTS = auth_integration_test web_ui_test
+
+## test-tier-check: Verify every tests/*_test.rs is assigned to a test tier
+test-tier-check:
+	@status=0; \
+	for f in tests/*_test.rs; do \
+		t=$$(basename $$f .rs); \
+		func_hit=0; auth_hit=0; \
+		for x in $(FUNC_TESTS); do [ "$$x" = "$$t" ] && func_hit=1; done; \
+		for x in $(AUTH_TESTS); do [ "$$x" = "$$t" ] && auth_hit=1; done; \
+		if [ $$((func_hit + auth_hit)) -eq 0 ]; then \
+			echo "ERROR: tests/$$t.rs is not assigned to any test tier."; \
+			echo "       Add it to FUNC_TESTS or AUTH_TESTS in the Makefile."; \
+			status=1; \
+		elif [ $$((func_hit + auth_hit)) -gt 1 ]; then \
+			echo "ERROR: tests/$$t.rs is assigned to BOTH tiers (FUNC_TESTS and AUTH_TESTS)."; \
+			status=1; \
+		fi; \
+	done; \
+	for x in $(FUNC_TESTS) $(AUTH_TESTS); do \
+		[ -f "tests/$$x.rs" ] || { echo "ERROR: tier lists reference missing tests/$$x.rs"; status=1; }; \
+	done; \
+	[ $$status -eq 0 ] && echo "✓ All test binaries assigned to exactly one tier" || exit 1
 
 ## compose-up: Start integration stack with postgres + app
 compose-up:
@@ -218,7 +277,7 @@ test-up: docker-check
 	@echo "Services will remain running for debugging/inspection"
 	@echo "Use 'make test-down' to stop when done"
 	@echo ""
-	$(COMPOSE_STACK) --profile integration up -d --wait --wait-timeout 120
+	$(COMPOSE_STACK) --profile integration up -d --wait --wait-timeout 240
 	@echo ""
 	@echo "✓ Integration test environment started!"
 	@echo ""
@@ -231,26 +290,53 @@ test-up: docker-check
 	@echo "View logs: make logs"
 	@echo "Stop services: make test-down"
 
-## test-integration: Run integration tests via docker compose
-test-integration: docker-check
-	@echo "Starting integration test environment..."
+## test-func: Run functional integration tests on the LIGHT tier (mock auth, no Keycloak/Selenium)
+test-func: docker-check test-tier-check
+	@echo "Starting light test tier (postgres + app + mock-auth proxy)..."
+	$(COMPOSE_MOCK) up -d --wait --wait-timeout 120
+	@echo ""
+	@echo "Running functional tests (mock auth)..."
+	MOCK_AUTH=1 \
+	MOCK_COMPOSE_FILE=$(MOCK_COMPOSE_FILE) \
+	MOCK_COMPOSE_PROJECT=$(MOCK_COMPOSE_PROJECT) \
+	GAME_SERVER_BASE_URL=http://localhost:8080 \
+	cargo test $(addprefix --test ,$(FUNC_TESTS)) -- --test-threads=1
+	@echo ""
+	@echo "✓ Functional tests passed. Light tier still running (make test-func-down to stop)."
+
+## test-func-down: Stop the light test tier
+test-func-down:
+	$(COMPOSE_MOCK) down -v
+	@echo "✓ Light test tier stopped"
+
+## test-auth: Run auth + browser UI tests on the FULL stack (Keycloak, oauth2-proxy, Redis, Selenium)
+test-auth: docker-check test-tier-check
+	@echo "Starting full auth stack (Keycloak takes ~60s)..."
 	@echo "Note: Environment will remain running after tests for debugging"
 	@echo "Use 'make test-down' to stop when done"
 	@echo ""
-	$(COMPOSE_STACK) --profile integration up -d --wait --wait-timeout 120
+	$(COMPOSE_STACK) --profile integration up -d --wait --wait-timeout 240
 	@echo ""
-	@echo "Running integration tests..."
+	@echo "Running auth + browser UI tests..."
 	GAME_SERVER_BASE_URL=http://localhost:8080 \
 	GAME_SERVER_BROWSER_URL=http://oauth2-proxy:4180 \
 	SELENIUM_REMOTE_URL=http://localhost:4444 \
 	TEST_DB_NAME=$(TEST_DB) \
-	cargo test --tests -- --test-threads=1
+	cargo test $(addprefix --test ,$(AUTH_TESTS)) -- --test-threads=1
 
-## test-down: Stop and remove integration test services
+## test-integration: Run all integration tests (light tier first, then full auth stack)
+## Tiers run sequentially with teardown between them so peak memory never
+## includes both (light ~70 MiB; full ~1.2 GiB with Keycloak + Selenium).
+test-integration: test-func test-func-down test-auth
+	@echo ""
+	@echo "✓ Both integration test tiers passed."
+
+## test-down: Stop and remove all integration test services (both tiers)
 test-down:
 	@echo "Stopping integration test services..."
 	$(COMPOSE_STACK) --profile integration down -v
-	@echo "✓ Integration test services stopped"
+	$(COMPOSE_MOCK) down -v
+	@echo "✓ Integration test services stopped (both tiers)"
 
 ## run-cli: Run CLI game
 run-cli:

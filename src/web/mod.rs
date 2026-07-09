@@ -3,6 +3,7 @@
 //! Provides HTML/HTMX interface for the number guessing game.
 //! All handlers return HTML responses rendered via Askama templates.
 
+pub mod error;
 pub mod handlers;
 pub mod templates;
 pub mod types;

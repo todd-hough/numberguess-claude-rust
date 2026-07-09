@@ -275,17 +275,26 @@ make dc-attach     # Attach terminal to devcontainer
 make compose-up    # Bring up app + postgres via docker compose
 make compose-down  # Tear down compose stack
 make build         # Build application (no DB needed!)
-make test          # Run all tests
+make test          # Run all tests (unit + both integration tiers)
 make test-unit     # Fast unit tests (no Docker)
-make test-compose  # Run API integration tests via docker compose
-make test-compose-ui # Run Selenium UI tests via docker compose
-make test-compose-down # Stop integration test services (auto-cleanup, rarely needed)
+make test-func     # Functional integration tests, light tier (mock auth, fast)
+make test-auth     # Auth + browser UI tests, full stack (Keycloak + Selenium)
+make test-integration # All integration tests (light tier, then full stack)
+make test-down     # Stop integration test services (both tiers)
 make fmt           # Format code
 make lint          # Run linter
 make clean         # Clean everything
 ```
 
 ### Running Tests
+
+Integration tests run in two tiers so day-to-day runs stay fast and light:
+
+- **Light tier** (`make test-func`): functional tests against postgres + app + an
+  nginx proxy that injects the authentication headers (~70 MiB, no Keycloak or
+  Selenium, starts in seconds).
+- **Full tier** (`make test-auth`): OAuth2 flow and browser UI tests against the
+  complete auth stack (Keycloak + oauth2-proxy + Redis + Selenium).
 
 ```bash
 # Run all tests (builds Docker image if needed)
@@ -294,20 +303,25 @@ make test
 # Run unit tests only (fast, no Docker required)
 make test-unit
 
-# Run integration tests against docker compose stack
-make test-compose
+# Run functional integration tests on the light tier (fast, low memory)
+make test-func
 
-# Run Selenium-powered UI tests
-make test-compose-ui
+# Run auth + browser UI tests on the full stack
+make test-auth
+
+# Run both integration tiers sequentially
+make test-integration
 
 # Run with output (using cargo directly)
 cargo test -- --nocapture
 
-# Manually stop integration test services (optional - they auto-cleanup on exit)
-make test-compose-down
+# Stop integration test services when done (both tiers)
+make test-down
 ```
 
-**Note**: Compose-backed integration tests (`make test-compose` and `make test-compose-ui`) automatically clean up services on exit. They also reset the database via `scripts/reset-db.sh` for deterministic results. Use `make test-compose-down` only if you need to manually stop services (e.g., after interrupting tests with Ctrl+C).
+**Note**: `make test-integration` runs the light tier first, tears it down, then runs
+the full tier. The full-tier environment stays running afterwards for debugging —
+use `make test-down` to clean up.
 
 ### Building for Release
 

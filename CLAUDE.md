@@ -52,8 +52,11 @@ make dc-down       # Stop devcontainer
 # Testing
 make test              # All tests (unit + integration)
 make test-unit         # Unit tests only (fast, no Docker)
-make test-integration  # Integration tests (starts Docker Compose, keeps running)
-make test-down         # Stop integration test environment
+make test-func         # Functional integration tests, LIGHT tier (mock auth, ~70 MiB, fast)
+make test-auth         # Auth + browser UI tests, FULL stack (Keycloak + Selenium, ~1.2 GiB)
+make test-integration  # All integration tests: light tier first, then full stack
+make test-func-down    # Stop the light tier
+make test-down         # Stop integration test environment (both tiers)
 
 # Debugging failed tests: Environment stays running after test-integration
 docker compose logs keycloak  # Check service logs
@@ -83,7 +86,7 @@ make clean             # Clean everything
 - **Build**: No database needed (SQLx uses runtime checking, not compile-time)
 - **CLI mode**: No database needed at all
 - **Web mode**: Requires PostgreSQL and authentication stack (Keycloak + oauth2-proxy + Redis)
-- **Tests**: Unit tests are fast (no Docker); integration tests use `make test-integration` with Docker Compose (includes Selenium for all tests)
+- **Tests**: Unit tests are fast (no Docker); integration tests run in two tiers via `make test-integration` — a light mock-auth tier for functional tests (no Selenium/Keycloak) and a full-stack tier for auth + browser tests (see Two-Tier Integration Test Architecture below)
 - **Docker**: Only needed for integration tests and optional full-stack development
 - **Docker Builds**: Development/test workflows use debug builds (fast); production uses release builds (optimized). Configure via `BUILD_TYPE` env var or make targets.
 - **Authentication**: All web routes require authentication via oauth2-proxy + Keycloak (OIDC)
@@ -155,7 +158,7 @@ Command-line interface:
 Database persistence layer using repository pattern:
 - **repository.rs**: `GameRepository` trait defining storage operations (native async traits)
 - **postgres_repository.rs**: PostgreSQL implementation of `GameRepository`
-- **mod.rs**: `DbError` type, module declarations, and deprecated standalone functions
+- **mod.rs**: `DbError` type and module declarations
 
 **Repository Pattern:**
 - Abstract interface for game storage operations
@@ -185,7 +188,7 @@ Server initialization and routing:
 4. **Shared Validation**: Single source of truth for validation logic in `core/validators` module
 5. **API vs Web UI Separation**: JSON API handlers in `src/api/`, HTML handlers in `src/web/`
 6. **Type Safety**: Newtype pattern for `GameId`, compile-time template checking with Askama
-7. **Result Types**: Extensive use of `Result<T, String>` for error handling with safe type conversions
+7. **Error Types**: Typed `thiserror` enums throughout (`GameError`, `DbError`); handlers return `Result` with `ApiError`/`WebError` (`src/api/error.rs`, `src/web/error.rs`) implementing `IntoResponse` for exact, documented HTTP mappings
 8. **State Management**: `AppState<R: GameRepository>` holds repository instance, shared across handlers via Axum state
 9. **Module Organization**: Clear boundaries between core logic, API, web UI, CLI, database, and server
 10. **Template-Based HTML**: Askama templates provide compile-time checked, type-safe HTML rendering
@@ -223,16 +226,41 @@ Server initialization and routing:
 
 ## Testing Strategy
 
-### Authentication in Tests
+### Two-Tier Integration Test Architecture
 
-**All integration tests require full authentication stack** (Keycloak + oauth2-proxy + Redis). Tests use Selenium OAuth2 authentication for all endpoints (Web UI and API).
+Integration tests are split into two tiers so most tests avoid the heavy auth stack
+(Keycloak ~570 MiB + Selenium ~610 MiB). Tier selection is driven by the `MOCK_AUTH=1`
+environment variable, set automatically by `make test-func`; test files and assertions
+are identical in both tiers.
 
-**Authentication Approach:**
-- **All Tests**: Selenium OAuth2 flow (realistic, tests full user experience)
-- **Method**: Full browser-based OAuth2 authorization code flow with PKCE
-- **Target**: http://localhost:8080 (oauth2-proxy)
-- **Speed**: ~2-3s per login
-- **Coverage**: Tests oauth2-proxy integration, session cookies, redirects
+**LIGHT tier (`make test-func`)** — postgres + app + nginx mock-auth proxy (~70 MiB):
+- Runs: `api_edge_cases_test`, `web_endpoints_test`, `concurrency_test`, `csrf_test`
+  (plus the non-Docker `cli_test` and `integration_test`)
+- The nginx proxy (`docker-compose.test-mock-auth.yml` + `test-fixtures/mock-auth-nginx.conf`)
+  injects the same `X-Forwarded-*` headers oauth2-proxy would add, mirroring the real
+  test user (admin / admin@local.test / group `/admin`)
+- No Keycloak, Selenium, oauth2-proxy, or Redis; no per-test login overhead
+- Compose project name `numberguess-mock` (isolated from the full-tier project;
+  referenced by `tests/concurrency_test.rs` for the app-restart test)
+
+**FULL tier (`make test-auth`)** — complete auth stack:
+- Runs: `auth_integration_test` (OAuth2 flow, redirects, 401s) and `web_ui_test`
+  (real browser: HTMX swaps, DOM assertions)
+- Method: browser-based OAuth2 authorization code flow with PKCE via Selenium
+- **No session caching (deliberate)**: each `create_authenticated_client()` call in the
+  full tier performs a fresh browser OAuth2 login (~2-3s). A per-binary cookie cache was
+  tried and removed because each full-tier binary makes at most one such call today, so
+  a cache never got a second hit. If you add multiple authenticated-client tests to a
+  full-tier binary, either accept ~2-3s per call, reintroduce caching (see the design
+  note in `tests/common/auth_helpers.rs`), or — usually better — put the test in the
+  light tier unless it asserts on the real auth stack
+- Resource caps (docker-compose.integration.yml): Keycloak heap `-Xmx256m` + 768m
+  mem_limit; Selenium shm 512mb + 1g mem_limit + single session
+
+`make test-integration` runs light tier → teardown → full tier, so peak memory never
+includes both tiers. CI (`integration-security.yml`) runs both tiers on every push —
+full-fidelity OAuth2/browser coverage is never skipped, it just doesn't gate every
+local functional test run.
 
 **Test Credentials:**
 - Username: `admin@local.test`
@@ -244,12 +272,12 @@ Server initialization and routing:
 - Application: http://localhost:4080 (internal only, accessed via oauth2-proxy)
 - Health Check: http://localhost:8081 (internal only)
 
-**Selenium OAuth2 Flow:**
-- Used by: All integration tests (`web_ui_test.rs`, `web_endpoints_test.rs`, `api_edge_cases_test.rs`, `auth_integration_test.rs`)
+**Selenium OAuth2 Flow (FULL tier only):**
+- Used by: `auth_integration_test.rs` and `web_ui_test.rs` via `make test-auth`
 - Method: Full browser-based OAuth2 authorization code flow with PKCE
 - Target: http://localhost:8080 (oauth2-proxy)
-- Speed: ~2-3s per login
-- Coverage: Tests oauth2-proxy integration, session cookies, redirects for both web and API endpoints
+- Speed: ~2-3s per login, paid on every `create_authenticated_client()` call (no caching — see design note above)
+- Coverage: Tests oauth2-proxy integration, session cookies, redirects, and browser UI
 
 ### Integration Test Architecture & Networking
 
@@ -334,7 +362,7 @@ GAME_SERVER_BROWSER_URL=http://oauth2-proxy:4180
 #[test]  // Wrong! Not async
 fn test_something() {
     let client = tokio_test::block_on(  // Wrong! Nested runtime
-        create_authenticated_client_selenium()
+        create_authenticated_client()
     ).unwrap();
 
     let response = tokio_test::block_on(async {  // Wrong! Multiple block_on
@@ -350,13 +378,13 @@ async fn test_something() {  // Correct! Async function
     // Environment checks in blocking context (they use blocking client)
     tokio::task::spawn_blocking(|| {
         environment::ensure_server_ready();
-        environment::ensure_selenium_ready().expect("Selenium required");
+        environment::ensure_selenium_ready();
     })
     .await
     .expect("Environment checks failed");
 
     // Create async authenticated client
-    let client = auth_helpers::create_authenticated_client_selenium()
+    let client = auth_helpers::create_authenticated_client()
         .await  // Correct! Direct await
         .expect("Failed to create client");
 
@@ -470,8 +498,9 @@ Common Issues:
 - **Full stack startup**: ~60-70 seconds (Keycloak with H2 in-memory is main bottleneck)
 - **Keycloak optimization**: Uses H2 in-memory database instead of PostgreSQL for 30-40% faster startup
 - **Subsequent runs**: Instant if services already running (idempotent `docker compose up`)
-- **All tests**: 2-3s overhead per test for OAuth2 login (Selenium-based)
-- **Total test suite**: ~3-4 minutes with full auth stack
+- **Light tier** (`make test-func`): no login overhead, ~70 MiB, functional tests finish in seconds
+- **Full tier** (`make test-auth`): one Selenium OAuth2 login per test binary (~2-3s each)
+- **Total test suite**: light tier ~1 minute (incl. startup); full tier still dominated by Keycloak startup (~60s)
 
 ## GitHub Actions Workflows
 
@@ -483,7 +512,7 @@ The project uses GitHub Actions for continuous integration and security scanning
 - Format checking (cargo fmt)
 - Linting (cargo clippy)
 - Unit tests (cargo test --lib)
-- Runs on every push and pull request
+- Runs on every push to every branch (push-event checks also show on PRs)
 - No Docker required
 
 **integration-security.yml** - Comprehensive validation (~4-5 minutes)
@@ -494,7 +523,8 @@ The project uses GitHub Actions for continuous integration and security scanning
   - Dockerfile linting (hadolint)
   - Container scanning (Trivy for HIGH/CRITICAL vulnerabilities)
   - Integration tests (full auth stack + Selenium)
-- Runs on push, pull requests, and weekly schedule (Sundays at midnight UTC)
+- Runs when a PR to main is OPENED (the ready-to-merge signal), on pushes to main/develop, and via manual dispatch
+- Deliberately NOT on every PR push and NOT on a schedule (hobby project: the old weekly cron produced failing-scan emails and got the workflow auto-disabled during repo inactivity)
 
 ### Key Optimizations
 
@@ -511,10 +541,12 @@ The project uses GitHub Actions for continuous integration and security scanning
 
 ### Workflow Triggers
 
-- **Push to main/develop**: All workflows run
-- **Pull requests to main**: All workflows run
-- **Weekly schedule**: Security scans run Sunday at midnight UTC
-- **Manual dispatch**: Can be triggered manually from Actions tab
+- **Push to any branch**: ci.yml quick checks run (fmt, clippy, unit tests)
+- **PR opened/reopened against main**: integration-security.yml full suite runs once
+- **Push to main/develop**: integration-security.yml runs (post-merge safety net)
+- **Manual dispatch**: integration-security.yml can be run on any branch from the Actions tab
+- **After pushing more commits to an open PR**: the full suite does NOT auto re-run — re-run it via manual dispatch on the branch (or close/reopen the PR) when ready to merge
+- No scheduled runs (weekly cron removed intentionally)
 
 ## Common Tasks
 
@@ -558,8 +590,7 @@ The project uses GitHub Actions for continuous integration and security scanning
 - See docs/security-todo.md for security improvements
 - No rate limiting on API endpoints
 - No request size limits
-- Games remain in memory until completed (potential memory leak)
-- No persistent storage option
+- Abandoned games persist in PostgreSQL until the cleanup function runs (see migrations)
 
 ## File Structure
 ```
@@ -794,9 +825,9 @@ All configuration files reference these environment variables with defaults, pro
 - **Last Updated**: Dependencies updated to latest versions (Oct 2025)
 
 ## Performance Considerations
-- Each game stores minimal state (5 fields)
-- O(1) game lookup via HashMap
-- No database queries
+- Each game stores minimal state (one row in the `games` table, keyed by game_id)
+- Game lookup via primary-key index; guesses run in a single transaction (`SELECT ... FOR UPDATE`)
+- Connection pooling via SQLx PgPool (default 5 connections, `DB_MAX_CONNECTIONS` to tune)
 - Static files served directly
 
 ## Deployment Notes

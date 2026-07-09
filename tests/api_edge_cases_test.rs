@@ -22,12 +22,12 @@ async fn test_guess_nonexistent_game() {
     .expect("Environment checks failed");
 
     // Use Selenium OAuth2 authentication for API tests
-    let client = auth_helpers::create_authenticated_client_selenium()
+    let client = auth_helpers::create_authenticated_client()
         .await
         .expect("Failed to create authenticated client");
 
     let response = client
-        .post(format!("{}/api/games/99999999/guess", API_BASE_URL))
+        .post(format!("{API_BASE_URL}/api/games/99999999/guess"))
         .json(&json!({"guess": 50}))
         .send()
         .await
@@ -52,7 +52,7 @@ async fn test_concurrent_games() {
     .expect("Environment checks failed");
 
     // Use Selenium OAuth2 authentication for API tests
-    let client = auth_helpers::create_authenticated_client_selenium()
+    let client = auth_helpers::create_authenticated_client()
         .await
         .expect("Failed to create authenticated client");
 
@@ -60,7 +60,7 @@ async fn test_concurrent_games() {
     let mut game_ids: Vec<i64> = Vec::new();
     for _ in 0..3 {
         let resp = client
-            .post(format!("{}/api/games", API_BASE_URL))
+            .post(format!("{API_BASE_URL}/api/games"))
             .json(&json!({"min": 1, "max": 10}))
             .send()
             .await
@@ -72,7 +72,7 @@ async fn test_concurrent_games() {
                 .text()
                 .await
                 .unwrap_or_else(|_| "Could not read body".to_string());
-            panic!("Game creation failed with status {}: {}", status, body);
+            panic!("Game creation failed with status {status}: {body}");
         }
         let game: GameResponse = resp.json().await.expect("Should parse JSON game response");
         game_ids.push(game.game_id);
@@ -83,7 +83,7 @@ async fn test_concurrent_games() {
     // Make guess to each game
     for game_id in &game_ids {
         let resp = client
-            .post(format!("{}/api/games/{}/guess", API_BASE_URL, game_id))
+            .post(format!("{API_BASE_URL}/api/games/{game_id}/guess"))
             .json(&json!({"guess": 5}))
             .send()
             .await
@@ -91,8 +91,7 @@ async fn test_concurrent_games() {
 
         assert!(
             resp.status().is_success(),
-            "Guess should succeed for game {}",
-            game_id
+            "Guess should succeed for game {game_id}"
         );
 
         let guess_result: GuessResponse =
@@ -113,13 +112,13 @@ async fn test_guess_after_limit_reached() {
     .await
     .expect("Environment checks failed");
 
-    let client = auth_helpers::create_authenticated_client_selenium()
+    let client = auth_helpers::create_authenticated_client()
         .await
         .expect("Failed to create authenticated client");
 
     // Create game with limit=1 and min=max so we know the exact answer
     let resp = client
-        .post(format!("{}/api/games", API_BASE_URL))
+        .post(format!("{API_BASE_URL}/api/games"))
         .json(&json!({"min": 50, "max": 50, "max_guesses": "1"}))
         .send()
         .await
@@ -193,13 +192,13 @@ async fn test_zero_limit_means_unlimited() {
     .await
     .expect("Environment checks failed");
 
-    let client = auth_helpers::create_authenticated_client_selenium()
+    let client = auth_helpers::create_authenticated_client()
         .await
         .expect("Failed to create authenticated client");
 
     // Create game WITHOUT max_guesses field (omitted = unlimited)
     let resp = client
-        .post(format!("{}/api/games", API_BASE_URL))
+        .post(format!("{API_BASE_URL}/api/games"))
         .json(&json!({
             "min": 1,
             "max": 100
@@ -212,7 +211,7 @@ async fn test_zero_limit_means_unlimited() {
     if !resp.status().is_success() {
         let status = resp.status();
         let body = resp.text().await.unwrap_or_default();
-        panic!("Game creation failed with {}: {}", status, body);
+        panic!("Game creation failed with {status}: {body}");
     }
 
     let game: GameResponse = resp.json().await.expect("Should parse JSON game response");
@@ -235,8 +234,7 @@ async fn test_zero_limit_means_unlimited() {
 
         assert!(
             guess_resp.status().is_success(),
-            "Guess {} should succeed with unlimited limit",
-            i
+            "Guess {i} should succeed with unlimited limit"
         );
 
         let guess_result: GuessResponse = guess_resp
@@ -251,10 +249,7 @@ async fn test_zero_limit_means_unlimited() {
         );
 
         if guess_result.result == "correct" {
-            println!(
-                "Found correct answer after {} guesses (unlimited worked)",
-                i
-            );
+            println!("Found correct answer after {i} guesses (unlimited worked)");
             break;
         }
     }
@@ -272,7 +267,7 @@ async fn test_web_rejects_excessive_guess_limit() {
     .await
     .expect("Environment checks failed");
 
-    let client = auth_helpers::create_authenticated_client_selenium()
+    let client = auth_helpers::create_authenticated_client()
         .await
         .expect("Failed to create authenticated client");
 
@@ -280,10 +275,10 @@ async fn test_web_rejects_excessive_guess_limit() {
     let excessive_limits = vec!["101", "150", "1000"];
 
     for limit in excessive_limits {
-        println!("Testing excessive limit: {}", limit);
+        println!("Testing excessive limit: {limit}");
 
         let resp = client
-            .post(format!("{}/api/games", API_BASE_URL))
+            .post(format!("{API_BASE_URL}/api/games"))
             .json(&json!({
                 "min": 1,
                 "max": 10,
@@ -296,23 +291,18 @@ async fn test_web_rejects_excessive_guess_limit() {
         let status = resp.status();
         assert!(
             status.as_u16() >= 400 && status.as_u16() < 500,
-            "Should reject max_guesses={} with 4xx error (got {})",
-            limit,
-            status
+            "Should reject max_guesses={limit} with 4xx error (got {status})"
         );
 
         // Log error message
         if let Ok(body) = resp.text().await {
-            println!(
-                "  Correctly rejected with status {} and message: {}",
-                status, body
-            );
+            println!("  Correctly rejected with status {status} and message: {body}");
         }
     }
 
     // Verify exactly 100 is accepted (boundary)
     let resp = client
-        .post(format!("{}/api/games", API_BASE_URL))
+        .post(format!("{API_BASE_URL}/api/games"))
         .json(&json!({
             "min": 1,
             "max": 10,

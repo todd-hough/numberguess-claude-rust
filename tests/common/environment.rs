@@ -9,6 +9,26 @@ const DEFAULT_BROWSER_URL: &str = "http://oauth2-proxy:4180";
 const DEFAULT_KEYCLOAK_URL: &str = "http://localhost:8090";
 const DEFAULT_SELENIUM_URL: &str = "http://localhost:4444";
 
+/// True when running against the light-tier mock-auth stack
+/// (docker-compose.test-mock-auth.yml via `make test-func`).
+///
+/// In mock mode there is no Redis, Keycloak, oauth2-proxy, or Selenium:
+/// an nginx proxy injects the X-Forwarded-* identity headers instead, so
+/// readiness checks and login flows for those services are skipped.
+pub fn is_mock_auth() -> bool {
+    match env::var("MOCK_AUTH") {
+        Err(_) => false,
+        Ok(v) => match v.to_lowercase().as_str() {
+            "1" | "true" | "yes" | "on" => true,
+            "" | "0" | "false" | "no" | "off" => false,
+            other => panic!(
+                "Unrecognized MOCK_AUTH value {other:?}. Use MOCK_AUTH=1 for the light tier \
+                 (make test-func) or unset it for the full tier (make test-auth)."
+            ),
+        },
+    }
+}
+
 /// Return the base URL for the running game server, falling back to localhost.
 pub fn base_url() -> String {
     env::var("GAME_SERVER_BASE_URL").unwrap_or_else(|_| DEFAULT_BASE_URL.to_string())
@@ -36,12 +56,16 @@ pub fn keycloak_url() -> String {
 /// This function waits for all auth services (redis, keycloak, oauth2-proxy)
 /// to be ready before checking the application server.
 pub fn ensure_server_ready() -> String {
-    // Wait for all auth services in order
-    eprintln!("=== Checking authentication services ===");
-    ensure_redis_ready();
-    ensure_keycloak_ready();
-    ensure_oauth2_proxy_ready();
-    eprintln!("=== All auth services ready ===\n");
+    if is_mock_auth() {
+        eprintln!("=== Mock auth mode: skipping redis/keycloak/oauth2-proxy checks ===");
+    } else {
+        // Wait for all auth services in order
+        eprintln!("=== Checking authentication services ===");
+        ensure_redis_ready();
+        ensure_keycloak_ready();
+        ensure_oauth2_proxy_ready();
+        eprintln!("=== All auth services ready ===\n");
+    }
 
     let base = base_url();
     let client = Client::builder()
@@ -53,7 +77,7 @@ pub fn ensure_server_ready() -> String {
     let mut attempts = 0;
     let max_attempts = 30;
 
-    eprintln!("Waiting for application server at {}...", base);
+    eprintln!("Waiting for application server at {base}...");
 
     while attempts < max_attempts {
         match client.get(&base).send() {
@@ -84,8 +108,8 @@ pub fn ensure_server_ready() -> String {
     }
 
     panic!(
-        "Game server at {} is not responding. Start it with `make compose-up` or run tests via `make test-compose`.",
-        base
+        "Game server at {base} is not responding. Start the light tier with `make test-func` \
+         (or the full stack with `make test-auth` / `make test-up`)."
     );
 }
 
@@ -93,6 +117,11 @@ pub fn ensure_server_ready() -> String {
 /// Panics if Selenium is not responding within the timeout.
 pub fn ensure_selenium_ready() -> String {
     let url = selenium_url();
+
+    if is_mock_auth() {
+        eprintln!("Mock auth mode: Selenium not required, skipping readiness check");
+        return url;
+    }
     let client = Client::builder()
         .timeout(Duration::from_secs(5))
         .build()
@@ -102,7 +131,7 @@ pub fn ensure_selenium_ready() -> String {
     let max_attempts = 20;
     let status_endpoint = format!("{}/status", url.trim_end_matches('/'));
 
-    eprintln!("Waiting for Selenium to be ready at {}...", url);
+    eprintln!("Waiting for Selenium to be ready at {url}...");
 
     while attempts < max_attempts {
         if let Ok(resp) = client.get(&status_endpoint).send()
@@ -116,8 +145,7 @@ pub fn ensure_selenium_ready() -> String {
     }
 
     panic!(
-        "Selenium at {} is not responding after {} attempts. Check `docker compose logs selenium`",
-        url, max_attempts
+        "Selenium at {url} is not responding after {max_attempts} attempts. Check `docker compose logs selenium`"
     );
 }
 
@@ -131,12 +159,9 @@ pub fn ensure_keycloak_ready() -> String {
 
     let mut attempts = 0;
     let max_attempts = 60; // Keycloak can take up to 60s to start
-    let health_endpoint = format!(
-        "{}/realms/numberguess/.well-known/openid-configuration",
-        url
-    );
+    let health_endpoint = format!("{url}/realms/numberguess/.well-known/openid-configuration");
 
-    eprintln!("Waiting for Keycloak to be ready at {}...", url);
+    eprintln!("Waiting for Keycloak to be ready at {url}...");
 
     while attempts < max_attempts {
         if let Ok(resp) = client.get(&health_endpoint).send()
@@ -150,8 +175,7 @@ pub fn ensure_keycloak_ready() -> String {
     }
 
     panic!(
-        "Keycloak at {} is not responding after {} attempts. Check `docker compose logs keycloak`",
-        url, max_attempts
+        "Keycloak at {url} is not responding after {max_attempts} attempts. Check `docker compose logs keycloak`"
     );
 }
 
@@ -172,8 +196,7 @@ pub fn ensure_redis_ready() {
     }
 
     panic!(
-        "Redis is not responding after {} attempts. Check `docker compose logs redis`",
-        max_attempts
+        "Redis is not responding after {max_attempts} attempts. Check `docker compose logs redis`"
     );
 }
 
@@ -204,7 +227,6 @@ pub fn ensure_oauth2_proxy_ready() {
     }
 
     panic!(
-        "oauth2-proxy is not responding after {} attempts. Check `docker compose logs oauth2-proxy`",
-        max_attempts
+        "oauth2-proxy is not responding after {max_attempts} attempts. Check `docker compose logs oauth2-proxy`"
     );
 }

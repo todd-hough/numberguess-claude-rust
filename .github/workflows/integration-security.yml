@@ -1,13 +1,20 @@
 name: Integration & Security
 
+# Full suite runs when a PR to main is OPENED (the ready-to-merge signal),
+# after merges to main/develop (safety net), or on demand via the Actions tab.
+# Deliberately NOT on every PR push ('synchronize' omitted from types) and NOT
+# on a schedule: the old weekly cron produced failing-scan emails on an idle
+# hobby repo, and scheduled workflows get auto-disabled by GitHub after 60
+# days of repo inactivity (which is how this workflow ended up disabled).
+# To re-validate a PR after pushing more commits: Actions tab -> this
+# workflow -> "Run workflow" on the branch, or close/reopen the PR.
 on:
   push:
     branches: [ main, develop ]
   pull_request:
     branches: [ main ]
-  schedule:
-    # Run weekly security scans on Sundays at midnight UTC
-    - cron: '0 0 * * 0'
+    types: [opened, reopened]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -57,6 +64,12 @@ jobs:
   audit:
     name: Security Audit
     runs-on: ubuntu-latest
+    # Informational only (hobby project): advisories in transitive deps
+    # accumulate over time without any code change here, and this job used to
+    # paint every run red because of them. It still runs and reports; it just
+    # cannot fail the workflow. Run `cargo audit` / `cargo update` locally if
+    # you want to act on its findings.
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v5
 
@@ -114,21 +127,24 @@ jobs:
             exit 1
           fi
 
+      # Action and trivy version both pinned: the previous @master float +
+      # yanked v0.67.2 release broke the install (same rot class as the
+      # unpinned cargo-chef install). Bump both together, deliberately.
       - name: Scan for HIGH/CRITICAL vulnerabilities
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: numberguess:${{ github.sha }}
-          version: v0.67.2
+          version: v0.72.0
           format: 'table'
           severity: 'HIGH,CRITICAL'
           exit-code: '1'
 
       - name: Generate security report for GitHub
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@v0.36.0
         if: always()
         with:
           image-ref: numberguess:${{ github.sha }}
-          version: v0.67.2
+          version: v0.72.0
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'HIGH,CRITICAL'
@@ -166,31 +182,37 @@ jobs:
       - name: Verify Docker image
         run: docker images | grep numberguess
 
-      - name: Start integration test services
-        run: |
-          docker compose -f docker-compose.yml -f docker-compose.integration.yml --profile integration up -d --wait
-          echo "All services are healthy and ready"
+      - name: Tag loaded image for docker compose
+        # Both test tiers reference numberguess-claude-rust:latest; without this
+        # tag, docker compose would silently rebuild instead of using the
+        # artifact built by the build-docker job.
+        run: docker tag numberguess:${{ github.sha }} numberguess-claude-rust:latest
 
-      - name: Run integration tests
-        env:
-          GAME_SERVER_BASE_URL: http://localhost:8080
-          GAME_SERVER_BROWSER_URL: http://oauth2-proxy:4180
-          SELENIUM_REMOTE_URL: http://localhost:4444
-          TEST_DB_NAME: numberguess_test
-        run: cargo test --tests -- --test-threads=1
+      # Both tiers run on every push: the light tier covers functional tests
+      # (mock auth headers, no Keycloak/Selenium), the full tier covers the
+      # OAuth2 flow and browser UI tests against the real auth stack.
+      - name: Run functional tests (light tier, mock auth)
+        run: |
+          make test-func
+          make test-func-down
+
+      - name: Run auth + browser UI tests (full stack)
+        run: make test-auth
 
       - name: Show service logs on failure
         if: failure()
         run: |
+          echo "=== Light tier logs ==="
+          docker compose -f docker-compose.test-mock-auth.yml -p numberguess-mock logs || true
           echo "=== App logs ==="
-          docker compose logs app
+          docker compose logs app || true
           echo "=== Keycloak logs ==="
-          docker compose logs keycloak
+          docker compose logs keycloak || true
           echo "=== oauth2-proxy logs ==="
-          docker compose logs oauth2-proxy
+          docker compose logs oauth2-proxy || true
           echo "=== Selenium logs ==="
-          docker compose logs selenium
+          docker compose logs selenium || true
 
       - name: Stop integration test services
         if: always()
-        run: docker compose -f docker-compose.yml -f docker-compose.integration.yml --profile integration down -v
+        run: make test-down

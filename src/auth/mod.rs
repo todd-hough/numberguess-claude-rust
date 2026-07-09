@@ -100,8 +100,6 @@ where
 
         // Extract user ID (required)
         // oauth2-proxy in proxy mode sends X-Forwarded-* headers, not X-Auth-Request-*
-        // Extract user ID (required)
-        // oauth2-proxy in proxy mode sends X-Forwarded-* headers, not X-Auth-Request-*
         let user_id = headers
             .get("X-Forwarded-User")
             .and_then(|v| v.to_str().ok())
