@@ -131,7 +131,7 @@ jobs:
       # yanked v0.67.2 release broke the install (same rot class as the
       # unpinned cargo-chef install). Bump both together, deliberately.
       - name: Scan for HIGH/CRITICAL vulnerabilities
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: numberguess:${{ github.sha }}
           version: v0.72.0
@@ -140,7 +140,7 @@ jobs:
           exit-code: '1'
 
       - name: Generate security report for GitHub
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         if: always()
         with:
           image-ref: numberguess:${{ github.sha }}
