@@ -1,13 +1,20 @@
 name: Integration & Security
 
+# Full suite runs when a PR to main is OPENED (the ready-to-merge signal),
+# after merges to main/develop (safety net), or on demand via the Actions tab.
+# Deliberately NOT on every PR push ('synchronize' omitted from types) and NOT
+# on a schedule: the old weekly cron produced failing-scan emails on an idle
+# hobby repo, and scheduled workflows get auto-disabled by GitHub after 60
+# days of repo inactivity (which is how this workflow ended up disabled).
+# To re-validate a PR after pushing more commits: Actions tab -> this
+# workflow -> "Run workflow" on the branch, or close/reopen the PR.
 on:
   push:
     branches: [ main, develop ]
   pull_request:
     branches: [ main ]
-  schedule:
-    # Run weekly security scans on Sundays at midnight UTC
-    - cron: '0 0 * * 0'
+    types: [opened, reopened]
+  workflow_dispatch:
 
 permissions:
   contents: read

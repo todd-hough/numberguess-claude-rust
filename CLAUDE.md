@@ -512,7 +512,7 @@ The project uses GitHub Actions for continuous integration and security scanning
 - Format checking (cargo fmt)
 - Linting (cargo clippy)
 - Unit tests (cargo test --lib)
-- Runs on every push and pull request
+- Runs on every push to every branch (push-event checks also show on PRs)
 - No Docker required
 
 **integration-security.yml** - Comprehensive validation (~4-5 minutes)
@@ -523,7 +523,8 @@ The project uses GitHub Actions for continuous integration and security scanning
   - Dockerfile linting (hadolint)
   - Container scanning (Trivy for HIGH/CRITICAL vulnerabilities)
   - Integration tests (full auth stack + Selenium)
-- Runs on push, pull requests, and weekly schedule (Sundays at midnight UTC)
+- Runs when a PR to main is OPENED (the ready-to-merge signal), on pushes to main/develop, and via manual dispatch
+- Deliberately NOT on every PR push and NOT on a schedule (hobby project: the old weekly cron produced failing-scan emails and got the workflow auto-disabled during repo inactivity)
 
 ### Key Optimizations
 
@@ -540,10 +541,12 @@ The project uses GitHub Actions for continuous integration and security scanning
 
 ### Workflow Triggers
 
-- **Push to main/develop**: All workflows run
-- **Pull requests to main**: All workflows run
-- **Weekly schedule**: Security scans run Sunday at midnight UTC
-- **Manual dispatch**: Can be triggered manually from Actions tab
+- **Push to any branch**: ci.yml quick checks run (fmt, clippy, unit tests)
+- **PR opened/reopened against main**: integration-security.yml full suite runs once
+- **Push to main/develop**: integration-security.yml runs (post-merge safety net)
+- **Manual dispatch**: integration-security.yml can be run on any branch from the Actions tab
+- **After pushing more commits to an open PR**: the full suite does NOT auto re-run — re-run it via manual dispatch on the branch (or close/reopen the PR) when ready to merge
+- No scheduled runs (weekly cron removed intentionally)
 
 ## Common Tasks
 
