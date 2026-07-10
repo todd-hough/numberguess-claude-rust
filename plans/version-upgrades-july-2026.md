@@ -29,6 +29,11 @@ Targets (checked 2026-07-09): Rust **1.96.1** (from 1.90.0), cargo-chef **0.1.77
    tests/integration_test.rs) — fixed (vec! → array).
 5. **CLAUDE.md**: Version Information section updated; `rust-toolchain.toml` added to
    the file-structure inventory (it was undocumented).
+6. **Dependency refresh (added by decision on the PR)**: `cargo update` — 240 packages
+   bumped within semver. Clears ALL RUSTSEC advisories (cargo-audit exits 0, zero
+   findings — was ~8 advisories incl. 2 high in quinn-proto). Full validation repeated
+   on the updated tree: clippy clean, 58 unit, 27 integration / 2 ignored on both tiers,
+   fresh image build.
 
 ## Verification
 
