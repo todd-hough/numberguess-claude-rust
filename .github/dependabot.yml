@@ -3,11 +3,19 @@
 # Please see the documentation for all configuration options:
 # https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
 
+# SECURITY-ONLY MODE (hobby project): open-pull-requests-limit: 0 disables
+# routine version-update PRs; Dependabot still opens PRs for security
+# advisories. Rationale: weekly version PRs and their emails were pure noise
+# on an idle repo, and the CI pins (rust-toolchain.toml, cargo-chef, trivy)
+# already fail loudly at PR time if something rots. To catch up versions
+# deliberately, run `cargo update` on a branch (see
+# plans/version-upgrades-july-2026.md for the recipe).
 version: 2
 updates:
   # Rust dependencies
   - package-ecosystem: "cargo"
     directory: "/"
+    open-pull-requests-limit: 0
     schedule:
       interval: "weekly"
     labels:
@@ -17,6 +25,7 @@ updates:
   # Docker dependencies (Dockerfile, docker-compose.yml)
   - package-ecosystem: "docker"
     directory: "/"
+    open-pull-requests-limit: 0
     schedule:
       interval: "weekly"
     labels:
@@ -26,6 +35,7 @@ updates:
   # GitHub Actions dependencies
   - package-ecosystem: "github-actions"
     directory: "/"
+    open-pull-requests-limit: 0
     schedule:
       interval: "weekly"
     labels:
