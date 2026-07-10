@@ -679,6 +679,7 @@ The project uses GitHub Actions for continuous integration and security scanning
 ├── plans/           # Implementation plans
 │   └── code-improvement-suggestions.md
 ├── target/          # Build artifacts
+├── rust-toolchain.toml # Pinned Rust version (governs host, CI, and must match Docker base tag)
 ├── Dockerfile       # Container configuration
 ├── docker-compose.yml # Docker Compose for development
 ├── .dockerignore    # Docker build exclusions
@@ -820,9 +821,9 @@ All configuration files reference these environment variables with defaults, pro
 - **tokio-test**: Async testing utilities (v0.4)
 
 ## Version Information
-- **Rust Version**: 1.90.0 (1159e78c4 2025-09-14)
+- **Rust Version**: 1.96.1 (pinned in `rust-toolchain.toml` — the single source of truth for host, CI, and the Docker base image tag; bump all together, see Dockerfile comment)
 - **Rust Edition**: 2024
-- **Last Updated**: Dependencies updated to latest versions (Oct 2025)
+- **Last Updated**: Toolchain bumped to 1.96.1, cargo-chef to 0.1.77 (July 2026)
 
 ## Performance Considerations
 - Each game stores minimal state (one row in the `games` table, keyed by game_id)
