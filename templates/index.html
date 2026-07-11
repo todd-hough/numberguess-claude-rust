@@ -81,6 +81,7 @@
         }
 
         .container {
+            position: relative;
             background: var(--surface);
             border: 1px solid var(--line);
             border-radius: 18px;
@@ -88,6 +89,27 @@
             padding: 36px;
             max-width: 880px;
             width: 100%;
+        }
+
+        /* Quit-game arrow, top-left of the card during play (plain link
+           back to the setup screen; no confirmation by design) */
+        .back-link {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            color: var(--muted);
+            transition: color 0.15s, background 0.15s;
+        }
+
+        .back-link:hover {
+            color: var(--accent);
+            background: var(--ground);
         }
 
         /* ============ Brand ============ */
