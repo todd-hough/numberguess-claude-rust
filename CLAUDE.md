@@ -173,8 +173,7 @@ Server initialization and routing:
 
 #### Other
 - **src/main.rs**: Entry point, mode selection (CLI vs Server), database initialization
-- **static/index.html**: Web UI with HTMX for dynamic updates
-- **templates/**: Askama HTML templates (compile-time checked)
+- **templates/**: Askama HTML templates (compile-time checked); `templates/index.html` is the web UI shell (HTMX + all CSS)
 - **migrations/**: SQLx database migrations
 
 ### Key Design Patterns
@@ -206,11 +205,15 @@ Server initialization and routing:
 - Game IDs are random u64 values
 - Games auto-removed when completed
 - JSON request/response format
-- **Web UI Features**:
+- **Web UI Features** ("Parlor" theme — light + dark via `prefers-color-scheme`; see plans/ui-refresh-parlor.md):
   - HTMX-powered dynamic updates without page reloads
-  - Remaining guesses counter (displays "Guesses remaining: X" when limit is set)
-  - Styled with `.guesses-remaining` CSS class (blue background, prominent display)
-  - Counter shows initial count at game start and updates after each guess
+  - Remaining guesses counter pill (`#counter`, `.counter-pill`) with urgency states
+    (calm → `warn` at ≤3 → pulsing `crit` on last guess); shows "N left" plus a
+    visually-hidden "Guesses remaining:" label, updated per guess via OOB swap
+  - Guess history capsules (`#history`) — each guess prepends a number+chevron
+    capsule via `hx-swap-oob`; newest renders filled (no server-side history)
+  - Range tracker (`#track-live`, `#track-marks`) — display-only bounds round-trip
+    through hidden `low`/`high` form fields, sanitized server-side
 
 ### Security Considerations
 - **Authentication**: All web routes require OAuth2/OIDC authentication
@@ -564,7 +567,7 @@ The project uses GitHub Actions for continuous integration and security scanning
    - Form types in `src/web/types.rs`
    - Handlers in `src/web/handlers/`
    - Templates in `src/web/templates.rs` and `templates/`
-6. Modify HTML in `static/index.html` for UI changes
+6. Modify HTML/CSS in `templates/index.html` for UI changes (all styling lives there)
 7. Write tests in the relevant module
 8. Update documentation (README.md, docs/api.md, docs/requirements.md)
 
@@ -642,9 +645,8 @@ The project uses GitHub Actions for continuous integration and security scanning
 │   │   └── mod.rs       # Server initialization & routing
 │   ├── lib.rs       # Library exports
 │   └── main.rs      # Entry point
-├── static/
-│   └── index.html   # Web UI
-├── templates/       # Askama HTML templates
+├── templates/       # Askama HTML templates (index.html is the web UI shell)
+│   ├── index.html
 │   ├── error.html
 │   ├── game_started.html
 │   ├── guess_form.html

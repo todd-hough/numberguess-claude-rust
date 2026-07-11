@@ -18,3 +18,17 @@ where
         None => Ok(None),
     }
 }
+
+/// Lenient deserializer for optional i32 that treats empty or unparseable
+/// input as None instead of failing the whole request.
+///
+/// Used for display-only state (e.g. the tracker bounds that round-trip
+/// through hidden form fields): garbage input must degrade gracefully to
+/// "no state" rather than reject an otherwise valid guess.
+pub fn deserialize_lenient_i32<'de, D>(deserializer: D) -> Result<Option<i32>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s: Option<String> = Option::deserialize(deserializer)?;
+    Ok(s.and_then(|s| s.parse::<i32>().ok()))
+}

@@ -54,13 +54,13 @@ impl DifficultyLevel {
     /// Returns the CSS color for the difficulty level.
     pub fn color(&self) -> &'static str {
         match self {
-            Self::Unlimited => "#6c757d",  // Gray
-            Self::VeryEasy => "#28a745",   // Green
-            Self::Easy => "#5cb85c",       // Light green
-            Self::Medium => "#ffc107",     // Yellow/amber
-            Self::Hard => "#fd7e14",       // Orange
-            Self::Expert => "#dc3545",     // Red
-            Self::Impossible => "#6f42c1", // Purple
+            Self::Unlimited => "#8a7f6a",  // Warm gray
+            Self::VeryEasy => "#3f9464",   // Green
+            Self::Easy => "#7fa344",       // Leaf green
+            Self::Medium => "#c8930f",     // Mustard
+            Self::Hard => "#d9772e",       // Burnt orange
+            Self::Expert => "#c64545",     // Red
+            Self::Impossible => "#4a4238", // Charcoal
         }
     }
 
@@ -380,7 +380,7 @@ mod tests {
 
         assert_eq!(level.name(), "MEDIUM");
         assert_eq!(level.icon(), "🎯");
-        assert_eq!(level.color(), "#ffc107");
+        assert_eq!(level.color(), "#c8930f");
         assert_eq!(level.meter_width(), 60);
         assert!(level.message().contains("balance"));
         assert_eq!(level.css_class(), "difficulty-medium");

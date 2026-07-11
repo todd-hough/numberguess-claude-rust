@@ -96,12 +96,23 @@ pub async fn create_game_web<R: GameRepository>(
     );
 
     let csrf_token = token.authenticity_token().unwrap_or_default();
+    // Counter pill state (dots only render for limits of 10 or fewer)
+    let (show_counter, counter_label, dots_unspent) = match guess_limit {
+        Some(limit) => (
+            true,
+            format!("{limit} left"),
+            if limit <= 10 { limit } else { 0 },
+        ),
+        None => (false, String::new(), 0),
+    };
     let template = GameStartedTemplate {
         game_id,
         min: payload.min,
         max: payload.max,
-        max_guesses: guess_limit,
         csrf_token,
+        show_counter,
+        counter_label,
+        dots_unspent,
     };
     // Return token in tuple to trigger cookie setting via IntoResponseParts
     Ok((token, template))

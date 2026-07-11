@@ -1,32 +1,46 @@
-{% if let Some(remaining) = remaining_guesses %}
-<div class='guesses-remaining-box'>
-    <p class='guesses-remaining'>Guesses remaining: <strong>{{ remaining }}</strong></p>
-</div>
-{% endif %}
-
-<form class='guess-form'
-      hx-post='/game/{{ game_id }}/guess'
-      hx-target='#game-content'
-      hx-swap='innerHTML'>
+<form class="guess-form"
+      hx-post="/game/{{ game_id }}/guess"
+      hx-target="#game-content"
+      hx-swap="innerHTML">
     <input type="hidden" name="authenticity_token" value="{{ csrf_token }}">
-    <div class='guess-input-group'>
-        <input type='number'
-               name='guess'
-               min='{{ min }}'
-               max='{{ max }}'
-               placeholder='Enter your guess'
-               value=''
+    <input type="hidden" name="low" value="{{ low }}">
+    <input type="hidden" name="high" value="{{ high }}">
+    <div class="guess-input-group">
+        <input type="number"
+               name="guess"
+               min="{{ min }}"
+               max="{{ max }}"
+               placeholder="Enter your guess"
+               value=""
                required
                autofocus>
-        <button type='submit'>
+        <button type="submit">
             Guess
-            <span class='htmx-indicator'>
-                <span class='spinner'></span>
-            </span>
+            <span class="htmx-indicator"><span class="spinner"></span></span>
         </button>
     </div>
 </form>
+<p id="feedback" class="hint active {{ feedback_class }}">{{ feedback_message }}</p>
 
-<div id='feedback' class='active {{ feedback_class }}'>
-    {{ feedback_message }}
+{# Out-of-band: tracker window and a mark at this guess's position #}
+<div id="track-live" class="track-live" style="left:{{ live_left }}%;width:{{ live_width }}%" hx-swap-oob="true"></div>
+<span class="track-mark" style="left:{{ mark_pos }}%" hx-swap-oob="afterbegin:#track-marks"></span>
+
+{# Out-of-band: bound labels — emphasis sits on the closest guessed number
+   per side (the range end until that side has a guess). Label positions are
+   spread apart server-side so the numbers never overlap. #}
+<div id="track-labels" class="track-labels num" hx-swap-oob="true">
+    <span class="end lo{% if !has_low_bound %} emph{% endif %}">{{ min }}</span>
+    {% if has_low_bound %}<span class="bound emph" style="left:{{ low_label_pct }}%">{{ low }}</span>{% endif %}
+    {% if has_high_bound %}<span class="bound emph" style="left:{{ high_label_pct }}%">{{ high }}</span>{% endif %}
+    <span class="end hi{% if !has_high_bound %} emph{% endif %}">{{ max }}</span>
 </div>
+
+{% if show_counter %}
+{# Out-of-band: refresh the counter pill in the game header #}
+<span id="counter" class="counter-pill {{ counter_class }}" hx-swap-oob="true">
+    {% if dots_unspent > 0 %}<span class="dots" aria-hidden="true">{% for _i in 0..dots_spent %}<i class="spent"></i>{% endfor %}{% for _i in 0..dots_unspent %}<i></i>{% endfor %}</span>{% endif %}
+    <span class="visually-hidden">Guesses remaining:</span>
+    <span class="num">{{ counter_label }}</span>
+</span>
+{% endif %}
