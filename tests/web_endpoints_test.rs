@@ -145,14 +145,11 @@ async fn test_remaining_guesses_display() {
         body.contains("Guesses remaining:"),
         "Should display 'Guesses remaining' label"
     );
-    assert!(
-        body.contains("<strong>5</strong>"),
-        "Should display initial count of 5"
-    );
+    assert!(body.contains("5 left"), "Should display initial count of 5");
 
     // Extract game ID from the response
     let game_id = body
-        .split("hx-post='/game/")
+        .split("hx-post=\"/game/")
         .nth(1)
         .and_then(|s| s.split('/').next())
         .expect("Should find game ID in response");
@@ -174,7 +171,7 @@ async fn test_remaining_guesses_display() {
         "Should display 'Guesses remaining' after guess"
     );
     assert!(
-        body.contains("<strong>4</strong>"),
+        body.contains("4 left"),
         "Should show 4 guesses remaining after first guess"
     );
 
@@ -191,7 +188,7 @@ async fn test_remaining_guesses_display() {
 
     // Verify remaining count decreased to 3
     assert!(
-        body.contains("<strong>3</strong>"),
+        body.contains("3 left"),
         "Should show 3 guesses remaining after second guess"
     );
 
@@ -208,7 +205,7 @@ async fn test_remaining_guesses_display() {
 
     // Verify remaining count decreased to 2
     assert!(
-        body.contains("<strong>2</strong>"),
+        body.contains("2 left"),
         "Should show 2 guesses remaining after third guess"
     );
 
@@ -263,7 +260,7 @@ async fn test_no_remaining_guesses_display_without_limit() {
 
     // Extract game ID from the response
     let game_id = body
-        .split("hx-post='/game/")
+        .split("hx-post=\"/game/")
         .nth(1)
         .and_then(|s| s.split('/').next())
         .expect("Should find game ID in response");

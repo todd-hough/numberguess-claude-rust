@@ -1,11 +1,31 @@
-<div id="feedback" class="active {{ feedback_class }}">
-    {{ emoji }} {{ message }}<br>
-    The number was {{ number }}.<br>
-    {% match attempts %}
-    {% when Some with (att) %}
-    It took you {{ att }} guess{% match att %}{% when 1 %}{% else %}es{% endmatch %} to find it!
-    {% when None %}
-    Better luck next time!
-    {% endmatch %}
+{% if win %}
+<div id="feedback" class="active correct win-screen">
+    {# Magnifier cone: dashed lines from the number's spot on the tracker,
+       TANGENT to the halo circle (endpoints precomputed server-side in
+       viewBox units, where 1 unit = 1% of card width — uniform scaling, so
+       tangency survives resizing). The circle's center sits at (50, 24)
+       with radius 15; the halo paints over any residual overlap. #}
+    <svg class="zoom-cone" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
+        <line x1="{{ mark_pos }}" y1="0" x2="{{ t1x }}" y2="{{ t1y }}" pathLength="100"></line>
+        <line x1="{{ mark_pos }}" y1="0" x2="{{ t2x }}" y2="{{ t2y }}" pathLength="100"></line>
+    </svg>
+    <div class="halo"><span class="win-number num{% if number >= 10000 %} win-number-sm{% endif %}">{{ number }}</span></div>
+    <h2 class="win-title">You got it!</h2>
+    <p class="win-sub">{{ message }}</p>
 </div>
+{% else %}
+<div id="feedback" class="active limit-reached">
+    <p class="lose-title">{{ message }}</p>
+    <p class="lose-sub">The number was <strong class="num">{{ number }}</strong>.</p>
+</div>
+{% endif %}
 <button onclick="window.location.href='/'" class="new-game-btn">Start New Game</button>
+
+{% if win %}
+{# Out-of-band: green mark on the tracker where the number was #}
+<span class="track-mark mark-win" style="left:{{ mark_pos }}%" hx-swap-oob="afterbegin:#track-marks"></span>
+{% endif %}
+{% if had_limit %}
+{# Out-of-band: retire the counter pill; the game is over #}
+<span id="counter" class="counter-pill done" hx-swap-oob="true">{% if !win %}<span class="num">0 left</span>{% endif %}</span>
+{% endif %}

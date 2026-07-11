@@ -127,7 +127,7 @@ async fn test_csrf_token_reuse_within_session() {
 
     // 3. Extract game_id from response
     let game_id = body2
-        .split("hx-post='/game/")
+        .split("hx-post=\"/game/")
         .nth(1)
         .and_then(|s| s.split('/').next())
         .expect("Should find game_id in response");

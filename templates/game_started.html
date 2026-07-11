@@ -1,45 +1,55 @@
-<h1>🎯 Number Guessing Game</h1>
-<div id='game-area' class='active'>
-    <div class='game-info'>
-        <h2>Game Started!</h2>
-        <p>I'm thinking of a number between</p>
-        <p class='range-display'>{{ min }} and {{ max }}</p>
-        {% if let Some(limit) = max_guesses %}
-        <p>You have <strong>{{ limit }}</strong> guesses to find it!</p>
+<header class="brand">
+    <span class="brand-mark" aria-hidden="true"></span>
+    <h1>Number Guessing Game</h1>
+</header>
+<div id="game-area" class="active">
+    <div class="game-header">
+        <div>
+            <span class="mini-label">Guessing between</span>
+            <span class="range-display num">{{ min }} &ndash; {{ max }}</span>
+        </div>
+        {% if show_counter %}
+        <span id="counter" class="counter-pill">
+            {% if dots_unspent > 0 %}<span class="dots" aria-hidden="true">{% for _i in 0..dots_unspent %}<i></i>{% endfor %}</span>{% endif %}
+            <span class="visually-hidden">Guesses remaining:</span>
+            <span class="num">{{ counter_label }}</span>
+        </span>
         {% endif %}
     </div>
 
-    <div id='game-content'>
-        {% if let Some(limit) = max_guesses %}
-        <div class='guesses-remaining-box'>
-            <p class='guesses-remaining'>Guesses remaining: <strong>{{ limit }}</strong></p>
+    <div class="tracker" aria-hidden="true">
+        <div class="track">
+            <div id="track-live" class="track-live" style="left:0%;width:100%"></div>
+            <div id="track-marks"></div>
         </div>
-        {% endif %}
+        <div id="track-labels" class="track-labels num">
+            <span class="end lo emph">{{ min }}</span>
+            <span class="end hi emph">{{ max }}</span>
+        </div>
+    </div>
 
-        <form class='guess-form'
-              hx-post='/game/{{ game_id }}/guess'
-              hx-target='#game-content'
-              hx-swap='innerHTML'>
+    <div id="game-content">
+        <form class="guess-form"
+              hx-post="/game/{{ game_id }}/guess"
+              hx-target="#game-content"
+              hx-swap="innerHTML">
             <input type="hidden" name="authenticity_token" value="{{ csrf_token }}">
-            <div class='guess-input-group'>
-                <input type='number'
-                       name='guess'
-                       min='{{ min }}'
-                       max='{{ max }}'
-                       placeholder='Enter your guess'
+            <input type="hidden" name="low" value="{{ min }}">
+            <input type="hidden" name="high" value="{{ max }}">
+            <div class="guess-input-group">
+                <input type="number"
+                       name="guess"
+                       min="{{ min }}"
+                       max="{{ max }}"
+                       placeholder="Enter your guess"
                        required
                        autofocus>
-                <button type='submit'>
+                <button type="submit">
                     Guess
-                    <span class='htmx-indicator'>
-                        <span class='spinner'></span>
-                    </span>
+                    <span class="htmx-indicator"><span class="spinner"></span></span>
                 </button>
             </div>
         </form>
-
-        <div id='game-feedback'>
-            <!-- Feedback will appear here -->
-        </div>
+        <p class="hint hint-muted">Start narrowing it down.</p>
     </div>
 </div>
