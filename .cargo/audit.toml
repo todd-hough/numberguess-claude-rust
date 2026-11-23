@@ -27,7 +27,6 @@
 #
 # Risk assessment: ACCEPTED - Code path never executed, no actual exposure
 #
-# RUSTSEC-2024-0436: paste crate unmaintained (via thirtyfour 0.33.0)
 #
 # Why this is ignored:
 # - Dev-dependency only (thirtyfour Selenium WebDriver client for integration tests)
@@ -43,5 +42,4 @@
 # Risk assessment: ACCEPTED - Dev-only dependency, no production impact, no known exploits
 ignore = [
     "RUSTSEC-2023-0071",  # rsa - Marvin Attack (in unused sqlx-mysql, never executed)
-    "RUSTSEC-2024-0436",  # paste - unmaintained (dev-only, proc-macro, no exploits)
 ]
